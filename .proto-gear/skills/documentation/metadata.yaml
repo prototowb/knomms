@@ -1,0 +1,60 @@
+name: "Technical Documentation"
+type: "skill"
+version: "1.0.0"
+description: "Writing clear, maintainable technical documentation for code and projects"
+
+category: "documentation"
+tags: ["documentation", "writing", "clarity", "maintenance", "technical-writing", "readme"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/documentation-update"
+  suggested:
+    - "skills/code-review"
+
+conflicts: []
+
+composable_with:
+  - "skills/code-review"
+  - "workflows/feature-development"
+  - "workflows/documentation-update"
+  - "workflows/release"
+
+agent_roles:
+  - "Documentation Agent"
+  - "Technical Writer Agent"
+  - "Full-Stack Developer Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "documentation"
+    - "docs"
+    - "readme"
+    - "write docs"
+    - "document code"
+    - "api documentation"
+  contexts:
+    - "After implementing features"
+    - "When onboarding new team members"
+    - "Before releases"
+    - "When APIs change"
+
+usage_notes: |
+  Good documentation is clear, concise, and maintained alongside code.
+  Include: purpose, usage examples, API references, architecture diagrams.
+
+  Update documentation as part of feature-development workflow.
+  Keep README.md, API docs, and inline comments synchronized.
+
+required_files: []
+
+optional_files:
+  - "README.md"
+  - "CONTRIBUTING.md"
+  - "ARCHITECTURE.md"

@@ -1,0 +1,90 @@
+name: "Generate Changelog"
+type: "command"
+slash_command: "/generate-changelog"
+version: "1.1.0"
+description: "Generate or update CHANGELOG.md from git history"
+
+category: "release-management"
+tags: ["changelog", "release", "documentation", "versioning", "history"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-15"
+
+# Slash command arguments
+arguments:
+  optional:
+    - name: "--since"
+      type: "string"
+      description: "Version tag to start from (e.g., v1.0.0)"
+    - name: "--output"
+      type: "string"
+      default: "CHANGELOG.md"
+      description: "Output file path"
+    - name: "--format"
+      type: "enum"
+      values: ["keepachangelog", "conventional", "github"]
+      default: "keepachangelog"
+      description: "Changelog format"
+
+# Example invocations
+invocation_examples:
+  - '/generate-changelog'
+  - '/generate-changelog --since v1.0.0'
+  - '/generate-changelog --output docs/CHANGES.md'
+  - '/generate-changelog --format conventional'
+  - '/generate-changelog --since v1.2.0 --format github'
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/release"
+    - "workflows/finalize-release"
+  suggested:
+    - "skills/documentation"
+
+conflicts: []
+
+composable_with:
+  - "skills/documentation"
+  - "workflows/release"
+  - "workflows/finalize-release"
+  - "workflows/complete-release"
+
+agent_roles:
+  - "Release Manager Agent"
+  - "Documentation Agent"
+  - "DevOps Agent"
+
+relevance:
+  triggers:
+    - "/generate-changelog"
+    - "changelog"
+    - "generate changelog"
+    - "update changelog"
+  contexts:
+    - "When user types /generate-changelog"
+    - "Before releases"
+    - "After completing features"
+    - "For version documentation"
+
+usage_notes: |
+  Slash command: /generate-changelog [--since VER] [--output FILE] [--format FMT]
+
+  Generate changelog from git commit history.
+  Parses conventional commits, groups by type (feat/fix/etc).
+  Works best with consistent commit message format.
+
+required_files: []
+
+optional_files:
+  - "CHANGELOG.md"
+  - "BRANCHING.md"
+
+command:
+  idempotent: false
+  side_effects:
+    - "CHANGELOG.md (creates or updates)"
+  prerequisites:
+    - "Git repository must exist"
+    - "Conventional commit format recommended"

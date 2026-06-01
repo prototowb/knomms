@@ -1,0 +1,79 @@
+name: "Code Review Process Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Complete PR creation, review, approval, and merge workflow"
+
+category: "development"
+tags: ["pr", "pull-request", "review", "merge", "collaboration", "code-quality", "github"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-18"
+
+dependencies:
+  required:
+    - "skills/code-review"
+  optional:
+    - "skills/testing"
+    - "commands/update-status"
+  suggested:
+    - "workflows/feature-development"
+    - "workflows/bug-fix"
+
+conflicts: []
+
+composable_with:
+  - "skills/code-review"
+  - "skills/testing"
+  - "commands/update-status"
+  - "commands/create-ticket"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+  - "workflows/hotfix"
+
+agent_roles:
+  - "Code Review Agent"
+  - "Full-Stack Developer Agent"
+  - "Backend Agent"
+  - "Frontend Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "code review"
+    - "pull request"
+    - "PR"
+    - "merge"
+    - "review"
+    - "approve"
+    - "create pr"
+    - "open pr"
+  contexts:
+    - "After feature implementation is complete"
+    - "Before merging to main/development"
+    - "When requesting feedback on code"
+    - "During collaborative development"
+
+usage_notes: |
+  Complete code review workflow from PR creation through merge.
+
+  Flow: prepare -> create PR -> request review -> address feedback ->
+        get approval -> merge -> post-merge cleanup
+
+  Integrates with skills/code-review for review expertise.
+  Use after completing feature/bug-fix work and before merging.
+
+required_files:
+  - "BRANCHING.md"
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - "AGENTS.md"
+  - "CONTRIBUTING.md"
+
+workflow:
+  steps: 7
+  estimated_duration: "30 min - 4 hours (depends on review cycles)"
+  outputs:
+    - "type: merged-code"
+    - "type: documentation"

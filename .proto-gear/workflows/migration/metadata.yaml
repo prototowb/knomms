@@ -1,0 +1,79 @@
+name: "Migration Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Breaking change and data migration workflow with rollback planning"
+
+category: "development"
+tags: ["migration", "breaking-change", "data", "schema", "backwards-compatibility", "rollout", "deprecation"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-18"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+    - "commands/create-ticket"
+  suggested:
+    - "workflows/release"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "workflows/release"
+  - "commands/create-ticket"
+  - "commands/update-status"
+
+agent_roles:
+  - "Migration Agent"
+  - "Database Agent"
+  - "DevOps Agent"
+  - "Backend Agent"
+  - "Team Lead Agent"
+  - "Architect Agent"
+
+relevance:
+  triggers:
+    - "migration"
+    - "breaking change"
+    - "schema change"
+    - "data migration"
+    - "backwards compatibility"
+    - "major version"
+    - "deprecation"
+    - "database migration"
+    - "API migration"
+  contexts:
+    - "When introducing breaking API changes"
+    - "When changing database schemas"
+    - "When migrating data between systems"
+    - "For major version releases"
+    - "When deprecating features"
+
+usage_notes: |
+  Complete migration workflow covering:
+  plan -> backwards compatibility -> rollback plan ->
+  migration scripts -> staged rollout -> verify -> cleanup
+
+  Use for any breaking changes requiring careful coordination.
+  Emphasizes rollback planning at every stage.
+
+  Migration types: schema, API, data format, system migration
+
+required_files: []
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - "CHANGELOG.md"
+  - "MIGRATION_GUIDE.md"
+
+workflow:
+  steps: 8
+  estimated_duration: "1 day - 2 weeks (depends on scope)"
+  outputs:
+    - "type: migration-plan"
+    - "type: rollback-plan"
+    - "type: documentation"
+    - "type: scripts"

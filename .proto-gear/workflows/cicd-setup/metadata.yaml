@@ -1,0 +1,64 @@
+name: "CI/CD Setup Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Setting up continuous integration and deployment pipelines"
+
+category: "devops"
+tags: ["ci", "cd", "devops", "automation", "pipeline", "continuous-integration"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+  suggested:
+    - "skills/documentation"
+    - "workflows/monitoring-setup"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/documentation"
+  - "skills/security"
+  - "workflows/monitoring-setup"
+
+agent_roles:
+  - "DevOps Agent"
+  - "CI/CD Specialist"
+  - "Infrastructure Agent"
+
+relevance:
+  triggers:
+    - "ci cd"
+    - "continuous integration"
+    - "pipeline"
+    - "automation"
+    - "github actions"
+    - "jenkins"
+  contexts:
+    - "When setting up new project"
+    - "For automation needs"
+    - "Before production deployment"
+
+usage_notes: |
+  CI/CD setup workflow for automated testing and deployment.
+
+  Includes: pipeline configuration, automated tests, deployment automation.
+  Works with various CI/CD platforms (GitHub Actions, Jenkins, GitLab CI).
+
+required_files: []
+
+optional_files:
+  - "TESTING.md"
+  - "CONTRIBUTING.md"
+
+workflow:
+  steps: 8
+  estimated_duration: "2-4 hours"
+  outputs:
+    - "type: configuration"
+    - "type: automation"

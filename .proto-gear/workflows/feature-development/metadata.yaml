@@ -1,0 +1,75 @@
+name: "Feature Development Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Complete workflow for developing new features from planning to deployment"
+
+category: "development"
+tags: ["feature", "development", "workflow", "planning", "implementation", "testing", "deployment"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required:
+    - "skills/testing"
+  optional:
+    - "skills/code-review"
+    - "commands/create-ticket"
+  suggested:
+    - "skills/refactoring"
+    - "commands/generate-changelog"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/code-review"
+  - "skills/debugging"
+  - "skills/documentation"
+  - "skills/refactoring"
+  - "commands/create-ticket"
+  - "commands/analyze-coverage"
+
+agent_roles:
+  - "Full-Stack Developer Agent"
+  - "Feature Development Agent"
+  - "Backend Agent"
+  - "Frontend Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "new feature"
+    - "implement feature"
+    - "build feature"
+    - "add functionality"
+    - "feature request"
+  contexts:
+    - "When implementing new functionality"
+    - "After feature planning"
+    - "During sprint work"
+
+usage_notes: |
+  Complete workflow for feature development following best practices.
+  Includes: planning, implementation (TDD), testing, code review, deployment.
+
+  Steps: create ticket → design → TDD implementation → code review → merge → deploy.
+  Requires testing skill for TDD approach throughout development.
+
+required_files:
+  - "PROJECT_STATUS.md"
+  - "TESTING.md"
+
+optional_files:
+  - "BRANCHING.md"
+  - "ARCHITECTURE.md"
+  - "CONTRIBUTING.md"
+
+workflow:
+  steps: 7
+  estimated_duration: "2-4 hours per feature"
+  outputs:
+    - "type: code"
+    - "type: tests"
+    - "type: documentation"

@@ -1,0 +1,62 @@
+name: "Security Best Practices"
+type: "skill"
+version: "1.0.0"
+description: "Security best practices and vulnerability prevention techniques"
+
+category: "security"
+tags: ["security", "vulnerability", "best-practices", "owasp", "authentication", "authorization", "encryption"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/code-review"
+    - "skills/testing"
+  suggested:
+    - "workflows/feature-development"
+
+conflicts: []
+
+composable_with:
+  - "skills/code-review"
+  - "skills/testing"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+
+agent_roles:
+  - "Security Agent"
+  - "Security Specialist"
+  - "Backend Agent"
+  - "Full-Stack Developer Agent"
+  - "DevOps Agent"
+
+relevance:
+  triggers:
+    - "security"
+    - "vulnerability"
+    - "authentication"
+    - "authorization"
+    - "encryption"
+    - "owasp"
+    - "secure"
+  contexts:
+    - "When handling user data"
+    - "Before production deployment"
+    - "After security audits"
+    - "When implementing authentication"
+
+usage_notes: |
+  Security must be considered from the start, not added later.
+  Follow OWASP Top 10 guidelines and principle of least privilege.
+
+  Key areas: input validation, authentication, authorization, encryption, logging.
+  Integrate security checks into code review and testing workflows.
+
+required_files: []
+
+optional_files:
+  - "SECURITY.md"
+  - "CONTRIBUTING.md"

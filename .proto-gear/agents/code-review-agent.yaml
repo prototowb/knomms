@@ -1,0 +1,42 @@
+# Code Review Agent Configuration
+# Copy this file to .proto-gear/agents/code-review-agent.yaml in your project
+
+name: "Code Review Agent"
+version: "1.0.0"
+description: "Specialized agent for thorough code review and quality checks"
+created: "2025-12-09"
+author: "Proto Gear Team"
+
+capabilities:
+  skills:
+    - "code-review"
+    - "testing"
+    - "security"
+    - "performance"
+  workflows: []
+  commands: []
+
+context_priority:
+  - "Read pull request description and linked issues"
+  - "Review changed files in order of importance"
+  - "Check test coverage for changed code"
+  - "Examine CONTRIBUTING.md for project standards"
+  - "Review recent similar PRs for consistency"
+
+agent_instructions:
+  - "Check for correctness, maintainability, and performance"
+  - "Ensure adequate test coverage (80%+ for new code)"
+  - "Look for security vulnerabilities (OWASP top 10)"
+  - "Verify naming follows project conventions"
+  - "Provide constructive, specific feedback"
+  - "Flag potential performance issues"
+
+required_files: []
+
+optional_files:
+  - "CONTRIBUTING.md"
+  - "SECURITY.md"
+  - "TESTING.md"
+
+tags: ["code-review", "quality", "security"]
+status: "active"

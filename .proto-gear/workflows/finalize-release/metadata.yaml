@@ -1,0 +1,60 @@
+name: "Finalize Release Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Final steps for completing and announcing a release"
+
+category: "release"
+tags: ["release", "finalize", "announcement", "documentation", "post-release"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/release"
+    - "commands/generate-changelog"
+  suggested:
+    - "skills/documentation"
+
+conflicts: []
+
+composable_with:
+  - "workflows/release"
+  - "workflows/complete-release"
+  - "skills/documentation"
+  - "commands/generate-changelog"
+
+agent_roles:
+  - "Release Manager Agent"
+  - "Documentation Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "finalize release"
+    - "post-release"
+    - "announce release"
+  contexts:
+    - "After release deployment"
+    - "For release announcements"
+
+usage_notes: |
+  Finalize release after successful deployment.
+
+  Includes: documentation updates, release notes, announcements, cleanup.
+  Part of complete release cycle.
+
+required_files: []
+
+optional_files:
+  - "CHANGELOG.md"
+  - "PROJECT_STATUS.md"
+
+workflow:
+  steps: 6
+  estimated_duration: "30-60 minutes"
+  outputs:
+    - "type: documentation"
+    - "type: announcement"

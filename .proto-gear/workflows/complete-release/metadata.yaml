@@ -1,0 +1,64 @@
+name: "Complete Release Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "End-to-end release workflow combining all release phases"
+
+category: "release"
+tags: ["release", "complete", "end-to-end", "deployment", "comprehensive"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/release"
+    - "workflows/finalize-release"
+  suggested:
+    - "commands/generate-changelog"
+
+conflicts: []
+
+composable_with:
+  - "workflows/release"
+  - "workflows/finalize-release"
+  - "skills/testing"
+  - "skills/documentation"
+  - "commands/generate-changelog"
+
+agent_roles:
+  - "Release Manager Agent"
+  - "DevOps Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "complete release"
+    - "full release cycle"
+    - "end-to-end release"
+  contexts:
+    - "For major releases"
+    - "When comprehensive release needed"
+
+usage_notes: |
+  Complete end-to-end release workflow.
+  Combines preparation, testing, deployment, and finalization.
+
+  Use for major releases or when full release cycle is required.
+
+required_files:
+  - "PROJECT_STATUS.md"
+
+optional_files:
+  - "CHANGELOG.md"
+  - "BRANCHING.md"
+
+workflow:
+  steps: 15
+  estimated_duration: "2-4 hours"
+  outputs:
+    - "type: release"
+    - "type: deployment"
+    - "type: documentation"
+    - "type: announcement"

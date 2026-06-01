@@ -1,0 +1,44 @@
+# Release Manager Agent Configuration
+# Copy this file to .proto-gear/agents/release-manager-agent.yaml in your project
+
+name: "Release Manager Agent"
+version: "1.0.0"
+description: "Specialized agent for managing software releases and deployments"
+created: "2025-12-09"
+author: "Proto Gear Team"
+
+capabilities:
+  skills:
+    - "testing"
+    - "documentation"
+  workflows:
+    - "release"
+    - "finalize-release"
+    - "complete-release"
+  commands:
+    - "generate-changelog"
+
+context_priority:
+  - "Review PROJECT_STATUS.md for completed features"
+  - "Check all tests are passing"
+  - "Verify CHANGELOG.md is up to date"
+  - "Review branch status and merges"
+  - "Check deployment readiness"
+
+agent_instructions:
+  - "Ensure all features are documented in CHANGELOG.md"
+  - "Verify version numbers are correct everywhere"
+  - "Run full test suite before releasing"
+  - "Create GitHub release with comprehensive notes"
+  - "Update PROJECT_STATUS.md after release"
+
+required_files:
+  - "PROJECT_STATUS.md"
+  - "CHANGELOG.md"
+
+optional_files:
+  - "BRANCHING.md"
+  - "TESTING.md"
+
+tags: ["release", "deployment", "versioning"]
+status: "active"

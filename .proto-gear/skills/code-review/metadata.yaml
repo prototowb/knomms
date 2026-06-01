@@ -1,0 +1,66 @@
+name: "Code Review Best Practices"
+type: "skill"
+version: "1.0.0"
+description: "Systematic code review methodology for maintaining code quality and knowledge sharing"
+
+category: "quality"
+tags: ["code-review", "quality", "feedback", "collaboration", "best-practices", "pull-request"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+    - "workflows/feature-development"
+  suggested:
+    - "skills/security"
+    - "skills/performance"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/security"
+  - "skills/performance"
+  - "skills/refactoring"
+  - "skills/debugging"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+
+agent_roles:
+  - "Code Review Agent"
+  - "Quality Assurance Agent"
+  - "Senior Developer Agent"
+  - "Full-Stack Developer Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "code review"
+    - "pull request"
+    - "pr review"
+    - "review code"
+    - "feedback"
+    - "quality check"
+  contexts:
+    - "Before merging pull requests"
+    - "After feature completion"
+    - "During collaboration"
+    - "When maintaining code quality"
+
+usage_notes: |
+  Code review focuses on correctness, maintainability, and knowledge sharing.
+  Reviews should be constructive, specific, and actionable.
+
+  Check for: correctness, tests, documentation, security, performance, maintainability.
+  Works best as part of feature-development workflow before merge.
+
+required_files: []
+
+optional_files:
+  - "CONTRIBUTING.md"
+  - "BRANCHING.md"
+  - "PROJECT_STATUS.md"
