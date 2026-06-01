@@ -55,7 +55,7 @@ ticket_prefix: "KC"
 
 ## 🎫 Active Tickets
 
-*All Milestone 0 tickets completed — ready for Milestone 1.*
+*All Milestone 1 tickets completed — ready for Milestone 2.*
 
 ---
 
@@ -75,6 +75,15 @@ ticket_prefix: "KC"
 - SPEC-011: PROJECT_SPECIFICATIONS.md entry point (2026-06-01)
 
 ---
+
+## ✅ Milestone 1 Tickets
+
+- KC-007: Dockerfile + pyproject.toml fix (.[ingestion]); migration 002 (vector_namespace) (2026-06-01)
+- KC-008: Ingestion domain — RawBlock, PDF/web extractors, chunker, service, router (2026-06-01)
+- KC-009: Retrieval domain — pgvector cosine search, namespace-scoped, types module (2026-06-01)
+- KC-010: Generation domain — Ollama client, citation injection/validation, SSE router (2026-06-01)
+- KC-011: Worker — Redis Streams consumer, 7-stage ingestion pipeline, batched embed (2026-06-01)
+- KC-012: Unit tests — 29/29 passing (chunker, citations, SSE format) (2026-06-01)
 
 ## ✅ Milestone 0 Tickets
 

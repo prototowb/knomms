@@ -24,6 +24,11 @@ class Chunk(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     embedding_model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    # Stamped at ingest time — mirrors KnowledgeBase.vector_namespace.
+    # Allows single-column WHERE filter on retrieval queries without joining
+    # through the full chunks→sources→collection_items→collections→KBs chain.
+    vector_namespace: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     is_overlap: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

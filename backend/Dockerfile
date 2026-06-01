@@ -2,15 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system deps for psycopg2-binary, bcrypt, and Playwright
+# System deps: libpq for psycopg2, curl for health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies (includes ingestion extras for the worker)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e ".[server]"
+RUN pip install --no-cache-dir -e ".[ingestion]"
 
 # Copy application source
 COPY . .
