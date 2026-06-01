@@ -101,7 +101,7 @@ onMounted(fetchPaths)
         <input
           v-model="learningGoal"
           type="text"
-          placeholder="Learning goal, e.g. "Understand the end-to-end ingestion pipeline""
+          placeholder="Learning goal, e.g. &#x27;Understand the end-to-end ingestion pipeline&#x27;"
           :disabled="generating"
           class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50"
           @keydown.enter="generatePath"

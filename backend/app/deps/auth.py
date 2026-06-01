@@ -9,6 +9,7 @@ from app.deps.db import get_db
 from app.models.user import User
 
 bearer = HTTPBearer()
+_optional_bearer = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -31,4 +32,27 @@ async def get_current_user(
 
     # Attach resolved namespaces to the user object for use in retrieval queries
     user._namespaces = payload.get("namespaces", [])  # type: ignore[attr-defined]
+    return user
+
+
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """Return the current user if a valid Bearer token is present; otherwise None.
+
+    Used by public endpoints (board view, explore, curator profiles) that are
+    accessible without authentication but can personalize responses when authed.
+    """
+    if credentials is None:
+        return None
+    try:
+        payload = decode_token(credentials.credentials)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+    if payload.get("type") != "access":
+        return None
+    user = await db.get(User, payload["sub"])
+    if user is None or not user.is_active:
+        return None
     return user
