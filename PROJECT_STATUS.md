@@ -55,7 +55,7 @@ ticket_prefix: "KC"
 
 ## 🎫 Active Tickets
 
-*No active tickets — project is in pre-development specification phase.*
+*All Milestone 0 tickets completed — ready for Milestone 1.*
 
 ---
 
@@ -76,14 +76,20 @@ ticket_prefix: "KC"
 
 ---
 
-## Suggested First Tickets (when development begins)
+## ✅ Milestone 0 Tickets
+
+- KC-001: Fix docker-compose.yml build paths and service contracts (2026-06-01)
+- KC-002: .env.example, nginx/nginx.conf, backend/Dockerfile, frontend/Dockerfile (2026-06-01)
+- KC-003: Backend skeleton — pyproject.toml, core modules, 5 ORM models (2026-06-01)
+- KC-004: Alembic setup + baseline migration (pgvector extension + 5 tables) (2026-06-01)
+- KC-005: Identity domain — /health + register/login/refresh/me endpoints (2026-06-01)
+- KC-006: Nuxt 3 frontend scaffold — nuxt.config.ts, Tailwind, Pinia, auth store (2026-06-01)
+
+---
+
+## Milestone 1 Tickets (next)
 
 Create these with `pg ticket create "title" --type feature`:
-
-**Milestone 0 — Infrastructure Baseline**
-- Docker Compose stack: db, redis, minio, ollama, nginx services
-- PostgreSQL schema + pgvector extension + Alembic baseline migration
-- FastAPI app skeleton: settings, db dependency, JWT auth endpoints
 
 **Milestone 1 — Ingestion Loop**
 - PDF ingestion pipeline: extract → chunk → embed → pgvector

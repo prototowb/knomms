@@ -3,12 +3,13 @@
 # Requirements: Docker Compose v2.20+
 #
 # Quick start:
-#   cp .env.example .env   # edit secrets and OLLAMA_MODEL
-#   docker compose pull
-#   docker compose up -d
-#   docker compose exec api python manage.py migrate
+#   cp .env.example .env          # fill in POSTGRES_PASSWORD, SECRET_KEY, MINIO_ROOT_PASSWORD
+#   docker compose up -d db redis minio  # start data services first
+#   docker compose run --rm api alembic upgrade head  # run migrations
+#   docker compose up -d          # start everything
 #
 # See docs/05-platform-architecture.md for hardware sizing guidance.
+# See docs/08-backend-architecture.md for backend structure.
 
 services:
 
@@ -19,11 +20,11 @@ services:
     environment:
       POSTGRES_DB: knowledge_commons
       POSTGRES_USER: ${POSTGRES_USER:-kc}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc} -d knowledge_commons"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,6 +39,8 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── MinIO (S3-compatible object storage for raw media) ───────────────────
   minio:
@@ -45,17 +48,20 @@ services:
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kc-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
       interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ── Ollama (local LLM inference — generation + embeddings) ───────────────
-  # GPU: uncomment the deploy block below and set OLLAMA_MODEL to a larger model.
-  # CPU-only: remove the deploy block; expect slower inference.
+  # Not required for Milestone 0 (no ingestion/generation in M0).
+  # The api service does NOT depend on ollama being healthy at startup.
+  # GPU: uncomment the deploy block and set OLLAMA_MODEL to a larger model.
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -73,9 +79,12 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
       interval: 30s
+      timeout: 10s
+      retries: 3
       start_period: 60s
 
-  # ── Model warm-up (pulls OLLAMA_MODEL and embedding model on first start) ─
+  # ── Model warm-up (pulls generation + embedding model on first start) ─────
+  # Run manually when ready: docker compose run --rm ollama-init
   ollama-init:
     image: ollama/ollama:latest
     depends_on:
@@ -83,24 +92,29 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
     entrypoint: ["/bin/sh", "-c",
-      "ollama pull ${OLLAMA_MODEL} && ollama pull nomic-embed-text"]
+      "ollama pull ${OLLAMA_MODEL:-mistral:7b-instruct} && ollama pull nomic-embed-text"]
     restart: "no"
 
   # ── Application API ───────────────────────────────────────────────────────
   api:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
+      minio:
         condition: service_healthy
+      # ollama intentionally omitted from deps — not required until Milestone 1
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      # asyncpg driver required for SQLAlchemy async
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      # sync URL used by Alembic only
+      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}
@@ -108,15 +122,17 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
       OLLAMA_EMBED_MODEL: nomic-embed-text
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY required}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       MAX_CONCURRENT_GENERATIONS: ${MAX_CONCURRENT_GENERATIONS:-2}
     volumes:
       - ./logs:/app/logs
 
   # ── Ingestion worker (picks up jobs from Redis Streams) ───────────────────
   worker:
-    build: .
-    command: python -m worker
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.worker
     restart: unless-stopped
     depends_on:
       api:
@@ -124,7 +140,7 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}
@@ -142,30 +158,29 @@ services:
     depends_on:
       - api
     environment:
-      NUXT_PUBLIC_API_BASE: /api           # proxied through Nginx
-      NUXT_SECRET: ${SECRET_KEY:?SECRET_KEY required}
+      NUXT_PUBLIC_API_BASE: /api
+      NUXT_SECRET: ${SECRET_KEY}
       NODE_ENV: ${NODE_ENV:-production}
-    # Development override: replace build with dev server
+    # Development: override command to use dev server and expose port directly
     # command: npm run dev
-    # ports: ["3000:3000"]   # expose directly when developing without Nginx
+    # ports: ["3000:3000"]
 
-  # ── Nginx reverse proxy (TLS termination + static serving) ───────────────
+  # ── Nginx reverse proxy ───────────────────────────────────────────────────
+  # M0: plain HTTP only. TLS (Let's Encrypt) is a deployment concern, not a
+  # baseline concern — certbot can't issue for localhost.
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
     depends_on:
       - api
       - frontend
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro  # place Let's Encrypt certs here
-      - minio_data:/var/www/media:ro        # direct static serving for public assets
 
 volumes:
   db_data:
   redis_data:
   minio_data:
-  ollama_models:    # persists pulled model weights across restarts (~4–40GB depending on model)
+  ollama_models:
