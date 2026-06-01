@@ -15,7 +15,7 @@ export function useStreamingQuery(kbId: string): StreamingQueryResult {
   const error = ref<string | null>(null)
 
   async function submit(query: string): Promise<void> {
-    // Reset state for new query
+    const auth = useAuthStore()
     response.value = ''
     citations.value = {}
     error.value = null
@@ -24,7 +24,10 @@ export function useStreamingQuery(kbId: string): StreamingQueryResult {
     try {
       const res = await fetch(`/api/kb/${kbId}/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+        },
         body: JSON.stringify({ query }),
       })
 

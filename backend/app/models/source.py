@@ -31,6 +31,11 @@ class Source(Base):
     )  # pending | processing | chunked | embedded | failed | stale
     ingestion_job_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
+    # Which KB this source was ingested into (set at submission time)
+    kb_id: Mapped[str | None] = mapped_column(
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
 

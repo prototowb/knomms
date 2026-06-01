@@ -35,6 +35,7 @@ class IngestionService:
             type="web_page",
             raw_url=url_str,
             title=_title_from_url(url_str),
+            kb_id=kb.id,
             ingestion_status="pending",
         )
         self.db.add(source)
@@ -67,6 +68,7 @@ class IngestionService:
             type=source_type,
             storage_key=storage_key,
             title=file.filename,
+            kb_id=kb.id,
             ingestion_status="pending",
         )
         self.db.add(source)
