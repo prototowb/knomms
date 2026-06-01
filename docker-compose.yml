@@ -132,6 +132,23 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_EMBED_MODEL: nomic-embed-text
 
+  # ── Nuxt 3 frontend (Vue 3 + Tailwind CSS + Pinia) ───────────────────────
+  # Nuxt server routes act as the Web BFF — no separate BFF service needed.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NUXT_PUBLIC_API_BASE: /api           # proxied through Nginx
+      NUXT_SECRET: ${SECRET_KEY:?SECRET_KEY required}
+      NODE_ENV: ${NODE_ENV:-production}
+    # Development override: replace build with dev server
+    # command: npm run dev
+    # ports: ["3000:3000"]   # expose directly when developing without Nginx
+
   # ── Nginx reverse proxy (TLS termination + static serving) ───────────────
   nginx:
     image: nginx:alpine
@@ -141,6 +158,7 @@ services:
       - "443:443"
     depends_on:
       - api
+      - frontend
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro  # place Let's Encrypt certs here

@@ -23,6 +23,21 @@ Community (co-authorship, grounded discussion, fork lineage) permeates all three
 | [`docs/04-discovery-layer.md`](docs/04-discovery-layer.md) | Layer 3 — Discovery and Curation Layer (product) |
 | [`docs/05-platform-architecture.md`](docs/05-platform-architecture.md) | Cross-cutting platform, data models, infrastructure |
 | [`docs/06-roadmap.md`](docs/06-roadmap.md) | MVP scope, phasing, and full-build roadmap |
+| [`docs/07-frontend-architecture.md`](docs/07-frontend-architecture.md) | Frontend stack, project structure, interaction patterns |
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Vue 3 + Nuxt 3 (hybrid SSR/SPA) + Tailwind CSS + Pinia |
+| Backend API | Python (FastAPI) |
+| AI inference | Ollama (local LLM — Mistral/Llama 3/Phi-3) |
+| Embeddings | nomic-embed-text-v1.5 (via Ollama) |
+| Database | PostgreSQL 16 + pgvector |
+| Object storage | MinIO (S3-compatible, self-hosted) |
+| Cache / queue | Redis 7 + Redis Streams |
+| Reverse proxy | Nginx |
+| Deployment | Docker Compose |
 
 ## Core Design Principles
 
