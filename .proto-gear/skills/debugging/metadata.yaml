@@ -1,0 +1,68 @@
+name: "Debugging & Troubleshooting"
+type: "skill"
+version: "1.0.0"
+description: "Systematic debugging methodology for identifying and fixing software issues"
+
+category: "debugging"
+tags: ["debugging", "troubleshooting", "problem-solving", "root-cause-analysis", "investigation"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+    - "workflows/bug-fix"
+  suggested:
+    - "skills/code-review"
+    - "commands/analyze-coverage"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/code-review"
+  - "skills/performance"
+  - "workflows/bug-fix"
+  - "workflows/hotfix"
+  - "workflows/feature-development"
+
+agent_roles:
+  - "Debugging Agent"
+  - "Bug Fix Agent"
+  - "Troubleshooting Specialist"
+  - "Full-Stack Developer Agent"
+  - "Backend Agent"
+  - "Frontend Agent"
+
+relevance:
+  triggers:
+    - "debug"
+    - "troubleshoot"
+    - "bug"
+    - "error"
+    - "issue"
+    - "failing"
+    - "broken"
+    - "not working"
+  contexts:
+    - "When code behaves unexpectedly"
+    - "When tests fail"
+    - "When errors occur"
+    - "After bug reports"
+    - "During investigation"
+
+usage_notes: |
+  Systematic debugging uses the scientific method: observe, hypothesize, test, repeat.
+  Patterns include divide-and-conquer, rubber duck debugging, and binary search.
+
+  Works best combined with testing skills for writing regression tests.
+  Essential for bug-fix and hotfix workflows.
+
+required_files: []
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - "TESTING.md"

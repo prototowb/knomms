@@ -1,0 +1,94 @@
+name: "Create Ticket"
+type: "command"
+slash_command: "/create-ticket"
+version: "1.1.0"
+description: "Create and properly document a ticket in PROJECT_STATUS.md"
+
+category: "project-management"
+tags: ["ticket", "planning", "status", "documentation", "sprint", "tracking"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-15"
+
+# Slash command arguments
+arguments:
+  required:
+    - name: "title"
+      type: "string"
+      description: "Ticket title (in quotes)"
+  optional:
+    - name: "--type"
+      type: "enum"
+      values: ["feature", "bugfix", "hotfix", "task"]
+      default: "task"
+      description: "Type of ticket"
+    - name: "--assignee"
+      type: "string"
+      description: "Agent or person responsible"
+    - name: "--priority"
+      type: "enum"
+      values: ["low", "medium", "high", "critical"]
+      default: "medium"
+      description: "Ticket priority"
+
+# Example invocations
+invocation_examples:
+  - '/create-ticket "Add user authentication"'
+  - '/create-ticket "Fix login bug" --type bugfix'
+  - '/create-ticket "Add dark mode" --type feature --assignee "Frontend Agent"'
+  - '/create-ticket "Update docs" --type task --priority low'
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/feature-development"
+    - "workflows/bug-fix"
+  suggested: []
+
+conflicts: []
+
+composable_with:
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+  - "workflows/hotfix"
+  - "workflows/release"
+
+agent_roles:
+  - "Project Manager Agent"
+  - "All Agents"
+
+relevance:
+  triggers:
+    - "/create-ticket"
+    - "create ticket"
+    - "new ticket"
+    - "add ticket"
+  contexts:
+    - "When user types /create-ticket"
+    - "When starting any new work item"
+    - "Before beginning features"
+    - "After discovering bugs"
+
+usage_notes: |
+  Slash command: /create-ticket "title" [--type TYPE] [--assignee NAME] [--priority LEVEL]
+
+  Create ticket command should be used before starting any trackable work.
+  Integrates with feature-development and bug-fix workflows as Step 1.
+
+  Updates PROJECT_STATUS.md to maintain single source of truth for project state.
+  Includes: ticket ID, title, type, status, branch, assignee.
+
+required_files:
+  - "PROJECT_STATUS.md"
+
+optional_files: []
+
+command:
+  idempotent: false
+  side_effects:
+    - "PROJECT_STATUS.md (adds ticket entry)"
+    - "PROJECT_STATUS.md (increments last_ticket_id)"
+  prerequisites:
+    - "PROJECT_STATUS.md must exist"
+    - "PROJECT_STATUS.md must have valid YAML metadata section"

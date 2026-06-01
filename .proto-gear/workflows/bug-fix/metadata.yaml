@@ -1,0 +1,76 @@
+name: "Bug Fix Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Systematic workflow for investigating and fixing software defects"
+
+category: "maintenance"
+tags: ["bug", "fix", "debugging", "workflow", "testing", "regression"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required:
+    - "skills/debugging"
+    - "skills/testing"
+  optional:
+    - "commands/create-ticket"
+    - "skills/code-review"
+  suggested:
+    - "commands/analyze-coverage"
+
+conflicts: []
+
+composable_with:
+  - "skills/debugging"
+  - "skills/testing"
+  - "skills/code-review"
+  - "commands/create-ticket"
+  - "commands/analyze-coverage"
+
+agent_roles:
+  - "Bug Fix Agent"
+  - "Debugging Agent"
+  - "Maintenance Agent"
+  - "Full-Stack Developer Agent"
+  - "Backend Agent"
+  - "Frontend Agent"
+
+relevance:
+  triggers:
+    - "bug"
+    - "defect"
+    - "error"
+    - "issue"
+    - "broken"
+    - "not working"
+    - "failing"
+  contexts:
+    - "When existing functionality is broken"
+    - "After bug reports"
+    - "When tests are failing"
+    - "During maintenance"
+
+usage_notes: |
+  Systematic bug fix workflow combining debugging with TDD practices.
+  CRITICAL: Always write regression test before fixing the bug (RED phase).
+
+  Steps: reproduce bug → write failing test → debug → fix → verify → commit.
+  Requires both debugging and testing skills to function properly.
+
+required_files:
+  - "PROJECT_STATUS.md"
+  - "TESTING.md"
+
+optional_files:
+  - "BRANCHING.md"
+  - "AGENTS.md"
+
+workflow:
+  steps: 9
+  estimated_duration: "1-3 hours per bug"
+  outputs:
+    - "type: code"
+    - "type: tests"
+    - "type: documentation"

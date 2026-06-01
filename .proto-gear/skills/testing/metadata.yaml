@@ -1,0 +1,74 @@
+name: "Test-Driven Development"
+type: "skill"
+version: "1.0.0"
+description: "TDD methodology with red-green-refactor cycle for quality code"
+
+category: "testing"
+tags: ["testing", "tdd", "quality", "red-green-refactor", "coverage", "unit-tests", "integration-tests"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "workflows/feature-development"
+    - "workflows/bug-fix"
+  suggested:
+    - "skills/debugging"
+    - "skills/code-review"
+    - "commands/analyze-coverage"
+
+conflicts: []
+
+composable_with:
+  - "skills/debugging"
+  - "skills/code-review"
+  - "skills/refactoring"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+  - "workflows/refactoring"
+  - "commands/analyze-coverage"
+
+agent_roles:
+  - "Testing Agent"
+  - "Quality Assurance Agent"
+  - "Full-Stack Developer Agent"
+  - "Backend Agent"
+  - "Frontend Agent"
+  - "TDD Specialist Agent"
+
+relevance:
+  triggers:
+    - "write tests"
+    - "testing"
+    - "test coverage"
+    - "tdd"
+    - "quality assurance"
+    - "unit test"
+    - "integration test"
+    - "red green refactor"
+  contexts:
+    - "Before implementing features"
+    - "Fixing bugs (write test first)"
+    - "Refactoring code (maintain test coverage)"
+    - "Building critical business logic"
+    - "Working on code with complex requirements"
+
+usage_notes: |
+  Test-Driven Development is a core practice that benefits most development tasks.
+  Follow the Red-Green-Refactor cycle: write failing test, make it pass, then improve code.
+
+  Works best when combined with feature-development or bug-fix workflows.
+  Requires TESTING.md to exist in the project for project-specific test conventions.
+
+  Testing pyramid: 70% unit tests, 20% integration tests, 10% E2E tests.
+  Target overall coverage: 70%+ for production code.
+
+required_files:
+  - "TESTING.md"
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - ".proto-gear/INDEX.md"

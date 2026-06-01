@@ -1,0 +1,106 @@
+name: "Update Status"
+type: "command"
+slash_command: "/update-status"
+version: "1.0.0"
+description: "Update ticket status in PROJECT_STATUS.md"
+
+category: "project-management"
+tags: ["ticket", "status", "workflow", "tracking", "sprint", "progress"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-18"
+
+# Slash command arguments
+arguments:
+  required:
+    - name: "ticket_id"
+      type: "string"
+      description: "Ticket ID (e.g., PROJ-043)"
+    - name: "status"
+      type: "enum"
+      values: ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED"]
+      description: "New status for the ticket"
+  optional:
+    - name: "--reason"
+      type: "string"
+      description: "Reason for status change (required for BLOCKED)"
+    - name: "--branch"
+      type: "string"
+      description: "Branch name (auto-populate when transitioning to IN_PROGRESS)"
+
+# Example invocations
+invocation_examples:
+  - '/update-status PROJ-043 IN_PROGRESS'
+  - '/update-status PROJ-043 COMPLETED'
+  - '/update-status PROJ-043 BLOCKED --reason "Waiting for API spec"'
+  - '/update-status PROJ-043 IN_PROGRESS --branch feature/PROJ-043-add-auth'
+  - '/us PROJ-043 COMPLETED'
+
+dependencies:
+  required: []
+  optional:
+    - "commands/create-ticket"
+    - "workflows/feature-development"
+    - "workflows/bug-fix"
+  suggested: []
+
+conflicts: []
+
+composable_with:
+  - "commands/create-ticket"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+  - "workflows/hotfix"
+  - "workflows/release"
+  - "workflows/code-review-process"
+
+agent_roles:
+  - "Project Manager Agent"
+  - "All Agents"
+
+relevance:
+  triggers:
+    - "/update-status"
+    - "/us"
+    - "update status"
+    - "change status"
+    - "mark complete"
+    - "mark completed"
+    - "start work"
+    - "ticket blocked"
+  contexts:
+    - "When user types /update-status or /us"
+    - "When starting work on a ticket"
+    - "When completing a ticket"
+    - "When blocked by dependency"
+    - "During workflow step transitions"
+
+usage_notes: |
+  Slash command: /update-status <TICKET_ID> <STATUS> [--reason REASON] [--branch BRANCH]
+  Shortcut: /us
+
+  Updates ticket status in PROJECT_STATUS.md.
+  Valid status transitions:
+    PENDING -> IN_PROGRESS, BLOCKED
+    IN_PROGRESS -> COMPLETED, BLOCKED
+    BLOCKED -> IN_PROGRESS
+    COMPLETED -> (terminal, use with caution to reopen)
+
+  When transitioning to IN_PROGRESS, optionally provide branch name.
+  When transitioning to BLOCKED, always provide a reason.
+
+required_files:
+  - "PROJECT_STATUS.md"
+
+optional_files:
+  - "BRANCHING.md"
+
+command:
+  idempotent: false
+  side_effects:
+    - "PROJECT_STATUS.md (updates ticket status)"
+    - "PROJECT_STATUS.md (may update branch column)"
+  prerequisites:
+    - "PROJECT_STATUS.md must exist"
+    - "Ticket must exist in Active Tickets table"

@@ -1,0 +1,62 @@
+name: "Documentation Update Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Systematic workflow for maintaining and updating project documentation"
+
+category: "documentation"
+tags: ["documentation", "update", "maintenance", "technical-writing"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/documentation"
+  suggested:
+    - "workflows/feature-development"
+
+conflicts: []
+
+composable_with:
+  - "skills/documentation"
+  - "skills/code-review"
+  - "workflows/feature-development"
+  - "workflows/release"
+
+agent_roles:
+  - "Documentation Agent"
+  - "Technical Writer Agent"
+  - "Full-Stack Developer Agent"
+
+relevance:
+  triggers:
+    - "update docs"
+    - "documentation"
+    - "improve docs"
+    - "docs maintenance"
+  contexts:
+    - "After feature implementation"
+    - "Before releases"
+    - "When APIs change"
+    - "For outdated documentation"
+
+usage_notes: |
+  Documentation update workflow for maintaining current docs.
+
+  Includes: review existing docs, identify gaps, update content, review changes.
+  Should be part of feature development and release workflows.
+
+required_files: []
+
+optional_files:
+  - "README.md"
+  - "CONTRIBUTING.md"
+  - "ARCHITECTURE.md"
+
+workflow:
+  steps: 6
+  estimated_duration: "1-2 hours"
+  outputs:
+    - "type: documentation"

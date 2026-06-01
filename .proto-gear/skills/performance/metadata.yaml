@@ -1,0 +1,64 @@
+name: "Performance Optimization"
+type: "skill"
+version: "1.0.0"
+description: "Systematic performance optimization and profiling techniques"
+
+category: "performance"
+tags: ["performance", "optimization", "profiling", "benchmarking", "scalability", "efficiency"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+    - "skills/debugging"
+  suggested:
+    - "commands/analyze-coverage"
+    - "workflows/feature-development"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/debugging"
+  - "skills/code-review"
+  - "workflows/feature-development"
+  - "workflows/refactoring"
+
+agent_roles:
+  - "Performance Agent"
+  - "Optimization Specialist"
+  - "Backend Agent"
+  - "Full-Stack Developer Agent"
+  - "Database Specialist"
+
+relevance:
+  triggers:
+    - "performance"
+    - "optimize"
+    - "slow"
+    - "profiling"
+    - "benchmark"
+    - "scalability"
+    - "efficiency"
+  contexts:
+    - "When application is slow"
+    - "Before production deployment"
+    - "After feature implementation"
+    - "When scaling systems"
+
+usage_notes: |
+  Performance optimization requires measurement first: profile before optimizing.
+  Focus on bottlenecks, not premature optimization.
+
+  Use profiling tools, benchmark systematically, and maintain performance tests.
+  Works best with testing skills for performance regression detection.
+
+required_files: []
+
+optional_files:
+  - "TESTING.md"
+  - "ARCHITECTURE.md"

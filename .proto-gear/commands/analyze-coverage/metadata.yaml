@@ -1,0 +1,91 @@
+name: "Analyze Coverage"
+type: "command"
+slash_command: "/analyze-coverage"
+version: "1.1.0"
+description: "Run and analyze test coverage for the project"
+
+category: "testing"
+tags: ["coverage", "testing", "analysis", "quality", "metrics"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-15"
+
+# Slash command arguments
+arguments:
+  optional:
+    - name: "--path"
+      type: "string"
+      default: "."
+      description: "Directory to analyze"
+    - name: "--threshold"
+      type: "number"
+      default: 70
+      description: "Minimum coverage percentage"
+    - name: "--format"
+      type: "enum"
+      values: ["text", "html", "json", "lcov"]
+      default: "text"
+      description: "Output format"
+
+# Example invocations
+invocation_examples:
+  - '/analyze-coverage'
+  - '/analyze-coverage --path src/'
+  - '/analyze-coverage --threshold 80'
+  - '/analyze-coverage --format html'
+  - '/analyze-coverage --path tests/ --threshold 90'
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+  suggested:
+    - "workflows/feature-development"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/code-review"
+  - "workflows/feature-development"
+  - "workflows/bug-fix"
+
+agent_roles:
+  - "Testing Agent"
+  - "Quality Assurance Agent"
+  - "Full-Stack Developer Agent"
+
+relevance:
+  triggers:
+    - "/analyze-coverage"
+    - "coverage"
+    - "test coverage"
+    - "analyze coverage"
+  contexts:
+    - "When user types /analyze-coverage"
+    - "After running tests"
+    - "Before merging code"
+    - "During code review"
+
+usage_notes: |
+  Slash command: /analyze-coverage [--path DIR] [--threshold NUM] [--format FMT]
+
+  Analyze test coverage to identify untested code.
+  Detects project type and runs appropriate coverage tool.
+  Reports pass/fail based on threshold.
+
+required_files: []
+
+optional_files:
+  - "TESTING.md"
+  - ".coveragerc"
+  - "jest.config.js"
+  - "pyproject.toml"
+
+command:
+  idempotent: true
+  side_effects: []
+  prerequisites:
+    - "Test framework must be configured"
+    - "Coverage tool must be available"

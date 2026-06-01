@@ -1,0 +1,76 @@
+name: "Incident Response Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Production issue handling from detection through resolution and post-mortem"
+
+category: "operations"
+tags: ["incident", "production", "emergency", "monitoring", "response", "post-mortem", "on-call", "outage"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-01-18"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/debugging"
+    - "workflows/hotfix"
+  suggested:
+    - "skills/testing"
+    - "commands/create-ticket"
+
+conflicts: []
+
+composable_with:
+  - "skills/debugging"
+  - "workflows/hotfix"
+  - "commands/create-ticket"
+  - "commands/update-status"
+
+agent_roles:
+  - "Incident Commander Agent"
+  - "DevOps Agent"
+  - "On-Call Agent"
+  - "Site Reliability Agent"
+  - "Backend Agent"
+
+relevance:
+  triggers:
+    - "incident"
+    - "outage"
+    - "production down"
+    - "alert"
+    - "emergency"
+    - "page"
+    - "on-call"
+    - "P1"
+    - "critical"
+  contexts:
+    - "When monitoring alerts fire"
+    - "When users report production issues"
+    - "During on-call rotations"
+    - "After detecting service anomalies"
+
+usage_notes: |
+  Complete incident response workflow covering:
+  detection -> triage -> communicate -> investigate ->
+  mitigate -> resolve -> post-mortem
+
+  Covers full lifecycle from detection to lessons learned.
+  May invoke hotfix workflow for emergency code fixes.
+
+  Severity levels: P1 (critical), P2 (high), P3 (medium), P4 (low)
+
+required_files: []
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - "RUNBOOKS.md"
+
+workflow:
+  steps: 9
+  estimated_duration: "15 min - 8 hours (depends on severity)"
+  outputs:
+    - "type: incident-report"
+    - "type: post-mortem"
+    - "type: follow-up-tickets"

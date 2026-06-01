@@ -1,0 +1,66 @@
+name: "Release Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Complete release process from preparation to deployment"
+
+category: "release"
+tags: ["release", "deployment", "versioning", "changelog", "production"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "commands/generate-changelog"
+    - "workflows/finalize-release"
+  suggested:
+    - "skills/testing"
+    - "skills/documentation"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/documentation"
+  - "commands/generate-changelog"
+  - "workflows/finalize-release"
+  - "workflows/complete-release"
+
+agent_roles:
+  - "Release Manager Agent"
+  - "DevOps Agent"
+  - "Team Lead Agent"
+
+relevance:
+  triggers:
+    - "release"
+    - "deploy"
+    - "version"
+    - "publish"
+  contexts:
+    - "When preparing new release"
+    - "After sprint completion"
+    - "For version milestones"
+
+usage_notes: |
+  Complete release workflow: prepare, test, version, deploy, announce.
+
+  Includes: version bump, changelog generation, testing, tagging, deployment.
+  Can be combined with finalize-release or complete-release workflows.
+
+required_files:
+  - "PROJECT_STATUS.md"
+
+optional_files:
+  - "CHANGELOG.md"
+  - "BRANCHING.md"
+
+workflow:
+  steps: 10
+  estimated_duration: "1-2 hours"
+  outputs:
+    - "type: release"
+    - "type: deployment"
+    - "type: documentation"

@@ -1,0 +1,68 @@
+name: "Hotfix Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Emergency workflow for critical production issues requiring immediate fixes"
+
+category: "maintenance"
+tags: ["hotfix", "emergency", "production", "critical", "urgent"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required:
+    - "skills/debugging"
+    - "skills/testing"
+  optional:
+    - "workflows/bug-fix"
+  suggested:
+    - "skills/code-review"
+
+conflicts: []
+
+composable_with:
+  - "skills/debugging"
+  - "skills/testing"
+  - "skills/code-review"
+  - "workflows/bug-fix"
+
+agent_roles:
+  - "Hotfix Agent"
+  - "Emergency Response Agent"
+  - "Production Support Agent"
+  - "Senior Developer Agent"
+
+relevance:
+  triggers:
+    - "hotfix"
+    - "emergency"
+    - "production issue"
+    - "critical bug"
+    - "urgent fix"
+  contexts:
+    - "When production is broken"
+    - "During critical incidents"
+    - "For security vulnerabilities"
+
+usage_notes: |
+  Hotfix workflow for emergency production fixes.
+  Bypasses normal development cycle for critical issues.
+
+  Create hotfix branch from main, fix quickly, test thoroughly, deploy immediately.
+  Always includes regression test despite urgency.
+
+required_files:
+  - "PROJECT_STATUS.md"
+  - "BRANCHING.md"
+
+optional_files:
+  - "TESTING.md"
+
+workflow:
+  steps: 8
+  estimated_duration: "30 minutes - 2 hours"
+  outputs:
+    - "type: code"
+    - "type: tests"
+    - "type: hotfix-release"

@@ -1,0 +1,61 @@
+name: "Dependency Update Workflow"
+type: "workflow"
+version: "1.0.0"
+description: "Systematic workflow for updating project dependencies safely"
+
+category: "maintenance"
+tags: ["dependencies", "update", "maintenance", "security", "packages"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required: []
+  optional:
+    - "skills/testing"
+  suggested:
+    - "skills/security"
+    - "commands/generate-changelog"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/security"
+  - "commands/generate-changelog"
+
+agent_roles:
+  - "Maintenance Agent"
+  - "DevOps Agent"
+  - "Security Agent"
+
+relevance:
+  triggers:
+    - "update dependencies"
+    - "upgrade packages"
+    - "dependency maintenance"
+    - "security updates"
+  contexts:
+    - "When dependencies are outdated"
+    - "For security patches"
+    - "Regular maintenance"
+
+usage_notes: |
+  Safe dependency update workflow with testing.
+
+  Steps: check updates → review changes → update → test → commit.
+  Always test thoroughly after dependency updates.
+
+required_files: []
+
+optional_files:
+  - "TESTING.md"
+  - "CHANGELOG.md"
+
+workflow:
+  steps: 7
+  estimated_duration: "1-2 hours"
+  outputs:
+    - "type: code"
+    - "type: documentation"

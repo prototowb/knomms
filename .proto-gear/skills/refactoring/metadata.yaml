@@ -1,0 +1,62 @@
+name: "Code Refactoring"
+type: "skill"
+version: "1.0.0"
+description: "Systematic code refactoring techniques for improving code quality without changing behavior"
+
+category: "refactoring"
+tags: ["refactoring", "code-quality", "maintainability", "clean-code", "restructuring", "improvement"]
+
+status: "stable"
+author: "Proto Gear Team"
+last_updated: "2025-12-09"
+
+dependencies:
+  required:
+    - "skills/testing"
+  optional:
+    - "skills/code-review"
+  suggested:
+    - "workflows/refactoring"
+
+conflicts: []
+
+composable_with:
+  - "skills/testing"
+  - "skills/code-review"
+  - "skills/performance"
+  - "workflows/refactoring"
+  - "workflows/feature-development"
+
+agent_roles:
+  - "Refactoring Agent"
+  - "Code Quality Agent"
+  - "Full-Stack Developer Agent"
+  - "Senior Developer Agent"
+
+relevance:
+  triggers:
+    - "refactor"
+    - "clean up"
+    - "improve code"
+    - "code smell"
+    - "technical debt"
+    - "restructure"
+  contexts:
+    - "When code is hard to understand"
+    - "After feature implementation"
+    - "Before adding new features"
+    - "When addressing technical debt"
+
+usage_notes: |
+  Refactoring changes code structure without changing behavior.
+  CRITICAL: Requires comprehensive tests to ensure behavior preservation.
+
+  Common patterns: extract method, rename, move, simplify conditionals.
+  Always run tests after each refactoring step. Never refactor without tests.
+
+required_files:
+  - "TESTING.md"
+
+optional_files:
+  - "PROJECT_STATUS.md"
+  - "ARCHITECTURE.md"
