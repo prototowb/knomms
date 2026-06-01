@@ -106,11 +106,20 @@ async function submitAnswer(concept: PathConcept, item: AssessmentItem) {
 
 async function publishPath() {
   if (!path.value) return
-  await $fetch(`/api/learning-paths/${pathId}/publish`, {
+  await $fetch<unknown>(`/api/learning-paths/${pathId}/publish`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${auth.token}` },
   })
   if (path.value) path.value.status = 'published'
+}
+
+async function updateConceptStatus(concept: PathConcept, newStatus: 'accepted' | 'pruned') {
+  await $fetch<unknown>(`/api/learning-paths/${pathId}/concepts/${concept.id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${auth.token}` },
+    body: { status: newStatus },
+  })
+  concept.status = newStatus
 }
 
 const acceptedCount = computed(() =>
@@ -215,14 +224,14 @@ onMounted(fetchPath)
                   <button
                     v-if="concept.status !== 'accepted'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-grounded text-grounded hover:bg-grounded/10 transition-colors"
-                    @click="$fetch(`/api/learning-paths/${pathId}/concepts/${concept.id}`, { method: 'PATCH', headers: { Authorization: `Bearer ${auth.token}` }, body: { status: 'accepted' } }).then(() => concept.status = 'accepted')"
+                    @click="updateConceptStatus(concept, 'accepted')"
                   >
                     Accept
                   </button>
                   <button
                     v-if="concept.status !== 'pruned'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary transition-colors"
-                    @click="$fetch(`/api/learning-paths/${pathId}/concepts/${concept.id}`, { method: 'PATCH', headers: { Authorization: `Bearer ${auth.token}` }, body: { status: 'pruned' } }).then(() => concept.status = 'pruned')"
+                    @click="updateConceptStatus(concept, 'pruned')"
                   >
                     Prune
                   </button>

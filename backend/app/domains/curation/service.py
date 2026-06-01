@@ -244,9 +244,20 @@ class BoardService:
         # Increment original's fork_count
         original.fork_count = (original.fork_count or 0) + 1
 
-        # Create a dedicated KB for the fork
+        # Create a fresh KB with its own isolated vector_namespace.
+        # Using get_or_create_default would share the user's default namespace
+        # across all forks, making cross-fork queries bleed — each fork must
+        # have its own namespace so retrieval isolation holds.
         kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.get_or_create_default(user)
+        kb = await kb_svc.create(user, title=new_title)
+
+        # Link the fork Collection to its KB via the join table
+        from app.models.knowledge_base import knowledge_base_collection
+        await self.db.execute(
+            knowledge_base_collection.insert().values(
+                kb_id=kb.id, collection_id=fork.id
+            )
+        )
 
         redis = await get_redis()
 

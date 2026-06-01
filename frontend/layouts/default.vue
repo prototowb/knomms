@@ -1,43 +1,71 @@
+<script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
+
+const auth = useAuthStore()
+
+function logout() {
+  auth.logout()
+  navigateTo('/login')
+}
+</script>
+
 <template>
   <div class="flex h-screen bg-surface-secondary text-text-primary">
-    <!-- Sidebar navigation -->
+    <!-- Sidebar -->
     <aside class="w-56 flex-shrink-0 border-r border-border bg-surface flex flex-col">
       <div class="px-5 py-4 border-b border-border">
-        <span class="font-semibold text-sm tracking-tight">Knowledge Commons</span>
+        <NuxtLink to="/" class="font-semibold text-sm tracking-tight text-text-primary hover:text-accent transition-colors">
+          Knowledge Commons
+        </NuxtLink>
       </div>
-      <nav class="flex-1 px-3 py-4 space-y-1">
+
+      <nav class="flex-1 px-3 py-4 space-y-0.5">
         <NuxtLink
           to="/"
           class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
           active-class="bg-surface-secondary text-text-primary font-medium"
         >
-          Home
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Dashboard
         </NuxtLink>
-        <NuxtLink
-          to="/kb"
-          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
-          active-class="bg-surface-secondary text-text-primary font-medium"
-        >
-          Knowledge Bases
-        </NuxtLink>
-        <NuxtLink
-          to="/learn"
-          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
-          active-class="bg-surface-secondary text-text-primary font-medium"
-        >
-          Learn
-        </NuxtLink>
+
         <NuxtLink
           to="/explore"
           class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
           active-class="bg-surface-secondary text-text-primary font-medium"
         >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+          </svg>
           Explore
         </NuxtLink>
       </nav>
+
+      <!-- User section at bottom -->
+      <div class="px-3 py-3 border-t border-border">
+        <div v-if="auth.user" class="flex items-center gap-2 px-3 py-2 rounded-md">
+          <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0">
+            {{ auth.user.handle.charAt(0).toUpperCase() }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium text-text-primary truncate">{{ auth.user.display_name }}</p>
+            <p class="text-xs text-text-muted truncate">@{{ auth.user.handle }}</p>
+          </div>
+        </div>
+        <button
+          class="w-full mt-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors"
+          @click="logout"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Sign out
+        </button>
+      </div>
     </aside>
 
-    <!-- Main content area -->
     <main class="flex-1 overflow-y-auto">
       <slot />
     </main>
