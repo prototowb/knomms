@@ -24,6 +24,7 @@ Community (co-authorship, grounded discussion, fork lineage) permeates all three
 | [`docs/05-platform-architecture.md`](docs/05-platform-architecture.md) | Cross-cutting platform, data models, infrastructure |
 | [`docs/06-roadmap.md`](docs/06-roadmap.md) | MVP scope, phasing, and full-build roadmap |
 | [`docs/07-frontend-architecture.md`](docs/07-frontend-architecture.md) | Frontend stack, project structure, interaction patterns |
+| [`docs/08-backend-architecture.md`](docs/08-backend-architecture.md) | Python/FastAPI layer, domain structure, worker, auth, testing |
 
 ## Tech Stack
 
