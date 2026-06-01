@@ -37,6 +37,28 @@ class KnowledgeBaseService:
         await self.db.flush()
         return kb
 
+    async def create(self, user: User, title: str) -> KnowledgeBase:
+        """Always create a new KB with a fresh, isolated vector_namespace."""
+        kb_id = str(uuid.uuid4())
+        kb = KnowledgeBase(
+            id=kb_id,
+            owner_user_id=user.id,
+            title=title,
+            vector_namespace=f"kb:{kb_id}",
+            index_status="building",
+        )
+        self.db.add(kb)
+        await self.db.flush()
+        return kb
+
+    async def list_for_user(self, user: User) -> list[KnowledgeBase]:
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(KnowledgeBase.owner_user_id == user.id)
+            .order_by(KnowledgeBase.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def get_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
         result = await self.db.execute(
             select(KnowledgeBase).where(

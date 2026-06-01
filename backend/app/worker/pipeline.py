@@ -82,6 +82,10 @@ async def run_ingestion_pipeline(db: AsyncSession, job: dict) -> None:
             json.dumps({"source_id": source_id, "kb_ids": [job["kb_id"]]}),
         )
 
+        # Stage 8: refresh board_embedding centroids for any collections that
+        # contain this source. Runs inline — it's a DB avg, not an Ollama call.
+        await _refresh_board_embeddings(db, source_id)
+
     except Exception as exc:
         logger.exception("Ingestion failed for source %s", source_id)
         await _set_status(db, source, "failed", vector_namespace)
@@ -160,3 +164,47 @@ async def _publish_progress(source_id: str, status: str, progress_pct: int) -> N
         f"source:{source_id}:progress",
         json.dumps({"status": status, "progress_pct": progress_pct}),
     )
+
+
+async def _refresh_board_embeddings(db: AsyncSession, source_id: str) -> None:
+    """Recompute board_embedding centroids for all collections containing source_id.
+
+    Called inline after a successful embed — keeps semantic recommendation
+    data fresh without a separate subscriber process.
+    """
+    from statistics import mean
+
+    from app.models.collection import Collection, CollectionItem
+
+    # Find all collections that contain this source
+    collection_ids_result = await db.execute(
+        select(CollectionItem.collection_id).where(CollectionItem.source_id == source_id).distinct()
+    )
+    collection_ids = [row[0] for row in collection_ids_result.all()]
+    if not collection_ids:
+        return
+
+    for cid in collection_ids:
+        # Fetch all non-overlap chunk embeddings for sources in this collection
+        emb_result = await db.execute(
+            select(Chunk.embedding)
+            .join(CollectionItem, CollectionItem.source_id == Chunk.source_id)
+            .where(
+                CollectionItem.collection_id == cid,
+                Chunk.embedding.is_not(None),
+                Chunk.is_overlap == False,  # noqa: E712
+            )
+        )
+        rows = emb_result.all()
+        embeddings = [list(row[0]) for row in rows if row[0] is not None]
+        if not embeddings:
+            continue
+
+        dim = len(embeddings[0])
+        centroid = [mean(emb[i] for emb in embeddings) for i in range(dim)]
+
+        board = await db.get(Collection, cid)
+        if board:
+            board.board_embedding = centroid  # type: ignore[assignment]
+
+    await db.commit()

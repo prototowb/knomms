@@ -45,12 +45,14 @@ def _register_routers(app: FastAPI) -> None:
     from app.domains.generation.router import router as generation_router
     from app.domains.learning.router import router as learning_router
     from app.domains.curation.router import router as curation_router
+    from app.domains.knowledge_base.router import router as kb_router
 
     app.include_router(identity_router, prefix="/v1")
     app.include_router(ingestion_router, prefix="/v1")
     app.include_router(generation_router, prefix="/v1")
     app.include_router(learning_router, prefix="/v1")
     app.include_router(curation_router, prefix="/v1")
+    app.include_router(kb_router, prefix="/v1")
 
 
 app = create_app()
