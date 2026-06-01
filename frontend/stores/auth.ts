@@ -8,6 +8,10 @@ interface User {
   display_name: string
 }
 
+interface AuthResponse {
+  access_token: string
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const token = ref<string | null>(null)
@@ -15,27 +19,27 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => user.value !== null && token.value !== null)
 
   async function register(email: string, password: string, handle: string, displayName: string): Promise<void> {
-    const data = await $fetch<{ token: string; user: User }>('/api/auth/register', {
+    const data = await $fetch<AuthResponse>('/api/auth/register', {
       method: 'POST',
       body: { email, password, handle, display_name: displayName },
     })
-    token.value = data.token
-    user.value = data.user
+    token.value = data.access_token
     if (import.meta.client) {
-      localStorage.setItem('kc_token', data.token)
+      localStorage.setItem('kc_token', data.access_token)
     }
+    await fetchMe()
   }
 
   async function login(email: string, password: string): Promise<void> {
-    const data = await $fetch<{ token: string; user: User }>('/api/auth/login', {
+    const data = await $fetch<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: { email, password },
     })
-    token.value = data.token
-    user.value = data.user
+    token.value = data.access_token
     if (import.meta.client) {
-      localStorage.setItem('kc_token', data.token)
+      localStorage.setItem('kc_token', data.access_token)
     }
+    await fetchMe()
   }
 
   function logout(): void {
