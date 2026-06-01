@@ -30,12 +30,12 @@ docker compose exec api python manage.py migrate
 ## Current State
 
 ```yaml
-project_phase: "Pre-development — specification complete"
+project_phase: "Active development — Milestones 0–2 complete"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: null
+current_sprint: "Milestone 3 — Discovery Surface"
 last_release: null
 ticket_prefix: "KC"
 ```
@@ -53,9 +53,18 @@ ticket_prefix: "KC"
 
 ---
 
-## 🎫 Active Tickets
+## 🎫 Active Tickets — Milestone 3
 
-*All Milestone 1 tickets completed — ready for Milestone 2.*
+*All Milestone 2 tickets completed — ready for Milestone 3 (Discovery Surface).*
+
+Suggested sequence (see SESSION_HANDOFF.md §What Comes Next for context):
+- KC-019: Migration 004 — Board entity, fork tracking, board_embedding column
+- KC-020: Board service — create, fork, get public board
+- KC-021: Board SSR page — public swim-lane view (/board/[boardId])
+- KC-022: Fork action — UI + ingestion trigger + progress
+- KC-023: Curator profile page (/u/[handle])
+- KC-024: Semantic recommendation service — centroid embed + cosine board search
+- KC-025: Explore page — trending + recommended boards
 
 ---
 
@@ -75,6 +84,15 @@ ticket_prefix: "KC"
 - SPEC-011: PROJECT_SPECIFICATIONS.md entry point (2026-06-01)
 
 ---
+
+## ✅ Milestone 2 Tickets
+
+- KC-013: Migration 003 — LearningPath, PathConcept, AssessmentItem, Distractor tables (2026-06-01)
+- KC-014: Curriculum agent — heading-heuristic grouping + Ollama JSON generation (no LangGraph) (2026-06-01)
+- KC-015: Assessment agent — MC questions with grounded distractors (embedded in curriculum agent) (2026-06-01)
+- KC-016: Learning domain router — 6 endpoints for path CRUD, publish, concept review, MC grading (2026-06-01)
+- KC-017: Frontend KB workspace — real Q&A UI with citation sidebar + learning path link (2026-06-01)
+- KC-018: Frontend learning path views — path list, path detail with MC assessment + instructor controls (2026-06-01)
 
 ## ✅ Milestone 1 Tickets
 
@@ -120,8 +138,10 @@ See `docs/06-roadmap.md` for full milestone breakdown and MVP scope tables.
 
 ## Recent Updates
 
+- 2026-06-01: Milestone 2 complete — curriculum agent, learning paths, MC assessment, frontend views
+- 2026-06-01: Milestone 1 complete — ingestion loop, grounded Q&A, SSE streaming
+- 2026-06-01: Milestone 0 complete — infrastructure baseline, Docker Compose, identity
 - 2026-06-01: Full project specification complete (9 architecture docs)
-- 2026-06-01: Proto Gear agent framework initialized
 
 ---
 
