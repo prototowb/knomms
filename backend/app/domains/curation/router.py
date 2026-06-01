@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps.auth import get_current_user, get_optional_user
@@ -140,6 +140,25 @@ async def add_source(
 ) -> BoardItemOut:
     svc = BoardService(db)
     item = await svc.add_source_to_board(board_id, user, req.source_url, req.note, req.lane)
+    return BoardItemOut.model_validate(item)
+
+
+@router.post(
+    "/boards/{board_id}/upload",
+    response_model=BoardItemOut,
+    status_code=201,
+    summary="Upload a file to a board (targets the board's dedicated KB)",
+)
+async def upload_file_to_board(
+    board_id: str,
+    file: UploadFile = File(...),
+    note: str = Form(default=""),
+    lane: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BoardItemOut:
+    svc = BoardService(db)
+    item = await svc.add_file_to_board(board_id, user, file, note, lane)
     return BoardItemOut.model_validate(item)
 
 
