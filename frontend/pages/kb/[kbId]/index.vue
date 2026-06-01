@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+definePageMeta({ middleware: 'auth' })
+
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStreamingQuery } from '~/composables/useStreamingQuery'
 
 const route = useRoute()
+const auth = useAuthStore()
 const kbId = route.params.kbId as string
 
+// ── Q&A ──────────────────────────────────────────────────────────────────────
+
 const queryText = ref('')
-const { response, citations, isStreaming, error, submit } = useStreamingQuery(kbId)
+const { response, citations, isStreaming, error: qaError, submit } = useStreamingQuery(kbId)
 
 const citationList = computed(() =>
   Object.values(citations.value) as Array<{
-    chunk_id: string
-    source_id: string
-    locator: string
-    excerpt: string
+    chunk_id: string; source_id: string; locator: string; excerpt: string
   }>
 )
-
-const hasCitations = computed(() => citationList.value.length > 0)
 
 async function handleSubmit() {
   if (!queryText.value.trim() || isStreaming.value) return
@@ -25,78 +25,288 @@ async function handleSubmit() {
 }
 
 function formatResponse(text: string) {
-  // Replace [SOURCE:id] markers with styled spans
   return text.replace(
     /\[SOURCE:([a-f0-9-]{36})\]/g,
-    '<sup class="citation-ref text-grounded font-mono text-xs cursor-pointer hover:underline" data-id="$1">[src]</sup>'
+    '<sup class="text-grounded font-mono text-xs">[src]</sup>'
   )
 }
+
+// ── Sources ───────────────────────────────────────────────────────────────────
+
+interface SourceOut {
+  id: string; type: string; title: string; ingestion_status: string; created_at: string
+}
+
+const activeTab = ref<'query' | 'sources'>('query')
+const sources = ref<SourceOut[]>([])
+const sourcesLoading = ref(false)
+const urlInput = ref('')
+const addingUrl = ref(false)
+const urlError = ref<string | null>(null)
+const dragging = ref(false)
+const uploading = ref(false)
+const uploadError = ref<string | null>(null)
+
+// Polling: track in-progress source IDs to poll
+const pollingIds = ref<Set<string>>(new Set())
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+async function fetchSources() {
+  sourcesLoading.value = true
+  try {
+    sources.value = await $fetch<SourceOut[]>(`/api/kb/${kbId}/sources`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    // Re-enqueue any still-processing sources for polling
+    for (const s of sources.value) {
+      if (s.ingestion_status !== 'embedded' && s.ingestion_status !== 'failed') {
+        pollingIds.value.add(s.id)
+      }
+    }
+    if (pollingIds.value.size > 0) startPolling()
+  } finally {
+    sourcesLoading.value = false
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    if (pollingIds.value.size === 0) { stopPolling(); return }
+    const ids = [...pollingIds.value]
+    for (const id of ids) {
+      try {
+        const s = await $fetch<SourceOut>(`/api/sources/${id}`, {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        })
+        const idx = sources.value.findIndex(x => x.id === id)
+        if (idx !== -1) sources.value[idx] = { ...sources.value[idx], ...s }
+        if (s.ingestion_status === 'embedded' || s.ingestion_status === 'failed') {
+          pollingIds.value.delete(id)
+        }
+      } catch { pollingIds.value.delete(id) }
+    }
+  }, 3000)
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
+async function addUrl() {
+  const url = urlInput.value.trim()
+  if (!url || addingUrl.value) return
+  addingUrl.value = true
+  urlError.value = null
+  try {
+    const s = await $fetch<SourceOut>('/api/sources', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { url, kb_id: kbId },
+    })
+    sources.value.unshift(s)
+    urlInput.value = ''
+    pollingIds.value.add(s.id)
+    startPolling()
+  } catch (err: unknown) {
+    urlError.value = err instanceof Error ? err.message : 'Failed to add URL'
+  } finally {
+    addingUrl.value = false
+  }
+}
+
+async function uploadFile(file: File) {
+  uploading.value = true
+  uploadError.value = null
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kb_id', kbId)
+    const s = await $fetch<SourceOut>('/api/sources/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: form,
+    })
+    sources.value.unshift(s)
+    pollingIds.value.add(s.id)
+    startPolling()
+  } catch (err: unknown) {
+    uploadError.value = err instanceof Error ? err.message : 'Upload failed'
+  } finally {
+    uploading.value = false
+  }
+}
+
+function onDrop(e: DragEvent) {
+  dragging.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (file) uploadFile(file)
+}
+
+function onFileInput(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (file) uploadFile(file)
+}
+
+const statusColor: Record<string, string> = {
+  pending: 'text-warning',
+  processing: 'text-warning',
+  chunked: 'text-accent',
+  embedded: 'text-grounded',
+  failed: 'text-red-500',
+}
+const sourceTypeIcon: Record<string, string> = {
+  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚',
+}
+
+onMounted(fetchSources)
+onUnmounted(stopPolling)
 </script>
 
 <template>
   <div class="flex h-full overflow-hidden bg-surface">
-    <!-- Main Q&A column -->
-    <div class="flex flex-col flex-1 min-w-0 p-6">
-      <header class="mb-5 flex items-center gap-3">
-        <div>
-          <h1 class="text-lg font-semibold text-text-primary">Knowledge Base</h1>
-          <p class="text-xs text-text-muted font-mono mt-0.5">{{ kbId }}</p>
-        </div>
-        <div class="ml-auto">
+
+    <!-- Left: tab content -->
+    <div class="flex flex-col flex-1 min-w-0">
+
+      <!-- Header + tabs -->
+      <div class="px-6 pt-5 pb-0 border-b border-border">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="flex-1 min-w-0">
+            <h1 class="text-base font-semibold text-text-primary">Knowledge Base</h1>
+            <p class="text-xs text-text-muted font-mono mt-0.5 truncate">{{ kbId }}</p>
+          </div>
           <NuxtLink
             :to="`/kb/${kbId}/learn`"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-grounded text-white hover:bg-green-700 transition-colors"
+            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-grounded text-white hover:bg-green-700 transition-colors"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            Learning paths
+            Learn
           </NuxtLink>
         </div>
-      </header>
 
-      <!-- Response area -->
-      <div
-        class="flex-1 overflow-y-auto rounded-xl border border-border bg-surface-secondary p-5 min-h-[180px] mb-5"
-      >
-        <p v-if="error" class="text-warning text-sm">{{ error }}</p>
-        <p v-else-if="!response && !isStreaming" class="text-text-muted text-sm">
-          Ask a question grounded in this knowledge base.
-        </p>
-        <div
-          v-else
-          class="font-prose text-text-primary text-sm leading-7"
-          v-html="formatResponse(response)"
-        />
-        <span
-          v-if="isStreaming"
-          class="inline-block w-1.5 h-4 bg-accent animate-pulse align-middle ml-0.5"
-        />
+        <div class="flex gap-0">
+          <button
+            v-for="tab in (['query', 'sources'] as const)"
+            :key="tab"
+            class="px-4 py-2 text-sm border-b-2 transition-colors"
+            :class="activeTab === tab
+              ? 'border-accent text-accent font-medium'
+              : 'border-transparent text-text-muted hover:text-text-secondary'"
+            @click="activeTab = tab"
+          >
+            {{ tab === 'query' ? 'Ask' : `Sources (${sources.length})` }}
+          </button>
+        </div>
       </div>
 
-      <!-- Input -->
-      <form class="flex gap-3" @submit.prevent="handleSubmit">
-        <input
-          v-model="queryText"
-          type="text"
-          placeholder="Ask a question..."
-          :disabled="isStreaming"
-          class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
-        />
-        <button
-          type="submit"
-          :disabled="isStreaming || !queryText.trim()"
-          class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ isStreaming ? 'Thinking…' : 'Ask' }}
-        </button>
-      </form>
+      <!-- Q&A tab -->
+      <div v-show="activeTab === 'query'" class="flex flex-col flex-1 min-h-0 p-5">
+        <div class="flex-1 overflow-y-auto rounded-xl border border-border bg-surface-secondary p-5 mb-4 min-h-[120px]">
+          <p v-if="qaError" class="text-warning text-sm">{{ qaError }}</p>
+          <p v-else-if="!response && !isStreaming" class="text-text-muted text-sm">
+            Ask a question — answers are grounded in this KB's sources.
+          </p>
+          <div v-else class="font-prose text-text-primary text-sm leading-7" v-html="formatResponse(response)" />
+          <span v-if="isStreaming" class="inline-block w-1.5 h-4 bg-accent animate-pulse align-middle ml-0.5" />
+        </div>
+        <form class="flex gap-3" @submit.prevent="handleSubmit">
+          <input
+            v-model="queryText"
+            type="text"
+            placeholder="Ask a question..."
+            :disabled="isStreaming"
+            class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
+          />
+          <button
+            type="submit"
+            :disabled="isStreaming || !queryText.trim()"
+            class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+          >
+            {{ isStreaming ? 'Thinking…' : 'Ask' }}
+          </button>
+        </form>
+      </div>
+
+      <!-- Sources tab -->
+      <div v-show="activeTab === 'sources'" class="flex flex-col flex-1 min-h-0 p-5 gap-4 overflow-y-auto">
+        <!-- URL add -->
+        <div>
+          <p class="text-xs font-medium text-text-secondary mb-2">Add a URL</p>
+          <form class="flex gap-2" @submit.prevent="addUrl">
+            <input
+              v-model="urlInput"
+              type="url"
+              placeholder="https://example.com/article"
+              :disabled="addingUrl"
+              class="flex-1 border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
+            />
+            <button
+              type="submit"
+              :disabled="addingUrl || !urlInput.trim()"
+              class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+            >
+              {{ addingUrl ? 'Adding…' : 'Add' }}
+            </button>
+          </form>
+          <p v-if="urlError" class="text-xs text-warning mt-1.5">{{ urlError }}</p>
+        </div>
+
+        <!-- File upload -->
+        <div>
+          <p class="text-xs font-medium text-text-secondary mb-2">Upload a file</p>
+          <label
+            class="block rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
+            :class="dragging ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/50'"
+            @dragover.prevent="dragging = true"
+            @dragleave="dragging = false"
+            @drop.prevent="onDrop"
+          >
+            <input type="file" class="sr-only" accept=".pdf,.txt,.md,.docx" :disabled="uploading" @change="onFileInput" />
+            <p v-if="uploading" class="text-sm text-text-muted animate-pulse">Uploading…</p>
+            <p v-else class="text-sm text-text-muted">
+              Drop a PDF or text file here, or <span class="text-accent">browse</span>
+            </p>
+            <p class="text-xs text-text-muted mt-1">PDF, TXT, MD, DOCX — max 200MB</p>
+          </label>
+          <p v-if="uploadError" class="text-xs text-warning mt-1.5">{{ uploadError }}</p>
+        </div>
+
+        <!-- Source list -->
+        <div>
+          <p class="text-xs font-medium text-text-secondary mb-2">
+            Indexed sources
+            <span v-if="sourcesLoading" class="ml-1 text-text-muted">(loading…)</span>
+          </p>
+          <p v-if="!sourcesLoading && sources.length === 0" class="text-xs text-text-muted">
+            No sources yet — add a URL or upload a file above.
+          </p>
+          <ul class="space-y-2">
+            <li
+              v-for="s in sources"
+              :key="s.id"
+              class="flex items-center gap-3 rounded-lg border border-border bg-surface p-3"
+            >
+              <span class="text-base shrink-0">{{ sourceTypeIcon[s.type] ?? '📎' }}</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-text-primary truncate">{{ s.title }}</p>
+                <p class="text-xs mt-0.5" :class="statusColor[s.ingestion_status] ?? 'text-text-muted'">
+                  {{ s.ingestion_status }}
+                  <span v-if="pollingIds.has(s.id)" class="ml-1 inline-block w-1 h-1 rounded-full bg-current animate-bounce" />
+                </p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
 
-    <!-- Citation sidebar -->
+    <!-- Citations sidebar (Q&A tab only) -->
     <aside
-      v-if="hasCitations"
-      class="w-72 shrink-0 border-l border-border bg-surface overflow-y-auto p-4"
+      v-if="activeTab === 'query' && citationList.length > 0"
+      class="w-64 shrink-0 border-l border-border bg-surface overflow-y-auto p-4"
     >
       <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
         Sources ({{ citationList.length }})

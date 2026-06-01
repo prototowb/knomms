@@ -138,6 +138,15 @@ class BoardService:
         )
         return user, boards
 
+    async def list_my_boards(self, user: User) -> list[Collection]:
+        result = await self.db.execute(
+            select(Collection)
+            .where(Collection.owner_user_id == user.id)
+            .options(selectinload(Collection.items))
+            .order_by(Collection.updated_at.desc())
+        )
+        return list(result.scalars().all())
+
     # ── write operations ──────────────────────────────────────────────────────
 
     async def create_board(
@@ -156,6 +165,17 @@ class BoardService:
             layout_config=layout_config or {"mode": "swim-lane", "lanes": []},
         )
         self.db.add(board)
+        await self.db.flush()
+
+        # Every board has its own isolated KB so its sources can be queried
+        # independently — the same invariant enforced for fork_board.
+        kb_svc = KnowledgeBaseService(self.db)
+        kb = await kb_svc.create(user, title=f"Board: {title}")
+        from app.models.knowledge_base import knowledge_base_collection
+        await self.db.execute(
+            knowledge_base_collection.insert().values(kb_id=kb.id, collection_id=board.id)
+        )
+
         await self.db.commit()
         await self.db.refresh(board)
         return board
@@ -175,8 +195,22 @@ class BoardService:
         if not source_url:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="source_url required")
 
-        kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.get_or_create_default(user)
+        # Find the board's dedicated KB via the join table
+        from app.models.knowledge_base import KnowledgeBase, knowledge_base_collection
+        kb_row = (await self.db.execute(
+            select(KnowledgeBase)
+            .join(knowledge_base_collection, knowledge_base_collection.c.kb_id == KnowledgeBase.id)
+            .where(knowledge_base_collection.c.collection_id == board.id)
+            .limit(1)
+        )).scalar_one_or_none()
+
+        if kb_row is None:
+            # Legacy board without a KB — create and link one now
+            kb_svc = KnowledgeBaseService(self.db)
+            kb_row = await kb_svc.create(user, title=f"Board: {board.title}")
+            await self.db.execute(
+                knowledge_base_collection.insert().values(kb_id=kb_row.id, collection_id=board.id)
+            )
 
         source = Source(
             id=str(uuid.uuid4()),
@@ -184,6 +218,7 @@ class BoardService:
             type="web_page",
             raw_url=source_url,
             title=source_url[:200],
+            kb_id=kb_row.id,
         )
         self.db.add(source)
         await self.db.flush()
@@ -199,15 +234,15 @@ class BoardService:
         self.db.add(item)
         await self.db.flush()
 
-        # Dispatch ingestion
+        # Dispatch ingestion to the board's dedicated KB
         redis = await get_redis()
         await redis.xadd(
             STREAM_KEY,
             {
                 "source_id": source.id,
                 "user_id": user.id,
-                "kb_id": kb.id,
-                "vector_namespace": kb.vector_namespace,
+                "kb_id": kb_row.id,
+                "vector_namespace": kb_row.vector_namespace,
                 "upload": "0",
             },
         )

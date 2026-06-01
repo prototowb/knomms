@@ -23,5 +23,8 @@ class SourceStatusOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: str
-    ingestion_status: str
+    type: str
     title: str
+    ingestion_status: str
+    kb_id: str | None = None
+    created_at: datetime
