@@ -105,18 +105,15 @@ Re-ingestion is common (a user updates a PDF, re-pastes a URL). Naive re-ingesti
 
 Three candidates warrant serious evaluation. The choice is not obvious and depends heavily on which constraints dominate.
 
-**`text-embedding-3-large` (proprietary API)**
-Dimensionality: 3072 natively, truncatable to 1024 or 256 via Matryoshka representation learning (MRL) without retraining. This flexibility is operationally valuable: at 256 dimensions the model still outperforms its predecessor at full 1536 dimensions on standard retrieval benchmarks, enabling a storage-quality trade-off dial. Pricing as of mid-2026: approximately $0.13/million tokens at standard throughput, $0.065/million via the batch API. The primary trade-offs are vendor lock-in (the model is only accessible via API, embedding data transits a third-party endpoint) and latency variability under load. Throughput scales with API tier but is not under the operator's control.
-
 **`nomic-embed-text-v1.5` (open-source, self-hosted)**
 Dimensionality: 64–768 via MRL, with 8192-token context window — the longest context window of any embedding model in this tier, meaningful for ingesting long transcript segments or dense technical paragraphs without forced mid-chunk truncation. Apache 2.0 licensed, self-hostable on commodity GPU (fits comfortably on a single A10G/24GB). Batch throughput on such hardware: approximately 5,000–8,000 chunks/minute at 768 dimensions. Quality is competitive with larger proprietary models on domain-general retrieval; it shows slightly weaker performance on highly specialized scientific text. No data egress; all embedding computation stays within the platform's trust boundary.
 
 **CLIP-family (multimodal)**
 CLIP and its derivatives (e.g., `openclip`, `SigLIP`) embed images and text into a shared vector space, enabling cross-modal retrieval (find the image most relevant to a text query). This is powerful but introduces architectural complexity: the text embedding space of a CLIP model is not interchangeable with a language-specialized embedding space, requiring either a unified multi-space retrieval layer or a separate image-only index.
 
-**Decision: `nomic-embed-text-v1.5` for the text path, with `text-embedding-3-large` available as an operator-selectable alternative via a swappable embedding adapter interface.**
+**Decision: `nomic-embed-text-v1.5` is the primary embedding model, self-hosted via Ollama.**
 
-The rationale: Knowledge Commons is a privacy-sensitive platform where user-uploaded content (research notes, personal documents) must not transit third-party endpoints without explicit consent. Self-hosting `nomic-embed-text-v1.5` enforces this at the infrastructure level rather than relying on policy. The 8192-token context window reduces forced chunk splits for long-form content. The MRL dimensionality dial (256 for fast ANN, 768 for high-precision re-ranking) maps well onto the hybrid retrieval architecture described in §2.3.
+The rationale: The platform's hard constraint is zero external service cost and full data sovereignty. `nomic-embed-text-v1.5` is Apache 2.0 licensed, runs locally via Ollama with no API key or network egress, and achieves competitive retrieval quality on the MTEB benchmark. The 8192-token context window reduces forced chunk splits for long-form content. The MRL dimensionality dial (256 for fast ANN, 768 for high-precision re-ranking) maps cleanly onto the hybrid retrieval architecture in §2.3. An alternative embedding model can be configured via the swappable `EmbeddingAdapter` interface (see §7 of `docs/05-platform-architecture.md`), but the default path sends no data outside the host machine.
 
 CLIP is deferred to the full build. In the MVP, image content is represented by its OCR text and AI-generated description, which are embedded in the same text space as all other chunks. This is semantically lossy for purely visual content but avoids a separate index path.
 
@@ -132,7 +129,7 @@ CLIP is deferred to the full build. In the MVP, image content is represented by 
 | Ingest throughput target | 10,000 chunks/min (horizontal) | Drives GPU worker scaling |
 | Embedding cache TTL | 7 days | Re-ingestion of unchanged blocks hits cache |
 
-Embedding cost for the proprietary path: at $0.13/million tokens, embedding a 100-page PDF (~50,000 tokens) costs approximately $0.0065. This is acceptable for per-source ingestion but becomes material at collection scale (10,000 sources ≈ $65 in embedding alone). The self-hosted path reduces this to amortized GPU compute cost.
+Embedding cost: zero in software licensing terms. The only cost is electricity and amortized hardware. Embedding throughput depends on the host GPU: a single NVIDIA RTX 3090 (24GB) achieves ~8,000 chunks/minute at 768 dimensions with `nomic-embed-text-v1.5`; on CPU only (e.g., a VPS without GPU), throughput drops to ~800 chunks/minute, which is acceptable for background ingestion jobs but not for real-time embedding. GPU is strongly recommended for production; CPU-only is viable for small self-hosted deployments with patient ingestion queues.
 
 ### 2.3 Vector Database Selection
 
@@ -144,9 +141,9 @@ Four candidates:
 
 **Weaviate** — Combines vector search with a built-in graph-like schema and native hybrid search (BM25 + vector). The schema system is powerful for structured collections but introduces an impedance mismatch with the platform's own data model — the platform owns the schema, not the vector DB. Weaviate's hybrid search implementation is convenient but not as tunable as building hybrid retrieval explicitly. Managed cloud option reduces operational burden but reintroduces data egress concerns.
 
-**Pinecone** — Fully managed, serverless vector search. Zero operational burden. Trade-offs: proprietary, no self-hosted option (a hard constraint given the privacy architecture in §7), data transits external infrastructure.
+**Pinecone** — Fully managed, serverless vector search. **Not an option.** Proprietary, no self-hosted path, all data transits external infrastructure. Excluded by the self-hosted constraint.
 
-**Decision: pgvector for the MVP; migration path to Qdrant defined as a full-build milestone.**
+**Decision: pgvector for MVP and full build (unless a single deployment exceeds ~20M chunks, at which point Qdrant self-hosted is the defined migration path).**
 
 The rationale: the platform's most acute early constraint is operational complexity, not vector throughput. A single PostgreSQL instance with pgvector handles tens of millions of chunks with HNSW indexing and provides RLS-enforced multi-tenancy out of the box. The `chunks` table and the vector index coexist in one database; joins between vector results and relational metadata require no inter-service calls. When the platform grows beyond ~20M chunks per deployment or requires sub-5ms P99 ANN latency under high concurrency, a migration to Qdrant is the defined path — and because the platform wraps vector DB access behind a `VectorStore` interface, the migration is an implementation swap, not an architectural change.
 
@@ -240,6 +237,37 @@ The cross-encoder returns top-20 chunks. At ~400 tokens per chunk, the raw conte
 5. **Token budget:** Reserve 2,000 tokens for the system prompt and instructions, 2,000 tokens for the generated response, and the remainder (up to the model's context limit, minimum 20,000 tokens) for retrieved context. If the retrieved context exceeds the token budget, truncate by dropping the lowest-scored chunks first.
 
 For very long contexts (full-book ingestion, large collection synthesis), a map-reduce generation strategy is applied: the corpus is partitioned into batches, each batch is summarized with citations, and the summaries are synthesized in a final reduction pass. This trades single-pass coherence for coverage; it is flagged to the user with a "synthesized across batches" notice.
+
+---
+
+## 3.5 Local LLM Inference Runtime
+
+All generation and classification inference runs locally via **Ollama**. Ollama provides:
+- A unified REST API (`POST /api/generate`, `POST /api/chat`) across any supported model
+- Hardware auto-detection: GPU acceleration on CUDA/ROCm/Metal; transparent fallback to CPU with quantized models
+- Model library: Llama 3, Mistral, Qwen2, Phi-3, Gemma 2, and others, pulled on demand from the Ollama registry
+- Concurrent request handling with a built-in queue
+- No network egress — inference is entirely on-host
+
+**Recommended generation models by deployment tier:**
+
+| Tier | Model | VRAM / RAM | Use case |
+|---|---|---|---|
+| GPU (24GB) | `llama3:70b-instruct-q4_K_M` | ~40GB VRAM | Best quality; production recommended |
+| GPU (8–12GB) | `mistral:7b-instruct-q8_0` or `llama3:8b-instruct` | ~8–10GB VRAM | Good quality; fast inference |
+| CPU-only (16GB RAM) | `phi3:mini-instruct-q4_K_M` | ~2.5GB RAM | Acceptable quality; slow for synthesis tasks |
+
+The Generation Service communicates with Ollama via its HTTP API over localhost. The service wraps Ollama with:
+- Retry logic (model loading on first call can take 5–30s depending on model size)
+- Streaming response forwarding to the client (Ollama supports token-level streaming)
+- Timeout enforcement (120s hard timeout per generation request)
+- A model warm-up ping on service start to pre-load the model into GPU memory
+
+**Model selection is operator-configurable** via `OLLAMA_MODEL` in the deployment environment file. The platform enforces that whatever model is selected must be capable of instruction-following and JSON-structured output (validated at startup via a probe prompt).
+
+**The intent classification model** (§3.1) runs on a separate smaller model via Ollama (`phi3:mini-instruct` or `llama3:8b-instruct`) to avoid loading the large generation model for every classification call. Classification adds ~50–150ms depending on hardware tier.
+
+**The NLI faithfulness scorer** (§5.1) uses `cross-encoder/nli-deberta-v3-small` (via `sentence-transformers`, not Ollama) because NLI cross-encoders are 100M-parameter discriminative classifiers — much cheaper to run than a generative LLM for a binary entailment judgment.
 
 ---
 
@@ -461,7 +489,7 @@ This constraint is enforced at the architecture level through data plane separat
 
 ### 7.3 Encryption at Rest and in Transit
 
-**At rest:** Database volumes carrying the vector index and chunk text are encrypted using AES-256 managed by the cloud provider's key management service (KMS). The KMS key is customer-managed (CMEK) for enterprise deployments, meaning the platform operator cannot access encrypted data without the customer's key. Object storage (for original uploaded files — PDFs, audio, video) uses server-side encryption with the same CMEK model.
+**At rest:** Database volumes carrying the vector index and chunk text are encrypted using AES-256. For self-hosted deployments, Linux kernel-level LUKS full-disk encryption is the recommended approach — it requires no external service and adds negligible overhead. For deployments on managed infrastructure, volume encryption at the provider level is acceptable. Object storage (MinIO or local filesystem) uses server-side encryption configured at the MinIO level or filesystem-level encryption.
 
 **In transit:** All internal service-to-service communication uses mutual TLS (mTLS) enforced by the service mesh. The embedding model inference endpoint (whether the self-hosted `nomic-embed` service or the external API) is accessed exclusively over TLS 1.3. No plaintext HTTP is permitted within the platform's network boundary; the ingress controller enforces HTTPS with HSTS headers and rejects downgrade requests.
 
@@ -516,7 +544,7 @@ The MVP is defined by the principle: ship the retrieval-grounded citation engine
 
 **Ingestion additions:** YouTube transcript extraction + Whisper audio transcription; OCR for scanned PDFs (Tesseract); CSV/JSON verbalized ingestion; image OCR + vision-model description; speaker diarization for audio.
 
-**Embedding additions:** CLIP/SigLIP multimodal embedding for images with a separate image-vector index; `text-embedding-3-large` as an operator-selectable alternative via embedding adapter interface.
+**Embedding additions:** CLIP/SigLIP multimodal embedding for images with a separate image-vector index; alternative open-source embedding models (e.g., `BGE-M3`, `multilingual-e5-large`) as operator-selectable alternatives via the embedding adapter interface.
 
 **Storage migration:** Qdrant for deployments exceeding ~20M chunks; per-collection namespace isolation; payload filtering at the vector DB level.
 

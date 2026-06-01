@@ -123,11 +123,13 @@ Ordered by expected user impact:
 ## Technical Milestones
 
 ### Milestone 0 — Infrastructure Baseline (Week 1–2)
-- Containerized services: Ingestion, Retrieval, Generation, Identity
-- PostgreSQL schema (Source, Chunk, KnowledgeBase, Collection, User)
-- Vector store cluster with namespace isolation
-- Message queue for async ingestion jobs
-- Auth: JWT issuance, session management
+- Docker Compose stack: all services in one `compose.yml`
+- PostgreSQL + pgvector schema (Source, Chunk, KnowledgeBase, Collection, User)
+- Ollama container with default model pre-pulled and warm
+- MinIO container for object storage (or local bind-mount for single-user)
+- Redis Streams as the message queue for async ingestion jobs
+- Nginx reverse proxy with TLS (Let's Encrypt)
+- Auth: JWT issuance, session management (no external auth provider)
 
 ### Milestone 1 — Ingestion Loop (Week 3–4)
 - PDF ingestion: parse → chunk → embed → vector store
@@ -159,11 +161,11 @@ Ordered by expected user impact:
 
 ## Cost Model Notes
 
-Estimated steady-state COGS per active user per month: **~$0.90–$1.00**, dominated by generation tokens for Q&A (~50 queries/month assumption). Storage and compute are secondary costs.
+**Zero software licensing cost.** Every component is open-source and self-hosted. There are no per-token, per-query, or per-user charges at any scale.
 
-Free tier sustainable ceiling:
-- 25 sources, 1 private KB, 5 boards, 100 Q&A queries/month
-- Estimated cost per free active user: ~$0.25/month
-- Sustainable at 10% conversion if paid tier is priced at $12+/month
+**Hardware cost only:**
+- Minimum viable (personal/small team): repurposed hardware or a Hetzner VPS (~€5–50/month)
+- Recommended production (community): dedicated server with NVIDIA GPU (~€50–200/month)
+- There is no free tier design needed: the operator sets resource quotas based on available hardware, not per-query billing math
 
-Scaling risk: embedding model migration at 1M+ users requires a re-indexing job capable of processing the full corpus in < 1 hour (requires ~1,000 parallel embedding workers). Provision for this before reaching 500K users.
+**Scaling note:** pgvector handles hundreds of users comfortably on a 32–64GB RAM host. Migration to self-hosted Qdrant is the defined path when the vector index exceeds available RAM (~1,000+ active users with large corpora). Embedding model migration is an overnight background job on GPU, or a multi-night background job on CPU-only.

@@ -239,6 +239,7 @@
 - Social media virality (engagement optimization is not a design goal)
 - Video production or interactive lesson authoring (the learning layer is text-and-citation; rich media production is out of scope)
 - Real-time collaborative document editing (knowledge bases are collaborative, not simultaneous co-editors of a document)
+- A managed SaaS product (the default deployment is self-hosted; cloud hosting is an operator choice, not the designed path)
 
 ### Open Questions
 

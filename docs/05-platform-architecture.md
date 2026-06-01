@@ -28,14 +28,19 @@ Knowledge Commons decomposes into seven bounded domains:
 
 ### Deployment Model
 
-Containerized microservices on managed Kubernetes (AWS EKS, GCP GKE, or Azure AKS — provider selection driven by organizational context, not capability difference). The rationale for Kubernetes over pure serverless: the Retrieval Service benefits from keeping an in-process ANN index warm in memory, and the Generation Service benefits from persistent LLM provider API connection pools. Cold-start latency makes function-as-a-service unacceptable for the real-time Q&A path.
+**Self-hosted, Docker Compose.** The platform is designed to run on a single machine (bare metal, VPS, or local server) using Docker Compose. There are no managed cloud service dependencies. The entire platform — including AI inference, databases, storage, and message queue — runs in containers on the host machine.
 
-Storage:
-- **PostgreSQL** — all transactional data: users, source metadata, collections, permissions, learning enrollment, job status
-- **Object storage** — raw media files (PDFs, video, images) and derived assets
-- **Vector database** — per-namespace partitioned vector store (self-hosted Weaviate, Qdrant, or managed equivalent)
-- **Redis** — cache, rate-limit counters, session state, pub/sub fan-out
-- **Message queue** (NATS JetStream or equivalent) — durable, subject-based, at-least-once delivery for all async job dispatch
+**Minimum viable hardware:** 16GB RAM, 4 CPU cores, 50GB disk. No GPU required, but inference throughput is significantly reduced on CPU-only hardware (see `docs/02-ai-architecture.md` §3.5 for model tier guidance).
+
+**Recommended production hardware:** 32GB RAM, 8 CPU cores, 500GB NVMe SSD, NVIDIA GPU with 12–24GB VRAM (RTX 3090, RTX 4090, or equivalent). Total hardware cost: ~$1,000–$2,500 for a new build; near-zero for repurposed server hardware. VPS option: Hetzner AX41 (~€35/month) for CPU-only or a GPU cloud instance for inference-heavy workloads.
+
+A Kubernetes-based deployment is possible for multi-node scaling (the service architecture supports it), but it is not the default and not required at any scale this platform is likely to reach in its first 1–2 years.
+
+Storage (all self-hosted, zero software licensing cost):
+- **PostgreSQL + pgvector** — all transactional data AND vector embeddings in the same database instance; row-level security for multi-tenant isolation
+- **MinIO** — S3-compatible object storage for raw media files (PDFs, video, images) and derived assets, running as a Docker container on the same host; falls back to local filesystem bind-mount for single-user deployments
+- **Redis** — cache, rate-limit counters, session state, pub/sub fan-out (open source, Docker container)
+- **Redis Streams** — serves as the message queue for async ingestion jobs; eliminates the need for a separate queue service at MVP scale
 
 ### API Gateway and BFF Pattern
 
@@ -272,22 +277,29 @@ Video/audio transcription handled by a separate `transcription.jobs` queue becau
 
 **Job deduplication:** keyed on `(owner_user_id, content_hash)`. Duplicate submission returns the existing Source ID without re-processing.
 
-### CDN Strategy
+### Static Asset Serving
 
-Raw media served from object storage via CDN with signed short-lived tokens (15-minute expiry). The CDN validates the token; it does not expose pre-signed object storage URLs directly.
+Raw media and derived assets are served from MinIO via the Nginx reverse proxy that sits in front of all services. Nginx handles:
+- Short-lived signed URL generation (using Nginx's `secure_link` module) so media URLs are not guessable
+- TLS termination for the entire platform (a single Let's Encrypt certificate covers all routes)
+- Static asset caching in memory for thumbnails and frequently accessed derived assets
 
-Derived assets (thumbnails, transcript VTT files, chunk-level text extracts) are stored alongside raw assets and served through the same CDN.
+There is no external CDN. For a self-hosted platform with a community of hundreds to a few thousand users, Nginx with appropriate `Cache-Control` headers on static assets is sufficient. A CDN layer can be added later (e.g., Cloudflare's free tier) if geographic latency becomes an issue.
 
-### Storage Tiering
+### Storage Management
 
 ```
-Hot (SSD-backed): Sources accessed in the past 30 days; all Chunks (in RDB)
-Warm (standard):  Raw media 30–180 days old; derived assets migrate alongside
-Cold (archival):  Raw media 180+ days old; transparent restore on access
+All media:   MinIO on local disk (or bind-mounted local filesystem for single-user)
+             One bucket: knowledge-commons-media
+             Structure: {user_id}/{source_id}/{filename_or_hash}
+             Nginx serves via signed URL; MinIO access is internal-only
 
-Lifecycle rule runs nightly based on Source.last_accessed_at.
-Chunks remain in the relational DB throughout — retrieval requires indexed
-full-text queries; chunk text is not a candidate for tiering.
+Chunks:      PostgreSQL table (not object storage)
+             Text is in the DB; vector refs point to pgvector columns in same DB
+
+Retention:   No automatic tiering. Disk is cheap and self-managed.
+             Operator prunes storage manually or via a cron job if needed.
+             A Source deletion job tombstones chunks and queues MinIO object deletion.
 ```
 
 ---
@@ -468,37 +480,32 @@ Layer weighting: Core layer results rank above Learning layer for factual querie
 
 ## 7. AI Infrastructure and Model Operations
 
-### LLM API Integration
+### Local LLM Inference via Ollama
 
-The Generation Service is the sole entry point for LLM calls. It enforces:
+All LLM inference runs on-host via Ollama. See `docs/02-ai-architecture.md` §3.5 for model selection and hardware tiers. Platform-level concerns:
 
-**Rate limiting:** Two tiers:
-1. Plan-level (Redis sliding-window): requests/minute, tokens/day per plan tier
-2. User/org-level: secondary bucket within the plan
+**Resource limiting:** Ollama runs as a system service (or Docker container) on the host. CPU/GPU resource limits are set at the container level in Docker Compose. The Generation Service enforces a request queue via Redis: concurrent generation requests are capped at `MAX_CONCURRENT_GENERATIONS` (default: 2 on GPU, 1 on CPU-only). Requests beyond the cap are queued and served as capacity frees. Users see a "queued" state indicator rather than a timeout.
 
-429 responses include `Retry-After` header and a structured error distinguishing per-user vs. plan-level limits (so the UI can offer an upgrade prompt appropriately).
-
-**Cost attribution:**
+**Request tracking (no monetary cost, but resource-aware):**
 
 ```
 AICall {
-  id:                  UUID
-  user_id:             UUID
-  org_id:              UUID (nullable)
-  feature:             enum [qa, curriculum_generation, summary, embedding,
-                             assessment_generation, search_rerank]
-  model:               text
-  prompt_tokens:       integer
-  completion_tokens:   integer
-  estimated_cost_usd:  decimal(12,6)
-  latency_ms:          integer
-  created_at:          timestamp
+  id:               UUID
+  user_id:          UUID
+  feature:          enum [qa, curriculum_generation, summary, embedding,
+                         assessment_generation, intent_classification]
+  model:            text       -- which Ollama model was used
+  prompt_tokens:    integer
+  completion_tokens: integer
+  latency_ms:       integer
+  queue_wait_ms:    integer    -- time spent waiting for a generation slot
+  created_at:       timestamp
 }
 ```
 
-Aggregated nightly into `DailyCostRollup` for efficient dashboard queries.
+This table serves resource monitoring (which features are compute-heavy, which users generate the most load) rather than cost billing. No `estimated_cost_usd` field — there is no per-token cost.
 
-**Retry policy:** Exponential backoff with jitter, max 3 retries, only on 429 and 5xx. 4xx errors (malformed prompt, content policy) are not retried.
+**Retry policy:** Ollama errors fall into two categories: load errors (model not yet warm — retry after 5s, up to 3 times) and generation errors (malformed output — surface to user, do not retry automatically).
 
 ### Model Versioning
 
@@ -630,50 +637,62 @@ The Ingestion Service calls the registered adapter URL when a source URL matches
 
 ---
 
-## 9. Scalability and Cost Model
+## 9. Scalability and Resource Model
 
-### Per-User Cost Estimate
+### Cost Structure
 
-Assumptions for a moderately active user:
-- 200 sources ingested, average 25,000 words each → 5M words stored
-- Average chunk size: 400 tokens → 12,500 chunks stored
-- 50 queries/month; average Q&A: 3,000 input + 500 output tokens
+The platform has **zero software licensing cost** for any component. All services are open-source and self-hosted. The only costs are:
 
-**One-time costs:**
-- Embedding ~6.65M tokens: ~$0.67 at $0.0001/1K tokens
-- Object storage for raw media: 2.5GB → ~$0.06/month
+- **Hardware / hosting**: a machine to run it on. Options:
+  - Repurposed or owned server: €0/month ongoing (one-time hardware cost)
+  - Hetzner dedicated server (AX41, 64GB RAM, 2× 512GB NVMe): ~€50/month — viable for a community of hundreds to a few thousand users
+  - A cloud VM with a GPU (e.g., Vast.ai RTX 3090 spot): ~$0.30–$0.60/hour, ~$100–$200/month if running continuously
+- **Electricity**: ~50–250W average draw depending on inference load; ~$5–20/month at typical residential rates
+- **Domain name**: ~$10–20/year, optional
 
-**Monthly recurring:**
-- Q&A generation (50 queries): ~$0.90–$1.00
-- Vector storage: ~$0.005–$0.01/user/month
-- Relational DB storage: negligible at individual user scale
+There is no per-query cost, no per-token cost, no per-user cost. Adding a 1,000th user costs no more in software terms than the 10th.
 
-**Estimated COGS per active user per month: ~$0.90–$1.00**, dominated by generation tokens.
+### Disk and Memory Sizing
 
-For a passive user (has a KB, rarely queries): ~$0.01/month.
+Sizing for a self-hosted community deployment (hundreds of users):
+
+```
+Per-user storage estimate:
+  Raw media (200 sources × 5MB avg):            ~1GB/user
+  Chunk text in PostgreSQL (12,500 chunks):      ~6MB/user
+  pgvector index (768-dim × 12,500 vectors):     ~37MB/user (float32)
+                                    or           ~19MB/user (float16 compressed)
+  MinIO object storage totals:                   ~1GB/user
+  
+For 100 active users:
+  Disk:   ~100GB total (affordable on any modern host)
+  RAM:    pgvector HNSW index lives in RAM for fast ANN: ~3.7GB for 100 users
+          + PostgreSQL buffer pool: 4–8GB
+          + Redis: <500MB
+          + Ollama model in VRAM: 10–40GB depending on model
+  Total host RAM recommendation: 32–64GB
+```
 
 ### Scaling Inflection Points
 
-**Vector index RAM (100K–1M users):** At ~77MB per user, 1M users = ~77TB of vector data — cannot be held in RAM. Mitigation: switch from HNSW to disk-backed ANN (DiskANN-style) before reaching 250K users.
+**pgvector HNSW RAM ceiling:** At ~37MB per user, 1,000 users = ~37GB of vector data. This fits comfortably in RAM on a 64GB host. At 10,000 users, the index (~370GB) exceeds RAM — at that scale, migrate to pgvector's IVFFlat index (disk-backed, lower recall but manageable) or to self-hosted Qdrant. This is a generous runway — most self-hosted communities will not exceed 1,000 active users.
 
-**Notification fan-out:** A public collection with 50K followers triggering a fork event can saturate the Notification Service with synchronous fan-out. The lazy-pull threshold must kick in below saturation. Default threshold: 10K followers. Instrument from day one.
+**Inference throughput:** A single GPU handles 2–5 concurrent generation requests before queuing. This is adequate for a community of hundreds; for thousands of concurrent users, either add a second GPU node or accept queue latency. Embedding (ingestion-time) is batch-processed in the background and does not compete with interactive Q&A for GPU capacity if scheduled during low-traffic hours.
 
-**Generation cost at high engagement:** A power user running 500 queries/month costs ~$9/month at current model pricing. Mitigation: per-plan monthly token budgets (soft and hard limits). Hard limit blocks generation but not retrieval, preserving platform utility.
+**Notification fan-out:** For a small self-hosted community, synchronous fan-out is fine up to a few thousand followers. The lazy-pull threshold (default 10K) will not be hit at typical self-hosted scales.
 
-**Embedding model migration at scale:** At 1M users, re-embedding ~12.5B chunks requires ~1,000 parallel workers to complete in < 1 hour. Provision this capacity before reaching 500K users. One-time migration cost: ~$1,250 at current embedding prices — absorb as an operational cost.
+**Embedding model migration:** Re-embedding 1,000 users × 12,500 chunks = 12.5M chunks. At 8,000 chunks/min on a GPU, this takes ~26 hours — acceptable as an overnight background job. On CPU-only at 800 chunks/min, this takes ~10 days; plan accordingly or run the migration across multiple nights.
 
-### Free Tier Design
+### No "Free Tier" Needed
+
+Free tiers exist to manage per-query costs in a commercial SaaS. On a self-hosted deployment, there is no such cost to manage. The operator determines user limits based purely on disk and compute headroom — not on per-user billing math. A typical configuration:
 
 ```
-Sources:          25 total
-KnowledgeBases:   1 private
-Collections:      5
-Q&A queries:      100/month
-Curriculum gen:   1 LearningPath/month
-Storage:          500MB raw media
-Collaboration:    view-only on shared collections
+All users:
+  Sources:          unlimited (bounded only by disk)
+  Q&A queries:      rate-limited for fairness (e.g., 10 concurrent, not 10/month)
+  LearningPaths:    unlimited
+  Storage:          per-user disk quota configurable by operator (default: none)
 ```
 
-Estimated COGS per active free user: ~$0.25/month. Sustainable at ~10% conversion if paid tier is priced at $12+/month.
-
-Free-tier design principle: **never limit storage to the point where the knowledge base is useless, but limit generation to keep costs bounded.** A user who ingests 25 sources and runs zero queries costs $0.01/month.
+The platform ships with configurable resource quotas so operators can prevent a single user from ingesting 10TB of video, but quotas are fairness controls — not monetization levers.
