@@ -35,7 +35,7 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "Milestone 3 — Discovery Surface"
+current_sprint: "Milestone 4 — Integration + Auth"
 last_release: null
 ticket_prefix: "KC"
 ```
@@ -53,18 +53,26 @@ ticket_prefix: "KC"
 
 ---
 
-## 🎫 Active Tickets — Milestone 3
+## 🎫 Active — Milestone 4 (Integration + Auth)
 
-*All Milestone 2 tickets completed — ready for Milestone 3 (Discovery Surface).*
+*All Milestone 3 tickets completed. Next focus: first integration run + auth flow + cross-cutting wiring.*
 
-Suggested sequence (see SESSION_HANDOFF.md §What Comes Next for context):
-- KC-019: Migration 004 — Board entity, fork tracking, board_embedding column
-- KC-020: Board service — create, fork, get public board
-- KC-021: Board SSR page — public swim-lane view (/board/[boardId])
-- KC-022: Fork action — UI + ingestion trigger + progress
-- KC-023: Curator profile page (/u/[handle])
-- KC-024: Semantic recommendation service — centroid embed + cosine board search
-- KC-025: Explore page — trending + recommended boards
+Priority items (see SESSION_HANDOFF.md §What Comes Next):
+- M4-001: First Docker Compose integration run — surface all unverified paths
+- M4-002: Login + register pages + redirect logic for authenticated routes
+- M4-003: Wire board_embedding update to source.embedded pub/sub event
+- M4-004: Link forked KB to source Collection via knowledge_base_collection join table
+- M4-005: pages/index.vue — landing page with explore CTA
+
+## ✅ Milestone 3 Tickets
+
+- KC-019: Migration 004 — extend collections + collection_items (board_embedding, layout_config, fork_count, lane) (2026-06-01)
+- KC-020: BoardService — create, fork, get, list, add_source, search_semantic, curator_profile, summary (2026-06-01)
+- KC-021: Board SSR page — swim-lane view, source cards, fork dialog (/board/[boardId]) (2026-06-01)
+- KC-022: Fork action — dialog, new Collection + KB + source copy + ingestion queue (2026-06-01)
+- KC-023: Curator profile page (/u/[handle]) — SSR, board grid (2026-06-01)
+- KC-024: Semantic recommendation service — centroid nearest-neighbor via board_embedding (2026-06-01)
+- KC-025: Explore page — live trending grid + semantic search (2026-06-01)
 
 ---
 
@@ -138,6 +146,7 @@ See `docs/06-roadmap.md` for full milestone breakdown and MVP scope tables.
 
 ## Recent Updates
 
+- 2026-06-01: Milestone 3 complete — discovery layer, boards, fork, explore, curator profiles
 - 2026-06-01: Milestone 2 complete — curriculum agent, learning paths, MC assessment, frontend views
 - 2026-06-01: Milestone 1 complete — ingestion loop, grounded Q&A, SSE streaming
 - 2026-06-01: Milestone 0 complete — infrastructure baseline, Docker Compose, identity
