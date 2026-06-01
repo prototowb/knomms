@@ -1,0 +1,123 @@
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.db import Base
+
+
+class LearningPath(Base):
+    __tablename__ = "learning_paths"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    kb_id: Mapped[str] = mapped_column(
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+
+    learning_goal: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    time_budget_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    concepts: Mapped[list["PathConcept"]] = relationship(
+        "PathConcept",
+        back_populates="path",
+        cascade="all, delete-orphan",
+        order_by="PathConcept.position",
+    )
+
+
+class PathConcept(Base):
+    __tablename__ = "path_concepts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    path_id: Mapped[str] = mapped_column(
+        ForeignKey("learning_paths.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+
+    explanation_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # Denormalized list of chunk_ids cited inline in explanation_text
+    explanation_passage_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    # Denormalized passage excerpts for display (list of {chunk_id, locator, source_id, excerpt})
+    source_passages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    instructor_annotation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending | accepted | pruned
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    path: Mapped["LearningPath"] = relationship("LearningPath", back_populates="concepts")
+    assessment_items: Mapped[list["AssessmentItem"]] = relationship(
+        "AssessmentItem",
+        back_populates="concept",
+        cascade="all, delete-orphan",
+    )
+
+
+class AssessmentItem(Base):
+    __tablename__ = "assessment_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    concept_id: Mapped[str] = mapped_column(
+        ForeignKey("path_concepts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # Soft FK to chunks.id — passage may be re-indexed; stored as string to survive re-indexing
+    grounding_passage_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    correct_answer: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    concept: Mapped["PathConcept"] = relationship("PathConcept", back_populates="assessment_items")
+    distractors: Mapped[list["Distractor"]] = relationship(
+        "Distractor",
+        back_populates="item",
+        cascade="all, delete-orphan",
+    )
+
+
+class Distractor(Base):
+    __tablename__ = "distractors"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    item_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    # Soft FK to chunks.id — which passage shows this is wrong
+    why_wrong_passage_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    misconception_label: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    item: Mapped["AssessmentItem"] = relationship("AssessmentItem", back_populates="distractors")

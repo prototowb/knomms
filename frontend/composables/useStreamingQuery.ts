@@ -5,16 +5,16 @@ interface StreamingQueryResult {
   citations: Ref<Record<string, any>>
   isStreaming: Ref<boolean>
   error: Ref<string | null>
-  submit: () => Promise<void>
+  submit: (query: string) => Promise<void>
 }
 
-export function useStreamingQuery(kbId: string, query: string): StreamingQueryResult {
+export function useStreamingQuery(kbId: string): StreamingQueryResult {
   const response = ref('')
   const citations = ref<Record<string, any>>({})
   const isStreaming = ref(false)
   const error = ref<string | null>(null)
 
-  async function submit(): Promise<void> {
+  async function submit(query: string): Promise<void> {
     // Reset state for new query
     response.value = ''
     citations.value = {}
