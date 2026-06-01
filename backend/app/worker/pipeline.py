@@ -11,6 +11,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.models  # noqa: F401 — ensures full ORM registry before any DB ops
 from app.core.redis import get_redis
 from app.domains.ingestion.blocks import RawBlock
 from app.domains.ingestion.chunker import chunk_blocks
@@ -110,6 +111,7 @@ async def _fetch_content(source: Source, is_upload: bool) -> bytes:
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=5.0),
+            headers={"User-Agent": "Mozilla/5.0 (compatible; KnowledgeCommons/1.0; +https://github.com/knowledge-commons)"},
         ) as client:
             resp = await client.get(source.raw_url)
             resp.raise_for_status()

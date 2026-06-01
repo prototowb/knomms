@@ -56,10 +56,10 @@ class PathConcept(Base):
     explanation_text: Mapped[str] = mapped_column(Text, nullable=False)
     # Denormalized list of chunk_ids cited inline in explanation_text
     explanation_passage_ids: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list
+        JSONB, nullable=True, default=list
     )
     # Denormalized passage excerpts for display (list of {chunk_id, locator, source_id, excerpt})
-    source_passages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    source_passages: Mapped[list] = mapped_column(JSONB, nullable=True, default=list)
 
     instructor_annotation: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(

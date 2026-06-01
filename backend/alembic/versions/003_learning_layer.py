@@ -58,18 +58,8 @@ def upgrade() -> None:
         sa.Column("position", sa.Integer, nullable=False),
         sa.Column("title", sa.Text, nullable=False),
         sa.Column("explanation_text", sa.Text, nullable=False),
-        sa.Column(
-            "explanation_passage_ids",
-            JSONB,
-            nullable=False,
-            server_default="'[]'::jsonb",
-        ),
-        sa.Column(
-            "source_passages",
-            JSONB,
-            nullable=False,
-            server_default="'[]'::jsonb",
-        ),
+        sa.Column("explanation_passage_ids", JSONB, nullable=True),
+        sa.Column("source_passages", JSONB, nullable=True),
         sa.Column("instructor_annotation", sa.Text, nullable=True),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column(

@@ -24,7 +24,7 @@ depends_on = None
 
 def upgrade() -> None:
     # ── collections ───────────────────────────────────────────────────────────
-    op.add_column("collections", sa.Column("layout_config", JSONB, nullable=False, server_default="{}"))
+    op.add_column("collections", sa.Column("layout_config", JSONB, nullable=True))
     op.add_column("collections", sa.Column("ai_summary", sa.Text, nullable=True))
     # board_embedding: use placeholder text then ALTER to vector(768), mirroring
     # the chunks.embedding pattern from migration 001.

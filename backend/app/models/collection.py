@@ -29,7 +29,7 @@ class Collection(Base):
     fork_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Board layout: {"mode": "swim-lane"|"canvas", "lanes": [...]}
-    layout_config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    layout_config: Mapped[dict] = mapped_column(JSONB, nullable=True, default=dict)
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Centroid of all source chunk embeddings — used for semantic recommendation
     board_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
