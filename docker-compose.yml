@@ -1,0 +1,153 @@
+# Knowledge Commons — Self-Hosted Deployment
+# Zero external service dependencies. All AI inference, storage, and retrieval run on-host.
+# Requirements: Docker Compose v2.20+
+#
+# Quick start:
+#   cp .env.example .env   # edit secrets and OLLAMA_MODEL
+#   docker compose pull
+#   docker compose up -d
+#   docker compose exec api python manage.py migrate
+#
+# See docs/05-platform-architecture.md for hardware sizing guidance.
+
+services:
+
+  # ── PostgreSQL + pgvector ────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: knowledge_commons
+      POSTGRES_USER: ${POSTGRES_USER:-kc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (cache + pub/sub + Streams message queue) ──────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  # ── MinIO (S3-compatible object storage for raw media) ───────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kc-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD required}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+
+  # ── Ollama (local LLM inference — generation + embeddings) ───────────────
+  # GPU: uncomment the deploy block below and set OLLAMA_MODEL to a larger model.
+  # CPU-only: remove the deploy block; expect slower inference.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      start_period: 60s
+
+  # ── Model warm-up (pulls OLLAMA_MODEL and embedding model on first start) ─
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
+    entrypoint: ["/bin/sh", "-c",
+      "ollama pull ${OLLAMA_MODEL} && ollama pull nomic-embed-text"]
+    restart: "no"
+
+  # ── Application API ───────────────────────────────────────────────────────
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
+      OLLAMA_EMBED_MODEL: nomic-embed-text
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY required}
+      MAX_CONCURRENT_GENERATIONS: ${MAX_CONCURRENT_GENERATIONS:-2}
+    volumes:
+      - ./logs:/app/logs
+
+  # ── Ingestion worker (picks up jobs from Redis Streams) ───────────────────
+  worker:
+    build: .
+    command: python -m worker
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      ollama:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_EMBED_MODEL: nomic-embed-text
+
+  # ── Nginx reverse proxy (TLS termination + static serving) ───────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro  # place Let's Encrypt certs here
+      - minio_data:/var/www/media:ro        # direct static serving for public assets
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
+  ollama_models:    # persists pulled model weights across restarts (~4–40GB depending on model)

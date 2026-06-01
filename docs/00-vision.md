@@ -73,12 +73,14 @@ These are non-negotiable constraints, enforced architecturally:
 4. **Agentic, not just Q&A** — The AI can propose, compile, compare, generate assessments, and assemble learning paths
 5. **Evals baked in** — Source fidelity scoring, confidence intervals, and human-feedback loops from day one
 6. **Privacy by default** — Knowledge bases are private until explicitly published; no training on user content without opt-in
+7. **Self-hostable, zero external cost** — All AI inference, storage, and retrieval run locally. No tokens sent to third-party APIs unless the operator explicitly configures it. No per-query or per-token billing. The platform is deployable on a single machine with Docker Compose and a commodity GPU (or CPU for smaller deployments) at zero software licensing cost.
 
 ---
 
 ## What This Is Not
 
 - Not a general-purpose chat assistant (no free-floating responses without grounded retrieval)
+- Not a cloud SaaS product (the platform is designed to run self-hosted; cloud deployment is an operator choice, not the default)
 - Not a document storage or CMS (the AI relationship to content is mandatory, not optional)
 - Not a MOOC platform (learning paths are outputs of the AI, not the primary content model)
 - Not a social media feed (virality is not a design goal; depth and trust are)
