@@ -60,7 +60,7 @@ class GenerationService:
         valid_ids = set(citations_dict.keys())
         prompt = cit.build_rag_prompt(query, chunks)
 
-        return self._generate_stream(prompt, citations_dict, valid_ids)
+        return await self._generate_stream(prompt, citations_dict, valid_ids)
 
     async def _generate_stream(
         self,
