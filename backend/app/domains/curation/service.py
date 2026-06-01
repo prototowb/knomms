@@ -180,6 +180,26 @@ class BoardService:
         await self.db.refresh(board)
         return board
 
+    async def _resolve_board_kb(self, board: Collection, user: User):
+        """Return the board's dedicated KnowledgeBase, creating and linking one if missing."""
+        from app.models.knowledge_base import KnowledgeBase, knowledge_base_collection
+
+        kb = (await self.db.execute(
+            select(KnowledgeBase)
+            .join(knowledge_base_collection, knowledge_base_collection.c.kb_id == KnowledgeBase.id)
+            .where(knowledge_base_collection.c.collection_id == board.id)
+            .limit(1)
+        )).scalar_one_or_none()
+
+        if kb is None:
+            kb_svc = KnowledgeBaseService(self.db)
+            kb = await kb_svc.create(user, title=f"Board: {board.title}")
+            from app.models.knowledge_base import knowledge_base_collection as kbc
+            await self.db.execute(
+                kbc.insert().values(kb_id=kb.id, collection_id=board.id)
+            )
+        return kb
+
     async def add_source_to_board(
         self,
         board_id: str,
@@ -191,26 +211,10 @@ class BoardService:
         board = await self.get_board_for_owner(board_id, user)
         if board is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
-
         if not source_url:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="source_url required")
 
-        # Find the board's dedicated KB via the join table
-        from app.models.knowledge_base import KnowledgeBase, knowledge_base_collection
-        kb_row = (await self.db.execute(
-            select(KnowledgeBase)
-            .join(knowledge_base_collection, knowledge_base_collection.c.kb_id == KnowledgeBase.id)
-            .where(knowledge_base_collection.c.collection_id == board.id)
-            .limit(1)
-        )).scalar_one_or_none()
-
-        if kb_row is None:
-            # Legacy board without a KB — create and link one now
-            kb_svc = KnowledgeBaseService(self.db)
-            kb_row = await kb_svc.create(user, title=f"Board: {board.title}")
-            await self.db.execute(
-                knowledge_base_collection.insert().values(kb_id=kb_row.id, collection_id=board.id)
-            )
+        kb = await self._resolve_board_kb(board, user)
 
         source = Source(
             id=str(uuid.uuid4()),
@@ -218,7 +222,7 @@ class BoardService:
             type="web_page",
             raw_url=source_url,
             title=source_url[:200],
-            kb_id=kb_row.id,
+            kb_id=kb.id,
         )
         self.db.add(source)
         await self.db.flush()
@@ -234,18 +238,78 @@ class BoardService:
         self.db.add(item)
         await self.db.flush()
 
-        # Dispatch ingestion to the board's dedicated KB
         redis = await get_redis()
-        await redis.xadd(
-            STREAM_KEY,
-            {
-                "source_id": source.id,
-                "user_id": user.id,
-                "kb_id": kb_row.id,
-                "vector_namespace": kb_row.vector_namespace,
-                "upload": "0",
-            },
+        await redis.xadd(STREAM_KEY, {
+            "source_id": source.id,
+            "user_id": user.id,
+            "kb_id": kb.id,
+            "vector_namespace": kb.vector_namespace,
+            "upload": "0",
+        })
+
+        await self.db.commit()
+        return item
+
+    async def add_file_to_board(
+        self,
+        board_id: str,
+        user: User,
+        file,  # fastapi.UploadFile — typed as Any to avoid importing fastapi in this module
+        note: str,
+        lane: str,
+    ) -> CollectionItem:
+        """Accept a file upload and ingest it into the board's dedicated KB."""
+        board = await self.get_board_for_owner(board_id, user)
+        if board is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
+
+        filename: str = file.filename or "upload"
+        suffix = filename.rsplit(".", 1)[-1].lower()
+        source_type = {"pdf": "pdf", "docx": "plain_text", "doc": "plain_text",
+                       "txt": "plain_text", "md": "plain_text", "epub": "epub"}.get(suffix, "plain_text")
+
+        content: bytes = await file.read()
+        if len(content) > 200 * 1024 * 1024:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File exceeds 200MB limit")
+
+        kb = await self._resolve_board_kb(board, user)
+
+        source_id = str(uuid.uuid4())
+        storage_key = f"raw/{user.id}/{source_id}/{filename}"
+
+        source = Source(
+            id=source_id,
+            owner_user_id=user.id,
+            type=source_type,
+            storage_key=storage_key,
+            title=filename,
+            kb_id=kb.id,
         )
+        self.db.add(source)
+        await self.db.flush()
+
+        item = CollectionItem(
+            collection_id=board.id,
+            source_id=source.id,
+            added_by=user.id,
+            note=note,
+            lane=lane,
+            position=len(board.items),
+        )
+        self.db.add(item)
+        await self.db.flush()
+
+        # Hold file bytes in Redis until the worker fetches them (same pattern
+        # as IngestionService.submit_file; TTL 1 hour)
+        redis = await get_redis()
+        await redis.setex(f"upload:{source_id}", 3600, content)
+        await redis.xadd(STREAM_KEY, {
+            "source_id": source.id,
+            "user_id": user.id,
+            "kb_id": kb.id,
+            "vector_namespace": kb.vector_namespace,
+            "upload": "1",
+        })
 
         await self.db.commit()
         return item

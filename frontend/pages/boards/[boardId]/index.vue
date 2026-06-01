@@ -163,24 +163,18 @@ async function addSource() {
 async function uploadFile(file: File) {
   uploading.value = true
   uploadError.value = null
-  // Upload to KB associated with this board — use board's sources endpoint
-  // which internally routes to the board's KB
   const form = new FormData()
   form.append('file', file)
-  // We'll use the generic upload endpoint; the board's KB is the target
-  // (board_id → kb lookup done server-side via add_source_to_board would need
-  // a file variant — for now we ingest into the user's default KB and add a
-  // collection item separately, flagged as a known limitation)
+  form.append('note', noteInput.value.trim())
+  form.append('lane', laneInput.value.trim())
   try {
-    const s = await $fetch<SourceCard>('/api/sources/upload', {
+    const item = await $fetch<BoardItem>(`/api/boards/${boardId}/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${auth.token}` },
       body: form,
     })
-    // Add as a board item via sources endpoint (note: this creates a second source record)
-    // TODO: file upload should be wired through the board's KB directly
-    if (s.id) { pollingIds.value.add(s.id); startPollTimer() }
-    uploadError.value = null
+    board.value?.items.unshift(item)
+    if (item.source?.id) { pollingIds.value.add(item.source.id); startPollTimer() }
   } catch (err: unknown) {
     uploadError.value = err instanceof Error ? err.message : 'Upload failed'
   } finally {
