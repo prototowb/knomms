@@ -35,7 +35,7 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "Milestone 4 — Integration + Auth"
+current_sprint: "MVP Launch Prep"
 last_release: null
 ticket_prefix: "KC"
 ```
@@ -53,16 +53,16 @@ ticket_prefix: "KC"
 
 ---
 
-## 🎫 Active — Milestone 4 (Integration + Auth)
+## 🎫 Active — MVP Launch Prep
 
-*All Milestone 3 tickets completed. Next focus: first integration run + auth flow + cross-cutting wiring.*
+*M4 complete. Docker integration run is the keystone next step.*
 
-Priority items (see SESSION_HANDOFF.md §What Comes Next):
-- M4-001: First Docker Compose integration run — surface all unverified paths
-- M4-002: Login + register pages + redirect logic for authenticated routes
-- M4-003: Wire board_embedding update to source.embedded pub/sub event
-- M4-004: Link forked KB to source Collection via knowledge_base_collection join table
-- M4-005: pages/index.vue — landing page with explore CTA
+Priority items (see SESSION_HANDOFF.md §What's Left):
+- NEXT-001: First `docker compose up` integration run — surface all unverified paths
+- NEXT-002: Source ingestion UI — upload PDF / paste URL inside KB workspace
+- NEXT-003: Board management UI — create board, add sources, manage lanes
+- NEXT-004: My Boards section on dashboard
+- NEXT-005: Public layout header — login/register links for unauthenticated visitors
 
 ## ✅ Milestone 3 Tickets
 
@@ -146,6 +146,7 @@ See `docs/06-roadmap.md` for full milestone breakdown and MVP scope tables.
 
 ## Recent Updates
 
+- 2026-06-01: Milestone 4 complete — auth flow, fork-KB fix, board embeddings, typecheck baseline
 - 2026-06-01: Milestone 3 complete — discovery layer, boards, fork, explore, curator profiles
 - 2026-06-01: Milestone 2 complete — curriculum agent, learning paths, MC assessment, frontend views
 - 2026-06-01: Milestone 1 complete — ingestion loop, grounded Q&A, SSE streaming
