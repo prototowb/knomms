@@ -11,6 +11,7 @@ export default defineNuxtConfig({
     '/**': { ssr: false },
     // Public routes need SEO — server-render them
     '/explore/**': { ssr: true },
+    '/board/**': { ssr: true },
     '/u/**': { ssr: true },
   },
 

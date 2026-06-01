@@ -93,9 +93,14 @@ async def _fetch_content(source: Source, is_upload: bool) -> bytes:
     if is_upload:
         redis = await get_redis()
         data = await redis.getdel(f"upload:{source.id}")
-        if data is None:
-            raise ValueError(f"Upload data expired or missing for source {source.id}")
-        return data if isinstance(data, bytes) else data.encode()
+        if data is not None:
+            return data if isinstance(data, bytes) else data.encode()
+        # Redis key expired (e.g. forked source) — fall back to MinIO object store
+        if source.storage_key:
+            from app.core.config import settings
+            from app.core.storage import read_object
+            return await read_object(settings.minio_bucket, source.storage_key)
+        raise ValueError(f"Upload data expired for source {source.id} and no storage_key set")
 
     if source.raw_url:
         async with httpx.AsyncClient(

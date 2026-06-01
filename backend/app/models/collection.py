@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime, timezone
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 from app.models.knowledge_base import knowledge_base_collection
+
+EMBEDDING_DIM = 768  # must match chunks.EMBEDDING_DIM
 
 
 class Collection(Base):
@@ -17,18 +20,19 @@ class Collection(Base):
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-
     visibility: Mapped[str] = mapped_column(
         String(10), nullable=False, default="private"
     )  # private | team | public
 
-    forked_from_id: Mapped[str | None] = mapped_column(
-        ForeignKey("collections.id"), nullable=True
-    )
-    # Ordered list of ancestor collection IDs (root first)
-    fork_lineage: Mapped[list[str]] = mapped_column(
-        ARRAY(String(36)), nullable=False, default=list
-    )
+    forked_from_id: Mapped[str | None] = mapped_column(ForeignKey("collections.id"), nullable=True)
+    fork_lineage: Mapped[list[str]] = mapped_column(ARRAY(String(36)), nullable=False, default=list)
+    fork_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Board layout: {"mode": "swim-lane"|"canvas", "lanes": [...]}
+    layout_config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Centroid of all source chunk embeddings — used for semantic recommendation
+    board_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -47,7 +51,8 @@ class Collection(Base):
         "Collection", remote_side="Collection.id", foreign_keys=[forked_from_id]
     )
     items: Mapped[list["CollectionItem"]] = relationship(
-        "CollectionItem", back_populates="collection", cascade="all, delete-orphan"
+        "CollectionItem", back_populates="collection", cascade="all, delete-orphan",
+        order_by="CollectionItem.position",
     )
     knowledge_bases: Mapped[list["KnowledgeBase"]] = relationship(  # type: ignore[name-defined]
         "KnowledgeBase",
@@ -63,12 +68,13 @@ class CollectionItem(Base):
     collection_id: Mapped[str] = mapped_column(
         ForeignKey("collections.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    source_id: Mapped[str] = mapped_column(
-        ForeignKey("sources.id", ondelete="CASCADE"), nullable=False
-    )
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"), nullable=False)
     added_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+
     note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    lane: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -76,3 +82,4 @@ class CollectionItem(Base):
     )
 
     collection: Mapped["Collection"] = relationship("Collection", back_populates="items")
+    source: Mapped["Source"] = relationship("Source")  # type: ignore[name-defined]
