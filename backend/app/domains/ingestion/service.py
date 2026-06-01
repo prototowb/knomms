@@ -74,8 +74,14 @@ class IngestionService:
         self.db.add(source)
         await self.db.flush()
 
-        # Upload raw content to MinIO — done in the worker to avoid blocking the API
-        # The worker fetches from DB; we pass the raw bytes via a temporary Redis key.
+        # Write to MinIO for durable storage (the pipeline's MinIO fallback path
+        # requires the object to actually exist there).
+        from app.core.config import settings as _settings
+        from app.core.storage import write_object
+        await write_object(_settings.minio_bucket, storage_key, content)
+
+        # Also cache in Redis for fast worker pickup (TTL 1 hour avoids a MinIO
+        # round-trip for files processed quickly).
         redis = await get_redis()
         await redis.setex(f"upload:{source_id}", 3600, content)
 

@@ -299,8 +299,11 @@ class BoardService:
         self.db.add(item)
         await self.db.flush()
 
-        # Hold file bytes in Redis until the worker fetches them (same pattern
-        # as IngestionService.submit_file; TTL 1 hour)
+        # Write to MinIO for durable storage, then also cache in Redis for fast
+        # worker pickup (same dual-write pattern as IngestionService.submit_file).
+        from app.core.config import settings as _settings
+        from app.core.storage import write_object
+        await write_object(_settings.minio_bucket, storage_key, content)
         redis = await get_redis()
         await redis.setex(f"upload:{source_id}", 3600, content)
         await redis.xadd(STREAM_KEY, {

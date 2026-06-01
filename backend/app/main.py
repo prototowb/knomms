@@ -10,7 +10,16 @@ from app.core.redis import close_redis
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # startup: nothing blocking in M0 — MinIO bucket init added in M1
+    # Ensure the MinIO bucket exists before the first request. This is safe to
+    # call every startup — it's a no-op if the bucket already exists.
+    from app.core.storage import ensure_bucket
+    from app.core.config import settings
+    try:
+        await ensure_bucket(settings.minio_bucket)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("MinIO bucket init failed: %s", exc)
+
     yield
     # shutdown
     await close_redis()
