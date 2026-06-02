@@ -1,8 +1,8 @@
-# Platform Vision — Knowledge Commons
+# Platform Vision — Knowledge Comms
 
 ## The Single Platform
 
-Knowledge Commons is a **grounded collective intelligence platform**: a place where any person or community can build, share, and learn from living knowledge bases that the AI reasons over — not around.
+Knowledge Comms is a **grounded collective intelligence platform**: a place where any person or community can build, share, and learn from living knowledge bases that the AI reasons over — not around.
 
 The critical distinction from adjacent products: the AI is not a feature layer on top of content management. It IS the content model. Sources are not things you "ask AI about" as a side function — they are the semantic substrate the platform reasons from, cites, and synthesizes across every layer.
 

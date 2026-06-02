@@ -1,4 +1,4 @@
-# Knowledge Commons — Layer 1: Grounded Knowledge Core
+# Knowledge Comms — Layer 1: Grounded Knowledge Core
 
 ## AI Architecture Specification
 

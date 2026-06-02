@@ -1,10 +1,10 @@
-# Knowledge Commons
+# Knowledge Comms
 
 A grounded collective intelligence platform where communities build, share, and learn from AI-powered knowledge bases.
 
 ## What It Is
 
-Knowledge Commons combines three layers into a single coherent product:
+Knowledge Comms combines three layers into a single coherent product:
 
 - **Grounded Knowledge Core** — Any collection of sources (documents, video, images, web pages) becomes a queryable, citable knowledge base. Every AI output is anchored to specific source passages with attribution.
 - **Structured Learning Layer** — An AI transformation agent that turns a corpus into learning paths, assessments, and cohort experiences — all citations traceable back to source.

@@ -1,4 +1,4 @@
-# PROJECT STATUS — Knowledge Commons
+# PROJECT STATUS — Knowledge Comms
 
 > **Single Source of Truth** for project state. Read this first every session.
 

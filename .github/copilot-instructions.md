@@ -1,7 +1,7 @@
 <!-- proto-gear:agent-context begin -->
 <!-- proto-gear | role: agent-context | regenerate: pg sync-context -->
 
-# Agent Context — knowledge-commons
+# Agent Context — knomms
 
 > Auto-generated index every agent should read on session start.
 > Regenerate with `pg sync-context`. **Do not hand-edit** between the BEGIN/END markers — your changes will be overwritten.
@@ -108,7 +108,7 @@ When the user's prose contains these keywords, load the matching capability befo
 
 ## 🌐 Project
 
-- **Project**: knowledge-commons
+- **Project**: knomms
 - **Tech / type**: Self-hosted web application
 - **Proto Gear version**: n/a
 - **Last release**: n/a

@@ -1,4 +1,4 @@
-# Knowledge Commons — Platform and Data Architecture
+# Knowledge Comms — Platform and Data Architecture
 
 ## Cross-Cutting Technical Specification v0.1
 
@@ -10,7 +10,7 @@
 
 ### Service Decomposition
 
-Knowledge Commons decomposes into seven bounded domains:
+Knowledge Comms decomposes into seven bounded domains:
 
 **Ingestion Service** — owns the full lifecycle from URL/upload submission through parsing, chunking, embedding, and index population. Entirely async after the initial submission endpoint. The domain entity is `Source` + `Chunk`.
 
@@ -290,7 +290,7 @@ There is no external CDN. For a self-hosted platform with a community of hundred
 
 ```
 All media:   MinIO on local disk (or bind-mounted local filesystem for single-user)
-             One bucket: knowledge-commons-media
+             One bucket: knomms-media
              Structure: {user_id}/{source_id}/{filename_or_hash}
              Nginx serves via signed URL; MinIO access is internal-only
 

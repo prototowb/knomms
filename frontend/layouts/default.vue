@@ -15,7 +15,7 @@ function logout() {
     <aside class="w-56 flex-shrink-0 border-r border-border bg-surface flex flex-col">
       <div class="px-5 py-4 border-b border-border">
         <NuxtLink to="/" class="font-semibold text-sm tracking-tight text-text-primary hover:text-accent transition-colors">
-          Knowledge Commons
+          Knowledge Comms
         </NuxtLink>
       </div>
 

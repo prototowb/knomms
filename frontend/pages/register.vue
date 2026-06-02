@@ -38,7 +38,7 @@ async function submit() {
   <div class="min-h-screen bg-surface-secondary flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <h1 class="text-2xl font-semibold text-text-primary">Knowledge Commons</h1>
+        <h1 class="text-2xl font-semibold text-text-primary">Knowledge Comms</h1>
         <p class="text-sm text-text-muted mt-1">Create your account</p>
       </div>
 

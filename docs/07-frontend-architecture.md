@@ -1,4 +1,4 @@
-# Frontend Architecture — Knowledge Commons
+# Frontend Architecture — Knowledge Comms
 
 **Stack:** Vue 3 + Nuxt 3 + Tailwind CSS + Pinia  
 **Version:** 0.1
@@ -71,7 +71,7 @@ Official Vue state management. Replaces Vuex. Stores are typed, modular, and com
 ## 2. Project Structure
 
 ```
-knowledge-commons-frontend/
+knomms-frontend/
 ├── assets/
 │   └── styles/
 │       ├── animations.scss    # keyframes only — ingestion pulse, streaming cursor

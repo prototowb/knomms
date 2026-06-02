@@ -26,7 +26,7 @@ class WebExtractor(BaseExtractor):
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0),
-            headers={"User-Agent": "KnowledgeCommons/0.1 (+https://github.com/knowledge-commons)"},
+            headers={"User-Agent": "KnowledgeComms/0.1 (+https://github.com/knomms)"},
         ) as client:
             response = await client.get(url)
             response.raise_for_status()

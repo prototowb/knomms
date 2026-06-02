@@ -1,4 +1,4 @@
-# Knowledge Commons — Self-Hosted Deployment
+# Knowledge Comms — Self-Hosted Deployment
 # Zero external service dependencies. All AI inference, storage, and retrieval run on-host.
 # Requirements: Docker Compose v2.20+
 #
@@ -18,13 +18,13 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: knowledge_commons
+      POSTGRES_DB: knomms
       POSTGRES_USER: ${POSTGRES_USER:-kc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc} -d knowledge_commons"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc} -d knomms"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -112,9 +112,9 @@ services:
       # ollama intentionally omitted from deps — not required until Milestone 1
     environment:
       # asyncpg driver required for SQLAlchemy async
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knomms
       # sync URL used by Alembic only
-      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knomms
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}
@@ -142,7 +142,7 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knowledge_commons
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/knomms
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-kc-admin}

@@ -1,4 +1,4 @@
-# Knowledge Commons — Layer 3: Discovery and Curation Layer
+# Knowledge Comms — Layer 3: Discovery and Curation Layer
 
 ## Product Specification v0.1
 
@@ -14,7 +14,7 @@ A single board might contain: four PDF papers on urban heat islands, a long-read
 
 ### How Curation Differs from Bookmarking
 
-Bookmarking is a personal archival act. Curation in Knowledge Commons is a semantic act: the curator asserts that these sources, taken together, constitute a meaningful knowledge domain.
+Bookmarking is a personal archival act. Curation in Knowledge Comms is a semantic act: the curator asserts that these sources, taken together, constitute a meaningful knowledge domain.
 
 - Every item added to a board triggers metadata extraction and source validation at the ingestion layer
 - The platform can already begin producing a structured overview of the board's coverage — gaps, thematic clusters, tone diversity — even before a fork

@@ -1,4 +1,4 @@
-# Product Specification — Knowledge Commons
+# Product Specification — Knowledge Comms
 
 **Version:** 0.1  
 **Status:** Draft — pre-development

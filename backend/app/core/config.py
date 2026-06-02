@@ -5,8 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # database
-    database_url: str = "postgresql+asyncpg://kc:kc@localhost:5432/knowledge_commons"
-    database_sync_url: str = "postgresql://kc:kc@localhost:5432/knowledge_commons"
+    database_url: str = "postgresql+asyncpg://kc:kc@localhost:5432/knomms"
+    database_sync_url: str = "postgresql://kc:kc@localhost:5432/knomms"
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     minio_endpoint: str = "http://localhost:9000"
     minio_access_key: str = "kc-admin"
     minio_secret_key: str = "change-me"
-    minio_bucket: str = "knowledge-commons-media"
+    minio_bucket: str = "knomms-media"
 
     # ollama (not used in M0)
     ollama_base_url: str = "http://localhost:11434"

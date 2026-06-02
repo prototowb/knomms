@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Knowledge Commons are documented here.
+All notable changes to Knowledge Comms are documented here.
 
 ---
 

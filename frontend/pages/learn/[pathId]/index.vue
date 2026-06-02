@@ -347,32 +347,20 @@ onUnmounted(_clearPoll)
                 >
                   <p class="text-sm text-text-primary font-medium mb-4">{{ item.question_text }}</p>
 
-                  <!-- Answer choices -->
-                  <div class="space-y-2">
-                    <label
-                      v-for="choice in [item.correct_answer, ...item.distractors.map(d => d.text)]"
-                      :key="choice"
-                      class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
-                      :class="[
-                        selectedAnswer[item.id] === choice
-                          ? 'border-accent bg-accent/5'
-                          : 'border-border hover:border-border-strong',
-                        attemptResults[item.id] ? 'cursor-default pointer-events-none' : '',
-                        attemptResults[item.id] && choice === item.correct_answer ? 'border-grounded bg-grounded/5' : '',
-                        attemptResults[item.id] && selectedAnswer[item.id] === choice && !attemptResults[item.id].correct ? 'border-warning bg-warning/5' : '',
-                      ]"
-                    >
-                      <input
-                        v-model="selectedAnswer[item.id]"
-                        type="radio"
-                        :name="`item-${item.id}`"
-                        :value="choice"
-                        :disabled="!!attemptResults[item.id]"
-                        class="mt-0.5 accent-accent"
-                      />
-                      <span class="text-sm text-text-primary">{{ choice }}</span>
-                    </label>
-                  </div>
+                  <!-- Free-text answer input -->
+                  <input
+                    v-model="selectedAnswer[item.id]"
+                    type="text"
+                    :disabled="!!attemptResults[item.id]"
+                    placeholder="Type your answer…"
+                    class="w-full px-3 py-2 rounded-lg border text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent transition-colors disabled:opacity-70"
+                    :class="attemptResults[item.id]
+                      ? attemptResults[item.id].correct
+                        ? 'border-grounded bg-grounded/5'
+                        : 'border-warning bg-warning/5'
+                      : 'border-border focus:border-accent'"
+                    @keyup.enter="submitAnswer(concept, item)"
+                  />
 
                   <!-- Submit button -->
                   <div class="mt-4 flex items-center gap-4">

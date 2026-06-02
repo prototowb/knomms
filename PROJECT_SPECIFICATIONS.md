@@ -22,7 +22,7 @@ links:
   - docs/08-backend-architecture.md
 -->
 
-# PROJECT_SPECIFICATIONS.md — Knowledge Commons
+# PROJECT_SPECIFICATIONS.md — Knowledge Comms
 
 > **Entry point for all architectural and product decisions.**
 > This document is the index. The detailed specs live in `docs/`. An agent reading this file has enough context to orient and knows exactly where to go deeper.
@@ -31,7 +31,7 @@ links:
 
 ## What This Is
 
-**Knowledge Commons** is a grounded collective intelligence platform: a self-hosted, zero-external-cost system where individuals and communities build, share, and learn from AI-powered knowledge bases.
+**Knowledge Comms** is a grounded collective intelligence platform: a self-hosted, zero-external-cost system where individuals and communities build, share, and learn from AI-powered knowledge bases.
 
 The AI is not a feature layer on top of content management — it **is** the content model. Every source (document, video, web page, audio) becomes a queryable, citable semantic corpus. Every AI output is anchored to specific source passages with attribution. No free-floating generation.
 

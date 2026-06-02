@@ -1,4 +1,4 @@
-# Roadmap — Knowledge Commons
+# Roadmap — Knowledge Comms
 
 **Status:** Pre-development planning artifact  
 **Version:** 0.1

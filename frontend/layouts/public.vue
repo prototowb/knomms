@@ -8,7 +8,7 @@ const auth = useAuthStore()
     <header class="border-b border-border bg-surface">
       <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <NuxtLink to="/" class="font-semibold text-text-primary">
-          Knowledge Commons
+          Knowledge Comms
         </NuxtLink>
 
         <ClientOnly>
