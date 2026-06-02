@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** Async curriculum generation complete; pushed to GitHub; remote + git identity configured  
-**Branch:** `feature/KC-026-async-curriculum-generation` pushed to `origin` — open PR to merge to `main`  
+**State:** KC-026 + KC-027 merged to main — async curriculum gen, curriculum rollback fix, board AI summary button  
+**Branch:** `main` — clean, both PRs merged  
 **Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -82,6 +82,7 @@ docker compose build api
 | UX | Dashboard boards | ✓ | My Boards preview (up to 3) below KBs; See all → /boards |
 | UX | Public header auth | ✓ | Login/Sign up (logged out) · Dashboard/Explore (logged in); ClientOnly avoids SSR mismatch |
 | Layer 2 (Learning) | Async curriculum gen | ✓ | POST returns 202 with `status=generating`; worker flips to `draft`; frontend polls every 4s |
+| Layer 3 (Discovery) | Board AI summary | ✓ | Owner-only button on board detail page; ~21s on CPU (metadata-only prompt); persists to `ai_summary` |
 
 ---
 
@@ -155,9 +156,9 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 The stack is live, all three layers verified, and async curriculum generation is done. The prioritised next items:
 
 **Feature work (next milestone candidates):**
-- Board generate-summary endpoint UI (button on board detail page)
 - Semantic board recommendations (board_embedding centroid is computed by the worker but no UI surfaces it)
-- Learning path: submit MC answer flow (answer verification endpoint exists; UI has Submit button but needs the attempt result display tested in browser)
+- Learning path: MC answer submit flow (endpoint + Submit button exist; attempt result display needs live browser test)
+- Board detail: `generate-summary` latency is ~21s on CPU — consider async if multi-source boards grow prompt size
 
 ---
 
