@@ -1,7 +1,7 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** All three product layers verified live on Docker  
+**State:** Quick-win UX pass complete — seed script, dashboard boards, public header  
 **Branch:** `main` — direct commits (project convention)  
 **Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
@@ -68,6 +68,9 @@ docker compose build api
 | Layer 3 (Discovery) | Add URL to board | ✓ | Ingests to board's dedicated KB |
 | Layer 3 (Discovery) | Fork board | ✓ | New KB + new Source records + lineage; ingests to fork namespace |
 | Auth | Register/login/me | ✓ | BFF routes through Nuxt; token → fetchMe → isLoggedIn |
+| UX | Seed script | ✓ | `scripts/seed-dev-user.sh` — idempotent, treats 409 as success |
+| UX | Dashboard boards | ✓ | My Boards preview (up to 3) below KBs; See all → /boards |
+| UX | Public header auth | ✓ | Login/Sign up (logged out) · Dashboard/Explore (logged in); ClientOnly avoids SSR mismatch |
 
 ---
 
@@ -138,12 +141,7 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-The stack is live and all three layers are verified. The prioritised next items:
-
-**High value / quick wins:**
-- Seed script for dev user (Option A from earlier discussion) — one curl on fresh install
-- `pages/index.vue` — show dev user's own content; link to their boards
-- Public layout header — add login/register links for unauthenticated visitors at `/explore` and `/board/*`
+The stack is live, all three layers verified, and the quick-win UX pass is done. The prioritised next items:
 
 **Medium — async curriculum generation:**
 - Background job via Redis Streams for `POST /v1/kbs/{id}/learning-paths`
