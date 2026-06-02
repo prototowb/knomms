@@ -55,11 +55,18 @@ export const useAuthStore = defineStore('auth', () => {
     const bearerToken = token.value ?? storedToken
     if (!bearerToken) return
 
-    const data = await $fetch<User>('/api/auth/me', {
-      headers: { Authorization: `Bearer ${bearerToken}` },
-    })
-    user.value = data
-    token.value = bearerToken
+    try {
+      const data = await $fetch<User>('/api/auth/me', {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      })
+      user.value = data
+      token.value = bearerToken
+    } catch {
+      // Token expired or invalid — clear it so the user is sent to /login
+      token.value = null
+      user.value = null
+      if (import.meta.client) localStorage.removeItem('kc_token')
+    }
   }
 
   return { user, token, isLoggedIn, register, login, logout, fetchMe }
