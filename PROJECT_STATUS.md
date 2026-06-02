@@ -35,7 +35,7 @@ framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
 current_sprint: "MVP Launch Prep"
-last_release: null
+last_release: "v0.1.0 (2026-06-02)"
 ticket_prefix: "KC"
 ```
 

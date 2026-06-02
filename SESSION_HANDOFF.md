@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** KC-029 merged to development — MC grading normalised; KC-031 release PR open (development → main, v0.1.0)  
-**Branch:** `development` 3 commits ahead of `main` — PR open on GitHub  
+**State:** v0.1.0 released — KC-029 (MC grading) done, PR #4 merged, tag pushed  
+**Branch:** `main` and `development` in sync at v0.1.0  
 **Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -156,11 +156,7 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-KC-031 release PR is open (development → main). After merge:
-```bash
-git tag v0.1.0 main
-git push origin v0.1.0
-```
+v0.1.0 is tagged and released (GitHub PR #4). Clean slate for next session.
 
 **Remaining backlog:**
 - KC-030: Async board summary — defer until boards have multiple sources
