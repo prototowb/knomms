@@ -1,150 +1,159 @@
 # Session Handoff — Knowledge Commons
 
-**Session date:** 2026-06-01  
-**Ended at:** Milestone 4 complete  
-**Branch:** `main` — all work committed directly  
-**Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)
-
----
-
-## What This Project Is
-
-A self-hosted, zero-external-cost grounded collective intelligence platform. Three layers:
-1. **Knowledge Core** — multimodal ingestion → RAG with citations → agentic synthesis
-2. **Learning Layer** — AI-generated learning paths + assessments from a corpus
-3. **Discovery Layer** — visual collection boards; fork → activates Knowledge Core
-
-Full specification: `PROJECT_SPECIFICATIONS.md` → `docs/` for deep-dives.
+**Session date:** 2026-06-02  
+**State:** All three product layers verified live on Docker  
+**Branch:** `main` — direct commits (project convention)  
+**Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 ---
 
 ## How to Re-orient
 
 ```bash
-# Backend tests
-cd backend && python3 -m pytest tests/ -q        # 59 should pass
+# 1. Start the stack (if not running)
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+docker compose up -d
 
-# Frontend typecheck (node/npm available in this env)
-cd frontend && npm install && npx nuxt prepare && npx vue-tsc --noEmit -p tsconfig.json
+# 2. Run models if not loaded
+docker compose run --rm ollama-init
 
-# Git state
-git log --oneline -10
-git status
+# 3. Verify
+curl http://localhost/api/health          # {"status":"ok"}
+cd backend && python3 -m pytest tests/ -q  # 59 passed
+cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
+
+# 4. Log in
+# email: dev@localhost.dev  password: devdev99  (or test@example.com / password123)
 ```
-
-**Docker is unavailable in this dev environment.** All Ollama/pgvector/MinIO/Redis paths are untested until a Docker run. This includes: Q&A generation, curriculum agent, board semantic search, board summary, board embedding computation. The first `docker compose up` is the key next step.
 
 ---
 
-## Milestone History
+## Dev Runtime (Colima / macOS)
 
-| Milestone | Commit | Tests | What shipped |
+Docker is NOT installed natively — use **Colima**:
+
+```bash
+colima start --cpu 4 --memory 8 --disk 60   # first time only
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+# Add to ~/.zshrc to persist:
+# export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+```
+
+**Critical: `docker compose build` vs `docker build`**
+
+`docker compose build` uses a layer cache that does NOT invalidate when source files change (a Colima filesystem sync bug). Always use direct `docker build` for final images:
+
+```bash
+# CORRECT — bypasses stale cache
+docker build --no-cache -t knowledge-commons-api:latest ./backend
+docker build --no-cache -t knowledge-commons-frontend:latest ./frontend
+docker compose up --force-recreate -d api frontend
+
+# WRONG — may ship stale code silently
+docker compose build api
+```
+
+---
+
+## Live Verification Status
+
+| Layer | Feature | Status | Notes |
 |---|---|---|---|
-| M0 — Infrastructure | `6bb3ef6` | — | Docker Compose, Alembic 001, identity domain, Nuxt scaffold |
-| M1 — Ingestion + Q&A | `cbb34da` | 29 | PDF/web extractors, chunker, retrieval, Ollama SSE streaming, Redis worker |
-| M2 — Learning layer | `bcfb0b4` | 55 | Migration 003, curriculum agent, learning path API + UI |
-| M3 — Discovery layer | `6486922` | 59 | Migration 004, boards, fork, explore, curator profiles |
-| M4 — Auth + integration | `f2e9bcc` | 59 | Auth flow, dashboard, fork-KB fix, board embeddings, typecheck baseline |
+| Layer 1 (Core) | Ingest URL | ✓ | ~2min for Wikipedia; UA header required |
+| Layer 1 (Core) | Grounded Q&A SSE | ✓ | ~130s on CPU (top_k=3); citations sidebar works |
+| Layer 2 (Learning) | Curriculum agent | ✓ | ~3:37 on CPU per path; 1 concept for 1-source KB |
+| Layer 2 (Learning) | Learning path UI | ✓ | Accept/Prune/Publish controls; MC assessment |
+| Layer 3 (Discovery) | Board create | ✓ | Creates isolated KB + collection join row |
+| Layer 3 (Discovery) | Add URL to board | ✓ | Ingests to board's dedicated KB |
+| Layer 3 (Discovery) | Fork board | ✓ | New KB + new Source records + lineage; ingests to fork namespace |
+| Auth | Register/login/me | ✓ | BFF routes through Nuxt; token → fetchMe → isLoggedIn |
 
 ---
 
-## Key Decisions Made in M4
+## CPU Performance Reality (4 cores, 8GB, no GPU)
 
-1. **Fork-KB isolation bug fixed.** `fork_board` was calling `get_or_create_default(user)` which returns the user's single default KB. All forks would share one `vector_namespace`, making cross-fork retrieval bleed. Fixed to `kb_svc.create(user, title)` (always creates a new KB with a fresh namespace). The `knowledge_base_collection` join row is now inserted correctly.
+| Operation | Time | Notes |
+|---|---|---|
+| URL ingest (embedding only) | ~1-3 min | httpx fetch + chunk + embed with nomic-embed-text |
+| Q&A (top_k=3) | ~130s | 120s CPU prefill + 8s generation (84 tokens) |
+| Curriculum generation | ~3:37 | 1 concept, sequential Ollama calls |
+| Ollama "hello" (tiny prompt) | <1s | Fast for short context; prefill is the bottleneck |
 
-2. **TypeScript typecheck baseline established.** `vue-tsc --noEmit` now passes clean across all 9 pages + 24 BFF routes. The 4 errors found:
-   - Inline `$fetch` in template `@click` handlers (learn page) → extracted to methods
-   - `me.get.ts` implicit any → `Promise<unknown>` return type
-   - `publish.post.ts` excessive stack depth → `$fetch<unknown>`
-   - `User` interface missing `display_name` field
-
-3. **Board embedding Stage 8.** `_refresh_board_embeddings` runs inline after each ingestion completes — no separate subscriber process. It recomputes the centroid average of all non-overlap chunk embeddings for every collection containing the just-indexed source.
-
-4. **BFF auth pattern clarified.** `auth/login.post.ts` uses `X-Internal-Secret` header. All other BFF routes forward only the client `Authorization: Bearer` token. The backend validates the JWT on each request — `X-Internal-Secret` is only used for the login/register BFF routes as an internal trust signal. This is consistent but should be verified in the first integration run.
+`RETRIEVAL_TOP_K` and `OLLAMA_READ_TIMEOUT` are configurable in `.env`. Default: 3 and 300s (CPU). GPU deployments: set 10 and 60.
 
 ---
 
-## Current File Map
+## Architecture Note: Nginx → Nuxt BFF
 
-```
-knowledge-commons/
-├── backend/
-│   ├── alembic/versions/001–004        ← 4 migrations
-│   ├── app/
-│   │   ├── core/               ← config, db, redis, security, storage
-│   │   ├── deps/               ← get_db, get_current_user, get_optional_user
-│   │   ├── models/             ← User, Source, Chunk, KB, Collection, Learning
-│   │   ├── schemas/            ← all domains
-│   │   └── domains/
-│   │       ├── identity/       ← register, login, refresh, /me
-│   │       ├── knowledge_base/ ← service, router (list + create KBs)
-│   │       ├── ingestion/      ← extractors, chunker, service, router
-│   │       ├── retrieval/      ← pgvector cosine search
-│   │       ├── generation/     ← Ollama, citations, SSE
-│   │       ├── learning/       ← agent, service, router (6 endpoints)
-│   │       └── curation/       ← service, router (8 endpoints)
-│   ├── worker/                 ← Redis Streams consumer + 8-stage pipeline
-│   └── tests/                  ← 59 tests (chunker, citations, learning, curation)
-└── frontend/
-    ├── plugins/auth.client.ts  ← restores session from localStorage
-    ├── middleware/auth.ts      ← route guard → /login?redirect=...
-    ├── layouts/default.vue     ← sidebar nav + user info + logout
-    ├── pages/
-    │   ├── login.vue           ← auth form (no layout)
-    │   ├── register.vue        ← register form (no layout)
-    │   ├── index.vue           ← dashboard: KB list + create KB
-    │   ├── explore/            ← trending boards + semantic search (SSR)
-    │   ├── board/[boardId]/    ← swim-lane view + fork dialog (SSR)
-    │   ├── u/[handle]/         ← curator profile (SSR)
-    │   ├── kb/[kbId]/          ← Q&A + citation sidebar
-    │   ├── kb/[kbId]/learn/    ← learning path list + generate
-    │   └── learn/[pathId]/     ← path detail + MC assessment
-    └── server/api/
-        ├── auth/               ← login, register, me
-        ├── kbs/                ← GET/POST (list + create)
-        ├── kb/[kbId]/          ← learning-paths GET/POST
-        ├── learning-paths/     ← get, publish, patch concept, attempt
-        ├── boards/             ← GET, POST, search
-        ├── boards/[boardId]/   ← get, fork, sources, generate-summary
-        └── u/[handle]/         ← curator profile
-```
+After verification the nginx config was changed: all requests go to Nuxt first (`location /` → Nuxt), not to FastAPI directly. The Nuxt server routes act as the BFF:
+- `/api/auth/*`, `/api/kbs/*`, `/api/boards/*`, etc. → Nuxt BFF → FastAPI
+- `/api/v1/*` → `server/api/v1/[...path].ts` catch-all → FastAPI (for curl/Swagger)
+- `/api/docs`, `/api/openapi.json` → FastAPI directly (specific nginx rules)
+
+This was the root cause of the auth 404 at first run: old nginx routed `/api/` → FastAPI, bypassing all BFF routes entirely.
 
 ---
 
-## What's Left Before MVP Is Launchable
+## Runtime Bugs Fixed This Session (12 total)
 
-### Blocked on Docker (cannot build here)
+Beyond the 6 static bugs (see previous handoff entries), the following were found during live testing:
 
-1. **Integration run** — first `docker compose up`. Expected issues to fix:
-   - Alembic migration ordering (vector extension → tables)
-   - Ollama model pull step
-   - MinIO bucket creation on first start
-   - CORS origins match nginx/port config
-   - SSE buffering in nginx (`proxy_buffering off` is set, but verify)
-
-2. **BFF auth verification** — login/register use `X-Internal-Secret`; all other routes use forwarded `Authorization: Bearer`. Verify the backend accepts both patterns correctly.
-
-### Buildable here (no Docker needed)
-
-3. **Source ingestion UI** — no page exists for uploading PDFs or pasting URLs into a KB. The ingestion API (`POST /v1/sources`) exists but the KB workspace has no UI for it. Build `pages/kb/[kbId]/sources.vue` or integrate into the KB workspace.
-
-4. **Board management UI** — no page for creating your own board, adding sources to it, or managing lanes. Could add `pages/boards/new.vue` and `pages/boards/[boardId]/edit.vue`.
-
-5. **My Boards section** — dashboard only shows KBs. Add a section showing the user's own boards (public + private). Needs `GET /v1/my/collections` endpoint or extend the existing curation service with a user-scoped list.
-
-6. **Public layout header** — `layouts/public.vue` doesn't show login/register links. Users arriving at `/explore` or `/board/*` have no visible path to create an account.
+| Bug | Symptom | Fix |
+|---|---|---|
+| bcrypt>=4 breaks passlib | register 500 | `bcrypt>=3,<4` in pyproject.toml |
+| email-validator missing | startup crash | `pydantic[email]` in deps |
+| python-multipart missing | upload 500 | added to deps |
+| setuptools.backends.legacy not found | image build fails | changed to `setuptools.build_meta` |
+| Migration 003/004 JSONB server_default | migration crash | removed server_defaults; use Python-side `default=list` |
+| Ollama healthcheck uses curl (not in image) | worker never starts | changed to `["CMD","ollama","list"]` |
+| Redis socket_timeout=5s races BLOCK_MS=5000 | worker crashes every 5s | `socket_timeout=30` in pool config |
+| Worker ORM registry incomplete | first DB op fails | `import app.models` in pipeline.py |
+| `_generate_stream` returned unawaited coroutine | Q&A 500 | added `await` to the call |
+| Web fetch no User-Agent | Wikipedia/CDN 403 | added browser-like UA to httpx |
+| top_k=10 → 4000-token context → 2+ min TTFT | Q&A hangs | `top_k=3` via config (was hardcoded) |
+| fetchMe throws 401 on stale localStorage token | login loop | catch + clear token in fetchMe |
+| nginx routed `/api/*` → FastAPI, bypassing BFF | auth 404 | route everything through Nuxt |
+| auth store read `data.token` not `data.access_token` | login loop | fixed field name |
+| SSE `.trim()` stripped leading space tokens | words run together | strip exactly one separator space |
+| list_paths missing selectinload(concepts) | learning paths list 500 | added selectinload |
+| add_source/add_file_to_board lazy source load | board source add 500 | `_reload_item()` after commit |
+| fork_board missing `kb_id` on new Source records | fork KB sources returns 0 | stamp `kb_id=kb.id` on forked sources |
 
 ---
 
-## Known Issues / Caveats
+## Known Limitations (not bugs, deliberate MVP scope)
 
-1. **`upload bytes held in Redis`** (M1 carryover) — original ingestion still uses Redis TTL. MinIO fallback exists for forks but direct uploads still need MinIO write step.
+1. **Curriculum agent is synchronous and inline.** For a KB with 5-8 concept groups, `POST /v1/kbs/{id}/learning-paths` hangs the HTTP connection for 15-20 min on CPU. Acceptable for demo with 1-source KBs; needs async background job for production.
 
-2. **`/api/boards/search` may conflict with `/api/boards/[boardId]`** in Nuxt file-routing — if Nuxt routes `GET /api/boards/search` to `[boardId]` before `search.get.ts`, rename to `boards-search.get.ts` and update the `$fetch` call.
+2. **Curriculum generates 1 concept per heading group.** With a single indexed source (e.g., one Wikipedia article), the chunker typically produces 1-2 heading groups → 1-2 concepts. More sources = more concepts.
 
-3. **MC answer grading is exact-match** — fragile for longer correct answers.
+3. **Upload sources in fork re-ingest from MinIO.** URL sources re-fetch from the web. Upload sources fall back to MinIO (if not expired from Redis). Duplicate network traffic; shared ingestion cache is a V2 feature.
 
-4. **board_embedding centroid computation** — runs synchronously in the pipeline after embedding. For large boards (50+ sources × 50+ chunks each) this is a multi-second DB average computation inline in the worker. Move to a background task or rate-limit per board in M5.
+4. **No session persistence across Colima restart.** If `colima stop && colima start`, the Postgres data volume persists but the docker socket path changes. Re-run `export DOCKER_HOST=...`.
+
+5. **MC answer grading is exact-match.** Fragile for longer answers; works for current short correct answers from the curriculum agent.
+
+---
+
+## What Comes Next
+
+The stack is live and all three layers are verified. The prioritised next items:
+
+**High value / quick wins:**
+- Seed script for dev user (Option A from earlier discussion) — one curl on fresh install
+- `pages/index.vue` — show dev user's own content; link to their boards
+- Public layout header — add login/register links for unauthenticated visitors at `/explore` and `/board/*`
+
+**Medium — async curriculum generation:**
+- Background job via Redis Streams for `POST /v1/kbs/{id}/learning-paths`
+- Frontend polling: show "generating..." badge while the job runs
+- Required before demoing with a real multi-source corpus on CPU
+
+**Feature work (next milestone candidates):**
+- Board generate-summary endpoint UI (button on board detail page)
+- Semantic board recommendations (board_embedding centroid is computed by the worker but no UI surfaces it)
+- Learning path: submit MC answer flow (answer verification endpoint exists; UI has Submit button but needs the attempt result display tested in browser)
 
 ---
 
@@ -152,10 +161,11 @@ knowledge-commons/
 
 | Invariant | Where | Why |
 |---|---|---|
-| `CREATE EXTENSION vector` before `chunks` table | Migration 001 | pgvector requires this |
-| Each fork gets its own KB via `KnowledgeBaseService.create()` | `curation/service.py` fork_board | Per-fork namespace isolation; `get_or_create_default` was the bug |
-| Dedup keyed on `(content_hash, source_id)` | `worker/pipeline.py _dedup()` | New source_id in fork → fresh chunks with correct namespace |
-| SSE format: `event: citations` first, then bare `data:` tokens | `citations.py` | Must match `useStreamingQuery.ts` |
-| `RetrievedChunk` / `ConceptProposal` / `build_fork_lineage` in pure `types.py` | Import structure | Keeps tests free of FastAPI/SQLAlchemy imports |
-| `_ollama_generate` is a module-level wrapper in `agent.py` | Test patchability | Deferred import so agent.py loads without httpx |
-| Alembic uses `DATABASE_SYNC_URL` | `alembic/env.py` | asyncpg driver not usable by Alembic sync ops |
+| `docker build --no-cache` not `docker compose build` | build scripts | Colima cache bug silently ships stale code |
+| Each KB has its own isolated `vector_namespace` | KB creation, fork | Enables per-KB retrieval without namespace bleed |
+| Fork creates new Source records (new IDs) | `fork_board()` | Dedup keyed on (content_hash, source_id); same source_id = no new chunks |
+| `source.kb_id` stamped at creation time | ingestion service, fork, board add | `GET /v1/kbs/{id}/sources` relies on this |
+| All requests through Nuxt (nginx `location /`) | nginx.conf | BFF routes unreachable if nginx bypasses Nuxt |
+| `fetchMe` catches all errors silently | stores/auth.ts | Stale localStorage tokens must not surface as unhandled 401 |
+| `top_k` and `ollama_read_timeout` from settings | config.py | Hardware-specific values must not be hardcoded |
+| Alembic uses `DATABASE_SYNC_URL` | alembic/env.py | asyncpg not usable by Alembic |
