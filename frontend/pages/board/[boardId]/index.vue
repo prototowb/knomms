@@ -111,6 +111,31 @@ const sourceTypeIcon: Record<string, string> = {
 watch(showFork, (v) => {
   if (v && board.value) forkTitle.value = `${board.value.title} [fork]`
 })
+
+// AI summary generation
+const summarizing = ref(false)
+const summaryError = ref<string | null>(null)
+
+const isOwner = computed(() =>
+  auth.isLoggedIn && board.value?.owner?.handle === auth.user?.handle
+)
+
+async function generateSummary() {
+  if (summarizing.value) return
+  summarizing.value = true
+  summaryError.value = null
+  try {
+    const result = await $fetch<{ summary: string }>(`/api/boards/${boardId}/generate-summary`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    if (board.value) board.value = { ...board.value, ai_summary: result.summary }
+  } catch (err: unknown) {
+    summaryError.value = err instanceof Error ? err.message : 'Summary generation failed'
+  } finally {
+    summarizing.value = false
+  }
+}
 </script>
 
 <template>
@@ -136,6 +161,19 @@ watch(showFork, (v) => {
               <p v-else-if="board.description" class="text-sm text-text-secondary leading-6 max-w-2xl">
                 {{ board.description }}
               </p>
+
+              <ClientOnly>
+                <div v-if="isOwner" class="mt-3 flex items-center gap-3">
+                  <button
+                    :disabled="summarizing"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary disabled:opacity-50 transition-colors"
+                    @click="generateSummary"
+                  >
+                    {{ summarizing ? 'Generating summary…' : board.ai_summary ? 'Regenerate summary' : 'Generate AI summary' }}
+                  </button>
+                  <p v-if="summaryError" class="text-xs text-warning">{{ summaryError }}</p>
+                </div>
+              </ClientOnly>
 
               <div class="flex items-center gap-4 mt-3 text-xs text-text-muted">
                 <span>{{ board.items.length }} source{{ board.items.length !== 1 ? 's' : '' }}</span>
