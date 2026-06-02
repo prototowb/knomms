@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** KC-026/027 on main; KC-028 (similar boards) on development — ready for release PR  
-**Branch:** `development` — ahead of main by KC-028 + docs  
+**State:** KC-026, KC-027, KC-028 merged to main — all three layers complete, post-MVP hardening done  
+**Branch:** `main` and `development` in sync — clean slate for next session  
 **Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -35,7 +35,7 @@ cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 - **Local identity:** `Tobias Rauer <prototowb@gmail.com>` (set via `git config user.*` in this repo)
 - **Auth:** `gh` CLI installed (`brew install gh`), authenticated as `prototowb` — runs `gh auth setup-git` to wire HTTPS credentials
 - **Branching convention:** `feature/KC-XXX-description` from `development` → merge locally → push `development` → PR `development` → `main` for releases. Feature branches stay local only.
-- **Pending:** `development` is ahead of `main` by KC-028 + docs — create release PR when ready
+- **State:** `main` and `development` both at the same commit — no pending PRs
 
 ---
 
