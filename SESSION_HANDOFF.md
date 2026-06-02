@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** Async curriculum generation complete — POST returns immediately, worker processes in background  
-**Branch:** `feat/async-curriculum-generation` → merge to `main` via PR  
+**State:** Async curriculum generation complete; pushed to GitHub; remote + git identity configured  
+**Branch:** `feature/KC-026-async-curriculum-generation` pushed to `origin` — open PR to merge to `main`  
 **Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -26,6 +26,16 @@ cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 # 4. Log in
 # email: dev@localhost.dev  password: devdev99  (or test@example.com / password123)
 ```
+
+---
+
+## Git / GitHub Setup
+
+- **Remote:** `https://github.com/prototowb/knomms.git` (added as `origin`)
+- **Local identity:** `Tobias Rauer <prototowb@gmail.com>` (set via `git config user.*` in this repo)
+- **Auth:** `gh` CLI installed (`brew install gh`), authenticated as `prototowb` — runs `gh auth setup-git` to wire HTTPS credentials
+- **Branching convention:** always branch from `main` (`development` branch doesn't exist); feature branches named `feature/KC-XXX-description`
+- **Pending:** `feature/KC-026-async-curriculum-generation` is pushed, needs a PR merged to `main`
 
 ---
 
@@ -128,15 +138,15 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## Known Limitations (not bugs, deliberate MVP scope)
 
-1. **Curriculum agent is synchronous and inline.** For a KB with 5-8 concept groups, `POST /v1/kbs/{id}/learning-paths` hangs the HTTP connection for 15-20 min on CPU. Acceptable for demo with 1-source KBs; needs async background job for production.
+1. **Curriculum generates 1 concept per heading group.** With a single indexed source (e.g., one Wikipedia article), the chunker typically produces 1-2 heading groups → 1-2 concepts. More sources = more concepts.
 
-2. **Curriculum generates 1 concept per heading group.** With a single indexed source (e.g., one Wikipedia article), the chunker typically produces 1-2 heading groups → 1-2 concepts. More sources = more concepts.
+2. **Upload sources in fork re-ingest from MinIO.** URL sources re-fetch from the web. Upload sources fall back to MinIO (if not expired from Redis). Duplicate network traffic; shared ingestion cache is a V2 feature.
 
-3. **Upload sources in fork re-ingest from MinIO.** URL sources re-fetch from the web. Upload sources fall back to MinIO (if not expired from Redis). Duplicate network traffic; shared ingestion cache is a V2 feature.
+3. **No session persistence across Colima restart.** If `colima stop && colima start`, the Postgres data volume persists but the docker socket path changes. Re-run `export DOCKER_HOST=...`.
 
-4. **No session persistence across Colima restart.** If `colima stop && colima start`, the Postgres data volume persists but the docker socket path changes. Re-run `export DOCKER_HOST=...`.
+4. **MC answer grading is exact-match.** Fragile for longer answers; works for current short correct answers from the curriculum agent.
 
-5. **MC answer grading is exact-match.** Fragile for longer answers; works for current short correct answers from the curriculum agent.
+5. **`VISIBILITY_S=300` is unsafe with >1 worker replica.** A 20-min curriculum job would be reclaimed and duplicated by a second worker after 5 min. Safe for single-worker; raise before scaling.
 
 ---
 
@@ -157,7 +167,7 @@ The stack is live, all three layers verified, and async curriculum generation is
 |---|---|---|
 | `docker build --no-cache -t knowledge-commons-api:latest ./backend` AND `-t knowledge-commons-worker:latest ./backend` | build scripts | api and worker are different image names; Colima cache bug silently ships stale code |
 | Each KB has its own isolated `vector_namespace` | KB creation, fork | Enables per-KB retrieval without namespace bleed |
-| `VISIBILITY_S=300` is safe for single worker but not multiple | `__main__.py` | A 20-min curriculum job would be reclaimed & duplicated by a second worker after 5 min; raise `VISIBILITY_S` before scaling |
+| `VISIBILITY_S=300` safe for single worker only — raise before scaling | `__main__.py` | Two workers = stale reclaim duplicates a 20-min curriculum job |
 | Fork creates new Source records (new IDs) | `fork_board()` | Dedup keyed on (content_hash, source_id); same source_id = no new chunks |
 | `source.kb_id` stamped at creation time | ingestion service, fork, board add | `GET /v1/kbs/{id}/sources` relies on this |
 | All requests through Nuxt (nginx `location /`) | nginx.conf | BFF routes unreachable if nginx bypasses Nuxt |
