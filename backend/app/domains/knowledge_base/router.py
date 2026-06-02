@@ -28,6 +28,19 @@ async def list_kbs(
     return [KnowledgeBaseOut.model_validate(kb) for kb in kbs]
 
 
+@router.get("/{kb_id}", response_model=KnowledgeBaseOut)
+async def get_kb(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> KnowledgeBaseOut:
+    svc = KnowledgeBaseService(db)
+    kb = await svc.get_by_id(kb_id, user)
+    if kb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+    return KnowledgeBaseOut.model_validate(kb)
+
+
 @router.get("/{kb_id}/sources", response_model=list[SourceStatusOut])
 async def list_kb_sources(
     kb_id: str,
