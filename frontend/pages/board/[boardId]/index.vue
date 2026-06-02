@@ -107,6 +107,20 @@ const sourceTypeIcon: Record<string, string> = {
   epub: '📚',
 }
 
+// Similar boards
+interface BoardSummary {
+  id: string
+  title: string
+  description: string
+  visibility: string
+  fork_count: number
+  item_count: number
+  ai_summary: string | null
+  owner: { handle: string; display_name: string } | null
+}
+
+const { data: similarBoards } = await useFetch<BoardSummary[]>(`/api/boards/${boardId}/similar`)
+
 // Init fork title from board title
 watch(showFork, (v) => {
   if (v && board.value) forkTitle.value = `${board.value.title} [fork]`
@@ -297,6 +311,27 @@ async function generateSummary() {
               </div>
             </div>
           </section>
+        </div>
+      </div>
+      <!-- Similar boards -->
+      <div v-if="similarBoards && similarBoards.length > 0" class="max-w-6xl mx-auto px-6 pb-12">
+        <h2 class="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Similar boards</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <NuxtLink
+            v-for="b in similarBoards"
+            :key="b.id"
+            :to="`/board/${b.id}`"
+            class="rounded-xl border border-border bg-surface p-4 hover:border-accent/40 hover:shadow-sm transition-all"
+          >
+            <p class="text-sm font-medium text-text-primary truncate mb-1">{{ b.title }}</p>
+            <p class="text-xs text-text-muted line-clamp-2 leading-5">
+              {{ b.ai_summary || b.description || 'No description' }}
+            </p>
+            <div class="flex items-center gap-3 mt-3 text-xs text-text-muted">
+              <span>{{ b.item_count }} source{{ b.item_count !== 1 ? 's' : '' }}</span>
+              <span v-if="b.owner">@{{ b.owner.handle }}</span>
+            </div>
+          </NuxtLink>
         </div>
       </div>
     </template>
