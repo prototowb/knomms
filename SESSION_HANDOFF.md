@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** Quick-win UX pass complete — seed script, dashboard boards, public header  
-**Branch:** `main` — direct commits (project convention)  
+**State:** Async curriculum generation complete — POST returns immediately, worker processes in background  
+**Branch:** `feat/async-curriculum-generation` → merge to `main` via PR  
 **Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -71,6 +71,7 @@ docker compose build api
 | UX | Seed script | ✓ | `scripts/seed-dev-user.sh` — idempotent, treats 409 as success |
 | UX | Dashboard boards | ✓ | My Boards preview (up to 3) below KBs; See all → /boards |
 | UX | Public header auth | ✓ | Login/Sign up (logged out) · Dashboard/Explore (logged in); ClientOnly avoids SSR mismatch |
+| Layer 2 (Learning) | Async curriculum gen | ✓ | POST returns 202 with `status=generating`; worker flips to `draft`; frontend polls every 4s |
 
 ---
 
@@ -141,12 +142,7 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-The stack is live, all three layers verified, and the quick-win UX pass is done. The prioritised next items:
-
-**Medium — async curriculum generation:**
-- Background job via Redis Streams for `POST /v1/kbs/{id}/learning-paths`
-- Frontend polling: show "generating..." badge while the job runs
-- Required before demoing with a real multi-source corpus on CPU
+The stack is live, all three layers verified, and async curriculum generation is done. The prioritised next items:
 
 **Feature work (next milestone candidates):**
 - Board generate-summary endpoint UI (button on board detail page)
@@ -159,8 +155,9 @@ The stack is live, all three layers verified, and the quick-win UX pass is done.
 
 | Invariant | Where | Why |
 |---|---|---|
-| `docker build --no-cache` not `docker compose build` | build scripts | Colima cache bug silently ships stale code |
+| `docker build --no-cache -t knowledge-commons-api:latest ./backend` AND `-t knowledge-commons-worker:latest ./backend` | build scripts | api and worker are different image names; Colima cache bug silently ships stale code |
 | Each KB has its own isolated `vector_namespace` | KB creation, fork | Enables per-KB retrieval without namespace bleed |
+| `VISIBILITY_S=300` is safe for single worker but not multiple | `__main__.py` | A 20-min curriculum job would be reclaimed & duplicated by a second worker after 5 min; raise `VISIBILITY_S` before scaling |
 | Fork creates new Source records (new IDs) | `fork_board()` | Dedup keyed on (content_hash, source_id); same source_id = no new chunks |
 | `source.kb_id` stamped at creation time | ingestion service, fork, board add | `GET /v1/kbs/{id}/sources` relies on this |
 | All requests through Nuxt (nginx `location /`) | nginx.conf | BFF routes unreachable if nginx bypasses Nuxt |

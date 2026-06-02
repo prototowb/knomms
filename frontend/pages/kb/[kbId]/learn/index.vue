@@ -59,9 +59,10 @@ async function generatePath() {
 }
 
 const statusColor: Record<string, string> = {
+  generating: 'text-text-muted bg-border',
   draft: 'text-warning bg-warning/10',
   published: 'text-grounded bg-grounded/10',
-  archived: 'text-text-muted bg-border',
+  failed: 'text-warning bg-warning/10',
 }
 
 onMounted(fetchPaths)

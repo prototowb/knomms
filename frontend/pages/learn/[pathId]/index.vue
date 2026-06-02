@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 
 const route = useRoute()
 const pathId = route.params.pathId as string
 const auth = useAuthStore()
+
+let _pollTimer: ReturnType<typeof setInterval> | null = null
+
+function _clearPoll() {
+  if (_pollTimer !== null) {
+    clearInterval(_pollTimer)
+    _pollTimer = null
+  }
+}
 
 interface Distractor {
   id: string
@@ -76,11 +85,35 @@ async function fetchPath() {
       headers: { Authorization: `Bearer ${auth.token}` },
     })
     path.value = data
+    if (data.status === 'generating') {
+      _startPolling()
+    } else {
+      _clearPoll()
+    }
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'Failed to load learning path'
   } finally {
     loading.value = false
   }
+}
+
+async function _pollPath() {
+  try {
+    const data = await $fetch<LearningPath>(`/api/learning-paths/${pathId}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    path.value = data
+    if (data.status !== 'generating') {
+      _clearPoll()
+    }
+  } catch {
+    // keep polling — transient error
+  }
+}
+
+function _startPolling() {
+  _clearPoll()
+  _pollTimer = setInterval(_pollPath, 4000)
 }
 
 async function submitAnswer(concept: PathConcept, item: AssessmentItem) {
@@ -135,6 +168,7 @@ function highlightCitations(text: string): string {
 }
 
 onMounted(fetchPath)
+onUnmounted(_clearPoll)
 </script>
 
 <template>
@@ -162,7 +196,19 @@ onMounted(fetchPath)
             <h1 class="text-sm font-semibold text-text-primary truncate">{{ path.learning_goal }}</h1>
           </div>
           <span
-            v-if="path.status === 'draft'"
+            v-if="path.status === 'generating'"
+            class="text-xs text-text-muted bg-border px-2 py-0.5 rounded-full animate-pulse"
+          >
+            Generating…
+          </span>
+          <span
+            v-else-if="path.status === 'failed'"
+            class="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded-full"
+          >
+            Generation failed
+          </span>
+          <span
+            v-else-if="path.status === 'draft'"
             class="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded-full"
           >
             Draft · {{ acceptedCount }}/{{ conceptCount }} accepted
@@ -212,7 +258,23 @@ onMounted(fetchPath)
 
         <!-- Concept detail -->
         <main class="flex-1 min-w-0">
-          <template v-if="path.concepts.length > 0">
+          <!-- Generating state -->
+          <div v-if="path.status === 'generating'" class="flex flex-col items-center justify-center py-24 text-center">
+            <div class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+            <p class="text-sm font-medium text-text-primary">Generating learning path…</p>
+            <p class="text-xs text-text-muted mt-1">The curriculum agent is reading the corpus. This takes a few minutes on CPU.</p>
+          </div>
+
+          <!-- Failed state -->
+          <div v-else-if="path.status === 'failed'" class="flex flex-col items-center justify-center py-24 text-center">
+            <svg class="w-8 h-8 text-warning mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <p class="text-sm font-medium text-text-primary">Generation failed</p>
+            <p class="text-xs text-text-muted mt-1">The curriculum agent could not produce grounded concepts from this corpus. Try ingesting more sources.</p>
+          </div>
+
+          <template v-else-if="path.concepts.length > 0">
             <div v-for="(concept, idx) in path.concepts" :key="concept.id" v-show="activeConcept === idx">
               <!-- Concept header -->
               <div class="flex items-start justify-between gap-4 mb-6">

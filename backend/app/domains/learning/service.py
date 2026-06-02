@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.domains.knowledge_base.service import KnowledgeBaseService
-from app.domains.learning.agent import build_concept_groups, generate_curriculum
 from app.models.chunk import Chunk
-from app.models.learning import AssessmentItem, Distractor, LearningPath, PathConcept
+from app.models.learning import AssessmentItem, LearningPath, PathConcept
 from app.models.user import User
 
 
@@ -16,50 +15,36 @@ class LearningService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create_draft(
+    async def create_stub(
         self,
         kb_id: str,
         user: User,
         learning_goal: str,
         time_budget_hours: float | None,
-    ) -> LearningPath:
+    ) -> tuple[LearningPath, str]:
+        """Authz + fail-fast chunks check, then create a LearningPath(status='generating').
+
+        Returns (path, vector_namespace) — the namespace is needed by the caller to enqueue the job.
+        Raises 404/422 synchronously so the client gets immediate feedback on bad inputs.
+        """
         kb_svc = KnowledgeBaseService(self.db)
         kb = await kb_svc.get_by_id(kb_id, user)
         if kb is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 
-        # Load all non-overlap, embedded chunks for this KB in sequence order
-        stmt = (
-            select(
-                Chunk.id,
-                Chunk.source_id,
-                Chunk.locator,
-                Chunk.text,
-                Chunk.is_overlap,
-                Chunk.seq,
-            )
+        # Fail fast: ensure there are embedded chunks before accepting the job
+        has_chunks = await self.db.scalar(
+            select(Chunk.id)
             .where(
                 Chunk.vector_namespace == kb.vector_namespace,
                 Chunk.embedding.is_not(None),
             )
-            .order_by(Chunk.source_id, Chunk.seq)
+            .limit(1)
         )
-        rows = (await self.db.execute(stmt)).mappings().all()
-        chunks = [dict(r) for r in rows]
-
-        if not chunks:
+        if not has_chunks:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Knowledge base has no indexed chunks — ingest a source first",
-            )
-
-        groups = build_concept_groups(chunks)
-        proposals = await generate_curriculum(groups)
-
-        if not proposals:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Curriculum agent could not generate any grounded concepts from this corpus",
             )
 
         path = LearningPath(
@@ -67,53 +52,12 @@ class LearningService:
             user_id=user.id,
             learning_goal=learning_goal,
             time_budget_hours=time_budget_hours,
+            status="generating",
         )
         self.db.add(path)
-        await self.db.flush()
-
-        for pos, proposal in enumerate(proposals):
-            concept = PathConcept(
-                path_id=path.id,
-                position=pos,
-                title=proposal.title,
-                explanation_text=proposal.explanation_text,
-                explanation_passage_ids=proposal.passage_ids_cited,
-                source_passages=[
-                    {
-                        "chunk_id": p.chunk_id,
-                        "locator": p.locator,
-                        "source_id": p.source_id,
-                        "excerpt": p.text[:300],
-                    }
-                    for p in proposal.source_passages
-                ],
-            )
-            self.db.add(concept)
-            await self.db.flush()
-
-            if proposal.assessment:
-                a = proposal.assessment
-                item = AssessmentItem(
-                    concept_id=concept.id,
-                    question_text=a.question_text,
-                    grounding_passage_id=a.grounding_chunk_id,
-                    correct_answer=a.correct_answer,
-                )
-                self.db.add(item)
-                await self.db.flush()
-
-                for d in a.distractors:
-                    self.db.add(
-                        Distractor(
-                            item_id=item.id,
-                            text=d.text,
-                            why_wrong_passage_id=d.why_wrong_chunk_id,
-                            misconception_label=d.misconception_label,
-                        )
-                    )
-
         await self.db.commit()
-        return path
+        await self.db.refresh(path)
+        return path, kb.vector_namespace
 
     async def get_path(self, path_id: str, user: User) -> LearningPath | None:
         stmt = (
