@@ -65,7 +65,11 @@ export function useStreamingQuery(kbId: string): StreamingQueryResult {
             if (line.startsWith('event:')) {
               eventType = line.slice('event:'.length).trim()
             } else if (line.startsWith('data:')) {
-              data = line.slice('data:'.length).trim()
+              // SSE spec: strip exactly one leading space after 'data:'.
+              // .trim() would eat spaces that are part of the token value itself,
+              // causing words to run together in streamed Ollama responses.
+              const raw = line.slice('data:'.length)
+              data = raw.startsWith(' ') ? raw.slice(1) : raw
             }
           }
 

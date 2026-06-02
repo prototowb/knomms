@@ -8,6 +8,14 @@ const route = useRoute()
 const auth = useAuthStore()
 const kbId = route.params.kbId as string
 
+interface KBMeta { id: string; title: string; index_status: string }
+const kbMeta = ref<KBMeta | null>(null)
+async function fetchKBMeta() {
+  kbMeta.value = await $fetch<KBMeta>(`/api/kbs/${kbId}`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  }).catch(() => null)
+}
+
 // ── Q&A ──────────────────────────────────────────────────────────────────────
 
 const queryText = ref('')
@@ -159,7 +167,7 @@ const sourceTypeIcon: Record<string, string> = {
   pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚',
 }
 
-onMounted(fetchSources)
+onMounted(() => { fetchKBMeta(); fetchSources() })
 onUnmounted(stopPolling)
 </script>
 
@@ -173,8 +181,12 @@ onUnmounted(stopPolling)
       <div class="px-6 pt-5 pb-0 border-b border-border">
         <div class="flex items-center gap-3 mb-4">
           <div class="flex-1 min-w-0">
-            <h1 class="text-base font-semibold text-text-primary">Knowledge Base</h1>
-            <p class="text-xs text-text-muted font-mono mt-0.5 truncate">{{ kbId }}</p>
+            <h1 class="text-base font-semibold text-text-primary">
+              {{ kbMeta?.title ?? 'Knowledge Base' }}
+            </h1>
+            <p class="text-xs mt-0.5" :class="kbMeta?.index_status === 'ready' ? 'text-grounded' : 'text-warning'">
+              {{ kbMeta?.index_status ?? '…' }}
+            </p>
           </div>
           <NuxtLink
             :to="`/kb/${kbId}/learn`"
