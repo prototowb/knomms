@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis import get_redis
 from app.deps.auth import get_current_user
 from app.deps.db import get_db
 from app.domains.learning.service import LearningService
@@ -17,12 +18,14 @@ from app.schemas.learning import (
 
 router = APIRouter(tags=["learning"])
 
+CURRICULUM_STREAM_KEY = "curriculum.jobs"
+
 
 @router.post(
     "/kbs/{kb_id}/learning-paths",
     response_model=LearningPathOut,
-    status_code=201,
-    summary="Generate a learning path from this KB's corpus",
+    status_code=202,
+    summary="Enqueue a learning path generation job from this KB's corpus",
 )
 async def create_learning_path(
     kb_id: str,
@@ -31,11 +34,27 @@ async def create_learning_path(
     user: User = Depends(get_current_user),
 ) -> LearningPathOut:
     svc = LearningService(db)
-    path = await svc.create_draft(kb_id, user, req.learning_goal, req.time_budget_hours)
-    full = await svc.get_path(path.id, user)
-    if full is None:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Path not found after creation")
-    return LearningPathOut.model_validate(full)
+    path, vector_namespace = await svc.create_stub(kb_id, user, req.learning_goal, req.time_budget_hours)
+    redis = await get_redis()
+    await redis.xadd(
+        CURRICULUM_STREAM_KEY,
+        {
+            "path_id": path.id,
+            "kb_id": kb_id,
+            "vector_namespace": vector_namespace,
+        },
+    )
+    return LearningPathOut(
+        id=path.id,
+        kb_id=path.kb_id,
+        learning_goal=path.learning_goal,
+        status=path.status,
+        version=path.version,
+        time_budget_hours=path.time_budget_hours,
+        created_at=path.created_at,
+        updated_at=path.updated_at,
+        concepts=[],
+    )
 
 
 @router.get(
