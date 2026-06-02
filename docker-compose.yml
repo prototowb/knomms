@@ -98,6 +98,7 @@ services:
 
   # ── Application API ───────────────────────────────────────────────────────
   api:
+    image: knomms-api:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -131,6 +132,7 @@ services:
 
   # ── Ingestion worker (picks up jobs from Redis Streams) ───────────────────
   worker:
+    image: knomms-worker:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -153,6 +155,7 @@ services:
   # ── Nuxt 3 frontend (Vue 3 + Tailwind CSS + Pinia) ───────────────────────
   # Nuxt server routes act as the Web BFF — no separate BFF service needed.
   frontend:
+    image: knomms-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
