@@ -115,6 +115,33 @@ class BoardService:
         result = await self.db.execute(stmt)
         return [row.Collection for row in result.all()]
 
+    async def get_similar_boards(self, board_id: str, limit: int = 5) -> list[Collection]:
+        """Return public boards whose board_embedding is closest to the given board.
+
+        Uses the source board's stored centroid vector directly — no Ollama call needed.
+        Excludes the source board itself and boards without an embedding.
+        """
+        board = await self.db.get(Collection, board_id)
+        if board is None or board.board_embedding is None:
+            return []
+
+        stmt = (
+            select(
+                Collection,
+                Collection.board_embedding.cosine_distance(board.board_embedding).label("distance"),
+            )
+            .where(
+                Collection.id != board_id,
+                Collection.visibility == "public",
+                Collection.board_embedding.is_not(None),
+            )
+            .options(selectinload(Collection.owner))
+            .order_by("distance")
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [row.Collection for row in result.all()]
+
     async def get_curator_profile(self, handle: str) -> tuple[User, list[Collection]] | None:
         user = (
             await self.db.execute(select(User).where(User.handle == handle))
