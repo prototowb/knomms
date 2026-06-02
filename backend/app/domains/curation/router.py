@@ -86,6 +86,22 @@ async def search_boards(
     return [_board_to_summary(b) for b in boards]
 
 
+@router.get(
+    "/boards/{board_id}/similar",
+    response_model=list[BoardSummary],
+    summary="Return boards semantically similar to this one",
+)
+async def similar_boards(
+    board_id: str,
+    limit: int = Query(5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    _user: User | None = Depends(get_optional_user),
+) -> list[BoardSummary]:
+    svc = BoardService(db)
+    boards = await svc.get_similar_boards(board_id, limit=limit)
+    return [_board_to_summary(b) for b in boards]
+
+
 @router.get("/boards/{board_id}", response_model=BoardOut, summary="Get a public board")
 async def get_board(
     board_id: str,
