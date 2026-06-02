@@ -10,12 +10,23 @@ interface KBOut {
   created_at: string
 }
 
+interface BoardSummary {
+  id: string
+  title: string
+  visibility: string
+  item_count: number
+  fork_count: number
+}
+
 const kbs = ref<KBOut[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 const showCreateForm = ref(false)
 const newKBTitle = ref('')
 const creating = ref(false)
+
+const boards = ref<BoardSummary[]>([])
+const boardsLoading = ref(true)
 
 async function fetchKBs() {
   loading.value = true
@@ -27,6 +38,20 @@ async function fetchKBs() {
     error.value = 'Failed to load knowledge bases'
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchBoards() {
+  boardsLoading.value = true
+  try {
+    const all = await $fetch<BoardSummary[]>('/api/my/boards', {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    boards.value = all.slice(0, 3)
+  } catch {
+    // non-critical; silently skip
+  } finally {
+    boardsLoading.value = false
   }
 }
 
@@ -56,7 +81,10 @@ const statusLabel: Record<string, { text: string; cls: string }> = {
   rebuilding: { text: 'Rebuilding', cls: 'text-warning bg-warning/10' },
 }
 
-onMounted(fetchKBs)
+onMounted(() => {
+  fetchKBs()
+  fetchBoards()
+})
 </script>
 
 <template>
@@ -142,5 +170,61 @@ onMounted(fetchKBs)
         </NuxtLink>
       </li>
     </ul>
+
+    <!-- Boards section -->
+    <section class="mt-10">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-text-primary">My Boards</h2>
+          <p class="text-xs text-text-muted mt-0.5">Curated knowledge collections</p>
+        </div>
+        <NuxtLink
+          to="/boards"
+          class="text-xs text-accent hover:underline"
+        >
+          See all →
+        </NuxtLink>
+      </div>
+
+      <div v-if="boardsLoading" class="space-y-3">
+        <div v-for="n in 2" :key="n" class="h-14 rounded-xl bg-border/40 animate-pulse" />
+      </div>
+
+      <div v-else-if="boards.length === 0" class="text-center py-8 text-text-muted rounded-xl border border-border border-dashed">
+        <p class="text-sm">No boards yet.</p>
+        <NuxtLink to="/boards" class="text-xs mt-1 text-accent hover:underline">Create your first board</NuxtLink>
+      </div>
+
+      <ul v-else class="space-y-3">
+        <li v-for="b in boards" :key="b.id">
+          <NuxtLink
+            :to="`/boards/${b.id}`"
+            class="group flex items-center gap-4 rounded-xl border border-border bg-surface p-4 hover:border-accent/40 hover:shadow-sm transition-all"
+          >
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-text-primary group-hover:text-accent transition-colors truncate">
+                {{ b.title }}
+              </p>
+              <p class="text-xs text-text-muted mt-0.5">
+                {{ b.item_count }} source{{ b.item_count !== 1 ? 's' : '' }} · {{ b.fork_count }} fork{{ b.fork_count !== 1 ? 's' : '' }}
+              </p>
+            </div>
+            <span class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+              :class="b.visibility === 'public' ? 'text-grounded bg-grounded/10' : 'text-text-muted bg-border'"
+            >
+              {{ b.visibility }}
+            </span>
+          </NuxtLink>
+        </li>
+      </ul>
+
+      <NuxtLink
+        v-if="boards.length > 0"
+        to="/boards"
+        class="mt-3 block text-center text-xs text-text-muted hover:text-accent transition-colors py-2"
+      >
+        View all boards →
+      </NuxtLink>
+    </section>
   </div>
 </template>
