@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     ollama_model: str = "mistral:7b-instruct"
     ollama_embed_model: str = "nomic-embed-text"
     max_concurrent_generations: int = 2
+    # Read timeout for Ollama generation requests.
+    # CPU inference requires ~120s prefill for a 1200-token RAG context;
+    # set higher for GPU (where prefill is <1s and this is just a safety net).
+    ollama_read_timeout: float = 300.0
+    # Number of chunks retrieved per Q&A query.
+    # CPU default=3 (~1200 input tokens, ~2min TTFT on a 4-core machine).
+    # Set to 10 for GPU deployments where prefill is fast.
+    retrieval_top_k: int = 3
 
     # auth
     secret_key: str = "insecure-dev-key-change-in-production"

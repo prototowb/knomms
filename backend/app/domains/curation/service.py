@@ -248,7 +248,7 @@ class BoardService:
         })
 
         await self.db.commit()
-        return item
+        return await self._reload_item(item.id)
 
     async def add_file_to_board(
         self,
@@ -315,7 +315,16 @@ class BoardService:
         })
 
         await self.db.commit()
-        return item
+        return await self._reload_item(item.id)
+
+    async def _reload_item(self, item_id: str) -> "CollectionItem":
+        """Re-fetch a CollectionItem with its source relationship loaded."""
+        stmt = (
+            select(CollectionItem)
+            .where(CollectionItem.id == item_id)
+            .options(selectinload(CollectionItem.source))
+        )
+        return (await self.db.execute(stmt)).scalar_one()
 
     async def fork_board(
         self,
@@ -377,6 +386,7 @@ class BoardService:
                 title=orig_source.title,
                 description=orig_source.description,
                 metadata_=orig_source.metadata_,
+                kb_id=kb.id,  # stamp fork KB so GET /v1/kbs/{id}/sources works
             )
             self.db.add(new_source)
             await self.db.flush()

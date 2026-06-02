@@ -128,10 +128,10 @@ const acceptedCount = computed(() =>
 const conceptCount = computed(() => path.value?.concepts.length ?? 0)
 
 function highlightCitations(text: string): string {
-  return text.replace(
-    /\[SOURCE:([a-f0-9-]{36})\]/g,
-    '<sup class="text-grounded font-mono text-xs">[src]</sup>'
-  )
+  // Match both [SOURCE:uuid] (ideal) and bare [uuid] (model sometimes omits prefix)
+  return text
+    .replace(/\[SOURCE:([a-f0-9-]{36})\]/g, '<sup class="text-grounded font-mono text-xs">[src]</sup>')
+    .replace(/\[([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\]/g, '<sup class="text-grounded font-mono text-xs">[src]</sup>')
 }
 
 onMounted(fetchPath)

@@ -15,9 +15,12 @@ def _get_client() -> httpx.AsyncClient:
     if _client is None:
         _client = httpx.AsyncClient(
             base_url=settings.ollama_base_url,
-            # read=300s: CPU prefill for 1200-token RAG prompts takes 30-90s;
-            # 300s gives enough headroom without hanging forever.
-            timeout=httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=5.0),
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=settings.ollama_read_timeout,
+                write=30.0,
+                pool=5.0,
+            ),
         )
     return _client
 
