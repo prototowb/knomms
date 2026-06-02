@@ -46,11 +46,10 @@ class GenerationService:
         query_embeddings = await embed([query])
         query_vec = query_embeddings[0]
 
-        # 3 chunks ≈ 1200 input tokens — keeps CPU prefill to ~30s.
-        # top_k=10 exhausts the 4096-token context and top_k=5 still caused
-        # 2+ minute TTFT on CPU; 3 is the practical limit for CPU inference.
         retrieval_svc = RetrievalService(self.db)
-        chunks = await retrieval_svc.retrieve(query_vec, kb.vector_namespace, top_k=3)
+        chunks = await retrieval_svc.retrieve(
+            query_vec, kb.vector_namespace, top_k=settings.retrieval_top_k
+        )
 
         if not chunks:
             async def _empty():

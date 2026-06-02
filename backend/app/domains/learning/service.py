@@ -132,6 +132,7 @@ class LearningService:
         stmt = (
             select(LearningPath)
             .where(LearningPath.kb_id == kb_id, LearningPath.user_id == user.id)
+            .options(selectinload(LearningPath.concepts))
             .order_by(LearningPath.created_at.desc())
         )
         result = await self.db.execute(stmt)
