@@ -57,9 +57,12 @@ ticket_prefix: "KC"
 *All three layers live and verified. GitHub remote configured (prototowb/knomms). Workflow: feature branches → development (local merge + push); development → main via PR.*
 
 Next candidates (see SESSION_HANDOFF.md §What Comes Next):
-- KC-029: MC answer grading — move from exact-match to normalised/fuzzy match
 - KC-030: Async board summary — add background job if prompt size grows with multi-source boards
 - KC-031: `development` → `main` release PR — tag v0.1.0
+
+## ✅ Post-MVP Sprint (KC-026–029)
+
+- KC-029: MC answer grading — normalised exact-match (NFC + lower + collapsed whitespace + trimmed punctuation); fixes distractor feedback substring false-positives; 10 new tests (2026-06-02)
 
 ## ✅ Post-MVP Sprint (KC-026–028)
 
