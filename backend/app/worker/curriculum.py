@@ -115,6 +115,9 @@ async def run_curriculum_job(db: AsyncSession, job: dict) -> None:
     except Exception:
         logger.exception("Curriculum job failed for path %s", path_id)
         try:
+            # Rollback any partial concept flushes before marking failed,
+            # otherwise a retry would accumulate duplicate concepts.
+            await db.rollback()
             path.status = "failed"
             await db.commit()
         except Exception:
