@@ -1,9 +1,9 @@
 # Session Handoff — Knowledge Commons
 
 **Session date:** 2026-06-02  
-**State:** KC-026/027 on main; KC-028 (similar boards) on development — ready for release PR  
-**Branch:** `development` — ahead of main by KC-028 + docs  
-**Tests:** 59/59 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**State:** KC-029 merged to development — MC grading normalised; KC-031 release PR open (development → main, v0.1.0)  
+**Branch:** `development` 3 commits ahead of `main` — PR open on GitHub  
+**Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 ---
@@ -35,7 +35,7 @@ cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 - **Local identity:** `Tobias Rauer <prototowb@gmail.com>` (set via `git config user.*` in this repo)
 - **Auth:** `gh` CLI installed (`brew install gh`), authenticated as `prototowb` — runs `gh auth setup-git` to wire HTTPS credentials
 - **Branching convention:** `feature/KC-XXX-description` from `development` → merge locally → push `development` → PR `development` → `main` for releases. Feature branches stay local only.
-- **Pending:** `development` is ahead of `main` by KC-028 + docs — create release PR when ready
+- **State:** `main` and `development` both at the same commit — no pending PRs
 
 ---
 
@@ -85,6 +85,7 @@ docker compose build api
 | Layer 3 (Discovery) | Board AI summary | ✓ | Owner-only button on board detail page; ~21s on CPU (metadata-only prompt); persists to `ai_summary` |
 | Layer 3 (Discovery) | Similar boards | ✓ | `GET /boards/{id}/similar` — pure pgvector cosine distance on stored centroid; grid on board detail page |
 | Layer 2 (Learning) | MC answer submit | ✓ | Radio-button choices; endpoint returns correct/incorrect + correct answer text; verified via API |
+| Layer 2 (Learning) | MC grading normalisation | ✓ | NFC + lower + collapse whitespace + trim punctuation; distractor feedback uses same normaliser (KC-029) |
 
 ---
 
@@ -155,12 +156,15 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-The stack is live, all three layers verified, and async curriculum generation is done. The prioritised next items:
+KC-031 release PR is open (development → main). After merge:
+```bash
+git tag v0.1.0 main
+git push origin v0.1.0
+```
 
-**Remaining MVP polish:**
-- MC answer grading is exact-match string compare — works for radio-button selection; would break on free-text input (KC-029 if ever needed)
-- Board `generate-summary` is ~21s synchronous — fine for current single-source boards; make async if prompt grows (KC-030)
-- Cut `development` → `main` PR to tag v0.1.0 release (KC-031)
+**Remaining backlog:**
+- KC-030: Async board summary — defer until boards have multiple sources
+- Future: free-text MC input (normalised grading already supports it)
 
 ---
 

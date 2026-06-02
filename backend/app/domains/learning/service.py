@@ -1,5 +1,8 @@
 """Learning service — DB operations for learning paths."""
 
+import re
+import unicodedata
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +12,15 @@ from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.chunk import Chunk
 from app.models.learning import AssessmentItem, LearningPath, PathConcept
 from app.models.user import User
+
+
+def _normalize_answer(text: str) -> str:
+    """Canonical form for answer comparison: NFC unicode, lowercase, collapsed whitespace, no edge punctuation."""
+    text = unicodedata.normalize("NFC", text)
+    text = text.lower().strip()
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"^[^\w]+|[^\w]+$", "", text)
+    return text
 
 
 class LearningService:
@@ -145,12 +157,12 @@ class LearningService:
         if item is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Assessment item not found")
 
-        correct = answer.strip().lower() == item.correct_answer.strip().lower()
+        norm_answer = _normalize_answer(answer)
+        correct = norm_answer == _normalize_answer(item.correct_answer)
         feedback: str | None = None
         if not correct:
-            answer_lower = answer.strip().lower()
             for d in item.distractors:
-                if answer_lower in d.text.lower() or d.text.lower() in answer_lower:
+                if norm_answer == _normalize_answer(d.text):
                     feedback = d.misconception_label
                     break
 
