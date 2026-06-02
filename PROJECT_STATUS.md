@@ -6,23 +6,22 @@
 
 **What this is.** A self-hosted, zero-external-cost grounded collective intelligence platform. Three layers: AI knowledge core (RAG + agents), structured learning (AI-generated learning paths from corpora), and discovery/curation (visual collection boards with fork-to-KB mechanic). Full specification in `PROJECT_SPECIFICATIONS.md`.
 
-**Where we are.** Pre-development. All `docs/` contain specification-level artifacts (vision, product spec, AI architecture, layer specs, platform architecture, roadmap, frontend + backend architecture). No production code exists yet.
+**Where we are.** Active development — all five milestones complete, stack live on Colima. Three layers fully exercised end-to-end. See `SESSION_HANDOFF.md` for run instructions, live verification status, and what comes next.
 
 **Read in this order:**
 
 1. This file → current state and open tickets
-2. `PROJECT_SPECIFICATIONS.md` → platform overview, tech stack, document map
-3. `AGENTS.md` → agent orchestration and pre-flight checklist
-4. Relevant `docs/` → deep-dive specs per domain (see document map in PROJECT_SPECIFICATIONS.md)
-5. `BRANCHING.md` / `TESTING.md` → conventions before any git or test work
+2. `SESSION_HANDOFF.md` → run instructions, live verification, architectural invariants
+3. `PROJECT_SPECIFICATIONS.md` → platform overview, tech stack, document map
+4. `BRANCHING.md` / `TESTING.md` → conventions before any git or test work
 
-**To run (once code exists):**
+**To run:**
 
 ```bash
-cp .env.example .env    # set POSTGRES_PASSWORD, SECRET_KEY, MINIO_ROOT_PASSWORD
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
 docker compose up -d
-docker compose exec api python manage.py migrate
-# Frontend: http://localhost  Backend API: http://localhost/api
+# Frontend: http://localhost  API: http://localhost/api/v1  Swagger: http://localhost/api/docs
+# Dev login: dev@localhost.dev / devdev99
 ```
 
 ---
@@ -30,7 +29,7 @@ docker compose exec api python manage.py migrate
 ## Current State
 
 ```yaml
-project_phase: "Active development — Milestones 0–2 complete"
+project_phase: "Active development — Milestones 0–4 complete + post-MVP hardening"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
@@ -53,16 +52,28 @@ ticket_prefix: "KC"
 
 ---
 
-## 🎫 Active — MVP Launch Prep
+## 🎫 Active — Post-MVP Hardening
 
-*M4 complete. Docker integration run is the keystone next step.*
+*All three layers live and verified. GitHub remote configured (prototowb/knomms). Workflow: feature branches → development (local merge + push); development → main via PR.*
 
-Priority items (see SESSION_HANDOFF.md §What's Left):
-- NEXT-001: First `docker compose up` integration run — surface all unverified paths
-- NEXT-002: Source ingestion UI — upload PDF / paste URL inside KB workspace
-- NEXT-003: Board management UI — create board, add sources, manage lanes
-- NEXT-004: My Boards section on dashboard
-- NEXT-005: Public layout header — login/register links for unauthenticated visitors
+Next candidates (see SESSION_HANDOFF.md §What Comes Next):
+- KC-029: MC answer grading — move from exact-match to normalised/fuzzy match
+- KC-030: Async board summary — add background job if prompt size grows with multi-source boards
+- KC-031: `development` → `main` release PR — tag v0.1.0
+
+## ✅ Post-MVP Sprint (KC-026–028)
+
+- KC-026: Async curriculum generation — POST returns 202, worker processes via `curriculum.jobs` stream (2026-06-02)
+- KC-027: Curriculum worker rollback fix + board AI summary button — owner-only, ~21s on CPU (2026-06-02)
+- KC-028: Similar boards — `GET /boards/{id}/similar` + "Similar boards" grid on board detail page (2026-06-02)
+
+## ✅ MVP Launch Prep (NEXT items)
+
+- NEXT-001: Integration run — all three layers exercised live on Colima (2026-06-02)
+- NEXT-002: Source ingestion UI — URL paste + file upload in KB workspace (2026-06-01)
+- NEXT-003: Board management UI — create board, add sources, swim-lane view (2026-06-01)
+- NEXT-004: My Boards dashboard section (2026-06-02)
+- NEXT-005: Public layout header — login/sign-up for unauthenticated visitors (2026-06-02)
 
 ## ✅ Milestone 3 Tickets
 
@@ -122,36 +133,16 @@ Priority items (see SESSION_HANDOFF.md §What's Left):
 
 ---
 
-## Milestone 1 Tickets (next)
-
-Create these with `pg ticket create "title" --type feature`:
-
-**Milestone 1 — Ingestion Loop**
-- PDF ingestion pipeline: extract → chunk → embed → pgvector
-- Web URL ingestion: Playwright scrape → chunk → embed
-- Grounded Q&A endpoint with SSE streaming + citation format
-
-**Milestone 2 — Core AI Flows**
-- Curriculum agent: LangGraph, flat sequence, MC assessment generation
-- Instructor review interface (accept / override / prune concepts)
-
-**Milestone 3 — Discovery Surface**
-- Nuxt 3 frontend: collection boards + fork action
-- Public board view (SSR) + curator profiles
-- Semantic recommendation engine
-
-See `docs/06-roadmap.md` for full milestone breakdown and MVP scope tables.
-
----
-
 ## Recent Updates
 
+- 2026-06-02: KC-028 — similar boards recommendations via board_embedding centroid
+- 2026-06-02: KC-027 — curriculum worker rollback fix; board AI summary button
+- 2026-06-02: KC-026 — async curriculum generation via Redis Streams; GitHub remote configured
 - 2026-06-01: Milestone 4 complete — auth flow, fork-KB fix, board embeddings, typecheck baseline
 - 2026-06-01: Milestone 3 complete — discovery layer, boards, fork, explore, curator profiles
 - 2026-06-01: Milestone 2 complete — curriculum agent, learning paths, MC assessment, frontend views
 - 2026-06-01: Milestone 1 complete — ingestion loop, grounded Q&A, SSE streaming
 - 2026-06-01: Milestone 0 complete — infrastructure baseline, Docker Compose, identity
-- 2026-06-01: Full project specification complete (9 architecture docs)
 
 ---
 
