@@ -169,6 +169,7 @@ v0.1.0 is tagged and released (GitHub PR #4). Clean slate for next session.
 | Invariant | Where | Why |
 |---|---|---|
 | `docker build --no-cache -t knomms-api:latest ./backend` AND `-t knomms-worker:latest ./backend` | build scripts | api and worker are different image names; Colima cache bug silently ships stale code |
+| After rebuilding api/frontend, run `docker compose restart nginx` (not `nginx -s reload`) | nginx restart | Colima volume sync lag means `-s reload` reads a truncated file; full restart avoids it |
 | Each KB has its own isolated `vector_namespace` | KB creation, fork | Enables per-KB retrieval without namespace bleed |
 | `VISIBILITY_S=300` safe for single worker only — raise before scaling | `__main__.py` | Two workers = stale reclaim duplicates a 20-min curriculum job |
 | Fork creates new Source records (new IDs) | `fork_board()` | Dedup keyed on (content_hash, source_id); same source_id = no new chunks |
