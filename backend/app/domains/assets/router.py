@@ -11,6 +11,8 @@ from app.schemas.asset import (
     AssetSummary,
     AssetVersionOut,
     CreateAssetRequest,
+    ProjectionOut,
+    ProjectVersionRequest,
 )
 
 router = APIRouter(tags=["assets"])
@@ -105,6 +107,24 @@ async def add_version(
         asset_id, user, req.content, req.rationale, req.tags or [], req.model_pin
     )
     return AssetVersionOut.model_validate(version)
+
+
+@router.post(
+    "/assets/{asset_id}/versions/{version_num}/project",
+    response_model=ProjectionOut,
+    status_code=201,
+    summary="Project an asset version into a KB as a prompt_asset source (deduped by version+KB)",
+)
+async def project_version(
+    asset_id: str,
+    version_num: int,
+    req: ProjectVersionRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProjectionOut:
+    svc = AssetService(db)
+    projection = await svc.project_version(asset_id, version_num, req.kb_id, user)
+    return ProjectionOut.model_validate(projection)
 
 
 @router.post(
