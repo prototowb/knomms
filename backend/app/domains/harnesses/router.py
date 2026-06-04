@@ -196,29 +196,36 @@ async def eval_events(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Eval run not found")
 
     async def _event_stream():
+        # Use a fresh session — the request-scoped `db` dependency is cleaned up
+        # once the route handler returns; StreamingResponse generators outlive that.
+        from app.core.db import AsyncSessionLocal
+        from sqlalchemy import select as _select
+        from app.models.asset import EvalRun as _EvalRun
+
         redis = await get_redis()
         offset = 0
-        while True:
-            events = await redis.lrange(f"eval:events:{run_id}", offset, -1)
-            for raw in events:
-                yield f"data: {raw}\n\n"
-                offset += 1
+        async with AsyncSessionLocal() as stream_db:
+            while True:
+                events = await redis.lrange(f"eval:events:{run_id}", offset, -1)
+                for raw in events:
+                    yield f"data: {raw}\n\n"
+                    offset += 1
 
-            if events:
-                last = json.loads(events[-1])
-                if last.get("type") in ("complete", "error"):
+                if events:
+                    last = json.loads(events[-1])
+                    if last.get("type") in ("complete", "error"):
+                        return
+
+                # Check DB status in case worker died without writing a final event
+                result = await stream_db.execute(
+                    _select(_EvalRun.status).where(_EvalRun.id == run_id)
+                )
+                db_status = result.scalar_one_or_none()
+                if db_status in ("completed", "failed") and not events:
+                    yield f"data: {json.dumps({'type': 'complete'})}\n\n"
                     return
 
-            # Check DB status in case worker died without writing a final event
-            from sqlalchemy import select as _select
-            from app.models.asset import EvalRun as _EvalRun
-            result = await db.execute(_select(_EvalRun.status).where(_EvalRun.id == run_id))
-            db_status = result.scalar_one_or_none()
-            if db_status in ("completed", "failed") and not events:
-                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
-                return
-
-            await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5)
 
     return StreamingResponse(
         _event_stream(),

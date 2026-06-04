@@ -89,7 +89,11 @@ class AssetService:
             tsquery = func.plainto_tsquery("english", q)
             asset_matches = func.to_tsvector(
                 "english",
-                func.coalesce(Asset.title, "") + " " + func.coalesce(Asset.description, ""),
+                func.concat(
+                    func.coalesce(Asset.title, ""),
+                    " ",
+                    func.coalesce(Asset.description, ""),
+                ),
             ).op("@@")(tsquery)
             version_matches = exists(
                 select(AssetVersion.id).where(
