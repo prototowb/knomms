@@ -12,6 +12,7 @@ import signal
 from app.core.db import AsyncSessionLocal
 from app.core.redis import get_redis
 from app.worker.curriculum import run_curriculum_job
+from app.worker.eval import run_eval_job
 from app.worker.pipeline import run_ingestion_pipeline
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,12 @@ _STREAMS = {
         "group": "curriculum-workers",
         "handler": run_curriculum_job,
         "log_field": "path_id",
+    },
+    "eval": {
+        "stream_key": "eval.jobs",
+        "group": "eval-workers",
+        "handler": run_eval_job,
+        "log_field": "run_id",
     },
 }
 

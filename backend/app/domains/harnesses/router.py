@@ -1,6 +1,11 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis import get_redis
 from app.deps.auth import get_current_user
 from app.deps.db import get_db
 from app.domains.harnesses.service import HarnessService
@@ -8,10 +13,12 @@ from app.models.user import User
 from app.schemas.harness import (
     AddAssetVersionRequest,
     CreateHarnessRequest,
+    EvalRunOut,
     ForkHarnessRequest,
     HarnessAssetOut,
     HarnessOut,
     HarnessSummary,
+    SubmitEvalRequest,
     SwapAssetVersionRequest,
 )
 
@@ -136,3 +143,85 @@ async def swap_asset_version(
     svc = HarnessService(db)
     slot = await svc.swap_asset_version(harness_id, role, user, req.new_asset_version_id)
     return HarnessAssetOut.model_validate(slot)
+
+
+@router.post(
+    "/harnesses/{harness_id}/eval",
+    response_model=EvalRunOut,
+    status_code=202,
+    summary="Submit an eval run for a harness (queues worker job; fails 422 if model not local)",
+)
+async def submit_eval(
+    harness_id: str,
+    req: SubmitEvalRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> EvalRunOut:
+    svc = HarnessService(db)
+    eval_run = await svc.submit_eval(harness_id, user, req.model)
+    return EvalRunOut.model_validate(eval_run)
+
+
+@router.get(
+    "/harnesses/{harness_id}/eval/{run_id}",
+    response_model=EvalRunOut,
+    summary="Get the status and results of an eval run",
+)
+async def get_eval_run(
+    harness_id: str,
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> EvalRunOut:
+    svc = HarnessService(db)
+    eval_run = await svc.get_eval_run(run_id, user)
+    if eval_run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Eval run not found")
+    return EvalRunOut.model_validate(eval_run)
+
+
+@router.get(
+    "/harnesses/{harness_id}/eval/{run_id}/events",
+    summary="SSE stream of eval progress events for a run",
+)
+async def eval_events(
+    harness_id: str,
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    svc = HarnessService(db)
+    eval_run = await svc.get_eval_run(run_id, user)
+    if eval_run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Eval run not found")
+
+    async def _event_stream():
+        redis = await get_redis()
+        offset = 0
+        while True:
+            events = await redis.lrange(f"eval:events:{run_id}", offset, -1)
+            for raw in events:
+                yield f"data: {raw}\n\n"
+                offset += 1
+
+            if events:
+                last = json.loads(events[-1])
+                if last.get("type") in ("complete", "error"):
+                    return
+
+            # Check DB status in case worker died without writing a final event
+            from sqlalchemy import select as _select
+            from app.models.asset import EvalRun as _EvalRun
+            result = await db.execute(_select(_EvalRun.status).where(_EvalRun.id == run_id))
+            db_status = result.scalar_one_or_none()
+            if db_status in ("completed", "failed") and not events:
+                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+                return
+
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
