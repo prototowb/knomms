@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -70,5 +71,21 @@ class HarnessSummary(BaseModel):
     created_at: datetime
     owner: HarnessOwnerOut | None = None
     asset_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class SubmitEvalRequest(BaseModel):
+    model: str
+
+
+class EvalRunOut(BaseModel):
+    id: str
+    harness_id: str
+    model_pin: str
+    status: str
+    metrics: Any | None = None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}

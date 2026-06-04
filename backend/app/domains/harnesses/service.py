@@ -1,15 +1,20 @@
-"""Harness service — create, fork, get, list, add/swap asset versions."""
+"""Harness service — create, fork, get, list, add/swap asset versions, submit eval."""
 
 import uuid
 
+import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
+from app.core.redis import get_redis
 from app.domains.curation.types import build_fork_lineage
-from app.models.asset import AssetVersion, Harness, HarnessAsset
+from app.models.asset import AssetVersion, EvalRun, Harness, HarnessAsset
 from app.models.user import User
+
+_EVAL_STREAM_KEY = "eval.jobs"
 
 VISIBILITIES = frozenset({"private", "team", "public"})
 
@@ -178,6 +183,64 @@ class HarnessService:
         await self.db.commit()
         await self.db.refresh(slot)
         return slot
+
+    async def submit_eval(
+        self,
+        harness_id: str,
+        user: User,
+        model: str,
+    ) -> EvalRun:
+        harness = await self.db.get(Harness, harness_id)
+        if harness is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
+        if harness.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the harness owner")
+
+        # Validate model is available locally — zero-external-cost invariant
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{settings.ollama_base_url}/api/tags")
+                resp.raise_for_status()
+                available = [m["name"] for m in resp.json().get("models", [])]
+        except Exception as exc:
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Could not reach Ollama to validate model: {exc}",
+            )
+
+        if model not in available:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Model '{model}' is not available locally. Available: {available}",
+            )
+
+        eval_run = EvalRun(
+            harness_id=harness_id,
+            triggered_by=user.id,
+            model_pin=model,
+            status="queued",
+        )
+        self.db.add(eval_run)
+        await self.db.commit()
+        await self.db.refresh(eval_run)
+
+        redis = await get_redis()
+        await redis.xadd(_EVAL_STREAM_KEY, {
+            "run_id": eval_run.id,
+            "harness_id": harness_id,
+        })
+
+        return eval_run
+
+    async def get_eval_run(self, run_id: str, user: User) -> EvalRun | None:
+        eval_run = await self.db.get(EvalRun, run_id)
+        if eval_run is None:
+            return None
+        # Only the harness owner can see eval runs
+        harness = await self.db.get(Harness, eval_run.harness_id)
+        if harness is None or harness.owner_user_id != user.id:
+            return None
+        return eval_run
 
     async def swap_asset_version(
         self,
