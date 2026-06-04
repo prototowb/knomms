@@ -1,0 +1,74 @@
+from datetime import datetime
+
+from pydantic import BaseModel
+
+_VISIBILITIES = {"private", "team", "public"}
+
+
+class CreateHarnessRequest(BaseModel):
+    title: str
+    description: str = ""
+    visibility: str = "private"
+
+
+class ForkHarnessRequest(BaseModel):
+    new_title: str
+    visibility: str = "private"
+
+
+class AddAssetVersionRequest(BaseModel):
+    asset_version_id: str
+    role: str
+    position: int = 0
+
+
+class SwapAssetVersionRequest(BaseModel):
+    new_asset_version_id: str
+
+
+class HarnessAssetOut(BaseModel):
+    id: str
+    harness_id: str
+    asset_version_id: str
+    role: str
+    position: int
+    added_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class HarnessOwnerOut(BaseModel):
+    id: str
+    handle: str
+    display_name: str
+
+    model_config = {"from_attributes": True}
+
+
+class HarnessOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    visibility: str
+    fork_count: int
+    forked_from_id: str | None = None
+    fork_lineage: list[str] = []
+    created_at: datetime
+    updated_at: datetime
+    owner: HarnessOwnerOut | None = None
+    assets: list[HarnessAssetOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class HarnessSummary(BaseModel):
+    id: str
+    title: str
+    description: str
+    visibility: str
+    fork_count: int
+    created_at: datetime
+    owner: HarnessOwnerOut | None = None
+    asset_count: int = 0
+
+    model_config = {"from_attributes": True}
