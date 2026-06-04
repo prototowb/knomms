@@ -87,6 +87,7 @@ When the user's prose contains these keywords, load the matching capability befo
 ## 🚨 Critical Rules
 
 - NEVER push directly to `main` — always via PR from `development`; committing and pushing directly to `development` is allowed
+- Always branch from `development` for feature work — never start a feature branch from `main`
 - Run `pg status` before starting work to see active tickets and current sprint
 - Use `pg ticket create "title" --type feature` to register new work
 - Use `pg ticket update ID --status IN_PROGRESS` when starting a ticket
