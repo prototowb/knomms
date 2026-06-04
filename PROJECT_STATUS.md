@@ -60,14 +60,14 @@ next_ticket: "KC-033"
 ### Sprint order (implement in sequence — each ticket unblocks the next)
 
 - ~~**KC-032**~~ ✅ schema: Migration 006 — 7 new tables live in Postgres; `prompt_asset` type; User back-populates (2026-06-05)
-- **KC-033** — backend: `AssetService` + router at `/api/v1/assets` — create asset, add version (dedup via SHA-256 `content_hash`, auto-increment `version_num` scoped to asset), get, list, deprecate version; types: `system_prompt | few_shot_set | eval_suite | chain_spec | tool_spec`
-- **KC-034** — backend: `HarnessService` + router at `/api/v1/harnesses` — create, fork (mirrors `BoardService.fork_board` exactly: copy `HarnessAsset` rows, increment parent `fork_count`, populate `fork_lineage`), get, list, add/swap asset version by role
-- **KC-035** — backend: eval worker — add `eval.jobs` to `_STREAMS` in `worker/__main__.py`; implement `worker/eval.py`: load harness + eval suite asset version, resolve `EvalCase` records, call existing Ollama client per case, apply grading strategy (`exact_match | contains | llm_judge | regex`), write `EvalRun.metrics` (JSONB) + `status`; `POST /harnesses/{id}/eval` returns 202 + `run_id`; progress via SSE; fails with 422 if `model_pin` not available locally (zero-external-cost invariant)
-- **KC-036** — backend: `AssetProjectionService.project(asset_version_id, kb_id, owner_user_id)` — creates `Source(type="prompt_asset")`, writes content to Redis under `upload:{source_id}`, pushes to `ingestion.jobs`, writes `AssetSourceProjection`; enforces UNIQUE(asset_version_id, kb_id); endpoint: `POST /assets/{id}/versions/{version_num}/project`
+- ~~**KC-033**~~ ✅ backend: `AssetService` + router at `/api/v1/assets` — create, add version (SHA-256 dedup + auto-increment version_num), get, list, deprecate; 10 unit tests; code complete (2026-06-05)
+- ~~**KC-034**~~ ✅ backend: `HarnessService` + router at `/api/v1/harnesses` — create, fork (copies HarnessAsset rows, increments fork_count, populates fork_lineage), get, list, add/swap asset version by role; code complete (2026-06-05)
+- ~~**KC-035**~~ ✅ backend: eval worker — `eval.jobs` stream in `worker/__main__.py`; `worker/eval.py` grades EvalCase records (exact_match/contains/regex/llm_judge), writes EvalRun.metrics; 422 if model not local; SSE via Redis list polling; code complete (2026-06-05)
+- ~~**KC-036**~~ ✅ backend: `AssetProjectionService.project` — creates `Source(type="prompt_asset")`, caches in Redis, pushes to ingestion.jobs, writes AssetSourceProjection; 409 on UNIQUE conflict; code complete (2026-06-05)
 - **KC-037** — frontend: asset library — `/assets` list page (type filter, visibility filter, search); `/assets/[id]` detail page (version history timeline, content with syntax highlight for YAML/JSON, rationale annotation, model-binding badge, status label); version diff view between any two versions
 - **KC-038** — frontend: harness composer + eval — `/harnesses/[id]/compose` for adding/swapping asset versions by role; eval submission panel (Ollama model selector, run button, SSE progress bar); eval result view (aggregate score, per-case pass/fail + latency table); fork dialog reusing existing board fork component
 - **KC-039** — frontend: drift alert + model-pin badge — yellow banner on asset/harness detail when `model_pin` matches a deprecated slug in `/backend/app/core/deprecated_models.json`; model-binding badge component (family chip + pin chip) used on asset cards, version rows, harness headers
-- **KC-040** — backend: asset full-text search — PostgreSQL `tsvector` GIN index over `assets.title`, `assets.description`, `asset_versions.rationale`, `asset_versions.tags` (JSONB); `GET /api/v1/assets?q=` scoped to visibility (own private + team [= all instance users for now] + public); no new infrastructure
+- ~~**KC-040**~~ ✅ backend: asset full-text search — Migration 007: GIN indexes on assets+asset_versions; `GET /api/v1/assets?q=` with plainto_tsquery scoped to visibility; code complete (2026-06-05)
 
 ### Design decisions (resolved, do not re-open without cause)
 
@@ -171,6 +171,7 @@ next_ticket: "KC-033"
 
 ## Recent Updates
 
+- 2026-06-05: KC-033–036, KC-040 — all backend AI Assets tickets code complete; 79/79 tests pass; next: KC-037 (frontend asset library)
 - 2026-06-05: KC-032 — Migration 006: 7 AI Assets tables (assets, asset_versions, harnesses, harness_assets, eval_cases, eval_runs, asset_source_projections); 69/69 tests pass
 - 2026-06-05: v0.2.0 sprint prepared — AI Assets Pillar (KC-032–040); all design decisions resolved
 - 2026-06-03: Git history rewritten — all commits now authored as `prototowb@gmail.com`; history force-pushed clean

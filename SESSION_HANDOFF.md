@@ -1,9 +1,10 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-06-05  
-**State:** v0.2.0 in progress — KC-032 complete (Migration 006, 7 new AI Assets tables); KC-033 is next  
-**Branch:** `development` ahead of `main` by KC-032 merge; `main` at v0.1.0  
-**Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**State:** v0.2.0 in progress — KC-032–036 + KC-040 code complete; KC-037 (frontend asset library) is next  
+**Branch:** `development` ahead of `main`; `main` at v0.1.0  
+**Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** KC-033–036, KC-040 are code-complete but NOT live-verified on Colima (run `alembic upgrade head` + smoke test before marking ✅)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 ---
@@ -86,6 +87,11 @@ docker compose build api
 | Layer 3 (Discovery) | Similar boards | ✓ | `GET /boards/{id}/similar` — pure pgvector cosine distance on stored centroid; grid on board detail page |
 | Layer 2 (Learning) | MC answer submit | ✓ | Radio-button choices; endpoint returns correct/incorrect + correct answer text; verified via API |
 | Layer 2 (Learning) | MC grading normalisation | ✓ | NFC + lower + collapse whitespace + trim punctuation; distractor feedback uses same normaliser (KC-029) |
+| Layer 4 (AI Assets) | AssetService CRUD | ⚠ code complete | KC-033 — POST/GET/list/deprecate at /api/v1/assets; needs live smoke test |
+| Layer 4 (AI Assets) | HarnessService CRUD | ⚠ code complete | KC-034 — create/fork/get/list/add-slot/swap-slot at /api/v1/harnesses |
+| Layer 4 (AI Assets) | Eval worker | ⚠ code complete | KC-035 — eval.jobs stream; grades EvalCase records; SSE progress; 422 on missing model |
+| Layer 4 (AI Assets) | Asset projection | ⚠ code complete | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
+| Layer 4 (AI Assets) | Asset FTS | ⚠ code complete | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 (run alembic upgrade head) |
 
 ---
 
@@ -158,15 +164,67 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-### Sprint entry point: KC-033
+### Sprint entry point: KC-037
 
-KC-032 (Migration 006) is complete — 7 tables live in Postgres. Next is the `AssetService`.
+All backend tickets (KC-033–036, KC-040) are code complete. Wall hit at frontend. Next session starts with KC-037 (asset library UI).
 
 ```
-✅KC-032 → KC-033 → KC-034 → KC-035 → KC-036 → KC-037 → KC-038 → KC-039 → KC-040
-schema      asset    harness   eval      project   asset    harness  drift    search
-            svc      svc       worker    svc       UI       UI       alert
+✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → KC-037 → KC-038 → KC-039 → ✅KC-040
+schema       asset      harness    eval        project    asset    harness  drift    search
+             svc        svc        worker      svc        UI       UI       alert
 ```
+
+**⚠ Live verification pending for KC-033–036, KC-040:**
+
+```bash
+# 0. Apply migration 007 (GIN indexes)
+docker compose exec api alembic upgrade head
+
+# 1. Rebuild API + worker (Colima cache bug — always use --no-cache)
+docker build --no-cache -t knomms-api:latest ./backend
+docker build --no-cache -t knomms-worker:latest ./backend
+docker compose up --force-recreate -d api worker
+docker compose restart nginx
+
+# 2. Get a token
+TOKEN=$(curl -s -X POST http://localhost/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"dev@localhost.dev","password":"devdev99"}' | jq -r .access_token)
+
+# 3. Create an asset
+ASSET=$(curl -s -X POST http://localhost/api/v1/assets \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"My Prompt","asset_type":"system_prompt","visibility":"private"}')
+ASSET_ID=$(echo $ASSET | jq -r .id)
+
+# 4. Add a version
+curl -s -X POST http://localhost/api/v1/assets/$ASSET_ID/versions \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"content":"You are a helpful assistant.","rationale":"initial version"}'
+
+# 5. List assets (search)
+curl -s "http://localhost/api/v1/assets?q=helpful" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+
+# 6. Create a harness
+curl -s -X POST http://localhost/api/v1/harnesses \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"Test Harness","visibility":"private"}' | jq .
+```
+
+### KC-037 frontend entry point
+
+KC-037 is the asset library UI. Look at `/frontend/pages/boards.vue` (board list page) and `/frontend/pages/board/[boardId].vue` (board detail page) as the direct analogues — asset pages follow the same patterns.
+
+Key frontend patterns to reuse:
+- Auth token from Pinia store: `const auth = useAuthStore(); auth.token`
+- SSR data fetch: `useFetch('/api/assets', { headers: ... })` via BFF route
+- BFF route template: copy `server/api/boards/[...path].ts` → `server/api/assets/[...path].ts`
+- Syntax highlighting: `@shikijs/vue` (Shiki) already available for YAML/JSON content
+
+New BFF routes needed:
+- `server/api/assets/[...path].ts` → proxies to FastAPI `/v1/assets`
+- `server/api/harnesses/[...path].ts` → proxies to FastAPI `/v1/harnesses`
 
 ### Key architectural decisions for this sprint
 
