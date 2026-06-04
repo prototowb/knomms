@@ -50,17 +50,18 @@ def _asset_to_summary(asset) -> AssetSummary:
     )
 
 
-@router.get("/assets", response_model=list[AssetSummary], summary="List assets visible to the current user")
+@router.get("/assets", response_model=list[AssetSummary], summary="List/search assets visible to the current user")
 async def list_assets(
     asset_type: str | None = Query(None),
     visibility: str | None = Query(None, pattern="^(private|team|public)$"),
+    q: str | None = Query(None, min_length=2, description="Full-text search across title, description, rationale"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[AssetSummary]:
     svc = AssetService(db)
-    assets = await svc.list_assets(user, asset_type=asset_type, visibility_filter=visibility, limit=limit, offset=offset)
+    assets = await svc.list_assets(user, asset_type=asset_type, visibility_filter=visibility, q=q, limit=limit, offset=offset)
     return [_asset_to_summary(a) for a in assets]
 
 

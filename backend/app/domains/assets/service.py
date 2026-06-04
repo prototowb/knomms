@@ -1,10 +1,10 @@
-"""Asset service — create assets, version management, list, deprecate, project."""
+"""Asset service — create assets, version management, list, search, deprecate, project."""
 
 import hashlib
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -59,6 +59,7 @@ class AssetService:
         user: User,
         asset_type: str | None = None,
         visibility_filter: str | None = None,
+        q: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Asset]:
@@ -83,6 +84,23 @@ class AssetService:
 
         if asset_type is not None:
             stmt = stmt.where(Asset.asset_type == asset_type)
+
+        if q:
+            tsquery = func.plainto_tsquery("english", q)
+            asset_matches = func.to_tsvector(
+                "english",
+                func.coalesce(Asset.title, "") + " " + func.coalesce(Asset.description, ""),
+            ).op("@@")(tsquery)
+            version_matches = exists(
+                select(AssetVersion.id).where(
+                    AssetVersion.asset_id == Asset.id,
+                    func.to_tsvector(
+                        "english",
+                        func.coalesce(AssetVersion.rationale, ""),
+                    ).op("@@")(tsquery),
+                )
+            )
+            stmt = stmt.where(asset_matches | version_matches)
 
         stmt = (
             stmt.options(selectinload(Asset.versions), selectinload(Asset.owner))
