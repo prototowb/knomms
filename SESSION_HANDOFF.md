@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-06-05  
-**State:** v0.2.0 sprint ready — AI Assets Pillar designed (KC-032–040), no implementation yet  
-**Branch:** `main` and `development` in sync at v0.1.0 (history rewritten: all commits now `prototowb@gmail.com`)  
+**State:** v0.2.0 in progress — KC-032 complete (Migration 006, 7 new AI Assets tables); KC-033 is next  
+**Branch:** `development` ahead of `main` by KC-032 merge; `main` at v0.1.0  
 **Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -158,14 +158,14 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-### Sprint entry point: KC-032
+### Sprint entry point: KC-033
 
-Start with Migration 006. Everything else depends on it.
+KC-032 (Migration 006) is complete — 7 tables live in Postgres. Next is the `AssetService`.
 
 ```
-KC-032 → KC-033 → KC-034 → KC-035 → KC-036 → KC-037 → KC-038 → KC-039 → KC-040
-schema    asset    harness   eval      project   asset    harness  drift    search
-          svc      svc       worker    svc       UI       UI       alert
+✅KC-032 → KC-033 → KC-034 → KC-035 → KC-036 → KC-037 → KC-038 → KC-039 → KC-040
+schema      asset    harness   eval      project   asset    harness  drift    search
+            svc      svc       worker    svc       UI       UI       alert
 ```
 
 ### Key architectural decisions for this sprint

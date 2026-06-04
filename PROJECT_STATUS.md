@@ -37,7 +37,7 @@ initialization_date: "2026-06-01"
 current_sprint: "v0.2.0 — AI Assets Pillar"
 last_release: "v0.1.0 (2026-06-02)"
 ticket_prefix: "KC"
-next_ticket: "KC-032"
+next_ticket: "KC-033"
 ```
 
 ## Architecture Summary
@@ -59,7 +59,7 @@ next_ticket: "KC-032"
 
 ### Sprint order (implement in sequence — each ticket unblocks the next)
 
-- **KC-032** — schema: Migration 006 — 7 new tables (`assets`, `asset_versions`, `harnesses`, `harness_assets`, `eval_cases`, `eval_runs`, `asset_source_projections`); add `prompt_asset` to `Source.type` enum; add `User` back-populates for `assets`, `harnesses`, `eval_runs`
+- ~~**KC-032**~~ ✅ schema: Migration 006 — 7 new tables live in Postgres; `prompt_asset` type; User back-populates (2026-06-05)
 - **KC-033** — backend: `AssetService` + router at `/api/v1/assets` — create asset, add version (dedup via SHA-256 `content_hash`, auto-increment `version_num` scoped to asset), get, list, deprecate version; types: `system_prompt | few_shot_set | eval_suite | chain_spec | tool_spec`
 - **KC-034** — backend: `HarnessService` + router at `/api/v1/harnesses` — create, fork (mirrors `BoardService.fork_board` exactly: copy `HarnessAsset` rows, increment parent `fork_count`, populate `fork_lineage`), get, list, add/swap asset version by role
 - **KC-035** — backend: eval worker — add `eval.jobs` to `_STREAMS` in `worker/__main__.py`; implement `worker/eval.py`: load harness + eval suite asset version, resolve `EvalCase` records, call existing Ollama client per case, apply grading strategy (`exact_match | contains | llm_judge | regex`), write `EvalRun.metrics` (JSONB) + `status`; `POST /harnesses/{id}/eval` returns 202 + `run_id`; progress via SSE; fails with 422 if `model_pin` not available locally (zero-external-cost invariant)
@@ -171,6 +171,7 @@ next_ticket: "KC-032"
 
 ## Recent Updates
 
+- 2026-06-05: KC-032 — Migration 006: 7 AI Assets tables (assets, asset_versions, harnesses, harness_assets, eval_cases, eval_runs, asset_source_projections); 69/69 tests pass
 - 2026-06-05: v0.2.0 sprint prepared — AI Assets Pillar (KC-032–040); all design decisions resolved
 - 2026-06-03: Git history rewritten — all commits now authored as `prototowb@gmail.com`; history force-pushed clean
 - 2026-06-02: KC-029 — MC grading normalisation; v0.1.0 tagged and released (PR #4)
