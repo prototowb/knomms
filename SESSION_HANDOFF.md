@@ -1,8 +1,8 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-02  
-**State:** v0.1.0 released — KC-029 (MC grading) done, PR #4 merged, tag pushed  
-**Branch:** `main` and `development` in sync at v0.1.0  
+**Session date:** 2026-06-05  
+**State:** v0.2.0 sprint ready — AI Assets Pillar designed (KC-032–040), no implementation yet  
+**Branch:** `main` and `development` in sync at v0.1.0 (history rewritten: all commits now `prototowb@gmail.com`)  
 **Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
@@ -156,11 +156,40 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-v0.1.0 is tagged and released (GitHub PR #4). Clean slate for next session.
+v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-**Remaining backlog:**
-- KC-030: Async board summary — defer until boards have multiple sources
-- Future: free-text MC input (normalised grading already supports it)
+### Sprint entry point: KC-032
+
+Start with Migration 006. Everything else depends on it.
+
+```
+KC-032 → KC-033 → KC-034 → KC-035 → KC-036 → KC-037 → KC-038 → KC-039 → KC-040
+schema    asset    harness   eval      project   asset    harness  drift    search
+          svc      svc       worker    svc       UI       UI       alert
+```
+
+### Key architectural decisions for this sprint
+
+**New Redis stream:** `eval.jobs` — add to `_STREAMS` dict in `worker/__main__.py` alongside existing `ingestion.jobs` and `curriculum.jobs`. Handler lives in `worker/eval.py`.
+
+**New Source type:** `prompt_asset` — add to `Source.type` enum in Migration 006 (string column, no Postgres enum, same pattern as existing types). Projection service uses this type.
+
+**Harness fork mirrors board fork exactly.** Reuse the `fork_board()` pattern: copy join-table rows, increment parent `fork_count`, populate `fork_lineage` array. Do not abstract — stay explicit.
+
+**Eval runs are Ollama-local only.** If `model_pin` on an AssetVersion is not available in Ollama (`ollama list`), `POST /harnesses/{id}/eval` returns 422 with a message listing available models. No silent cloud fallback.
+
+**Team visibility = all users on this instance.** No `organisations` table yet. `GET /api/v1/assets?visibility=team` returns assets visible to any registered user. Document as instance-scoped sharing in the API response.
+
+**EvalCase is immutable per AssetVersion.** To add test cases to an eval suite, commit a new AssetVersion. The new version gets a new `version_num`; the old version's cases are untouched.
+
+**Explore page: tab, not new route.** Add a "Harnesses" tab to the existing `/explore` page alongside KBs and Boards. No new top-level nav item.
+
+### Deferred (do not start this sprint)
+
+- KC-030: Async board summary (defer until multi-source boards exist)
+- Free-text MC input (normalised grading already supports it — UI work only when prioritised)
+- Harness fork-compare diff view (Tier 2, after KC-040)
+- Cloud model eval adapter (Tier 3)
 
 ---
 

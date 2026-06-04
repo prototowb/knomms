@@ -4,7 +4,7 @@
 
 ## Hand-off — start here
 
-**What this is.** A self-hosted, zero-external-cost grounded collective intelligence platform. Three layers: AI knowledge core (RAG + agents), structured learning (AI-generated learning paths from corpora), and discovery/curation (visual collection boards with fork-to-KB mechanic). Full specification in `PROJECT_SPECIFICATIONS.md`.
+**What this is.** A self-hosted, zero-external-cost grounded collective intelligence platform. Four pillars: AI knowledge core (RAG + agents), structured learning (AI-generated learning paths from corpora), discovery/curation (visual collection boards with fork-to-KB mechanic), and AI assets (prompt versioning, harness composition, local eval runs — the practitioner layer for teams building with AI). Full specification in `PROJECT_SPECIFICATIONS.md`.
 
 **Where we are.** Active development — all five milestones complete, stack live on Colima. Three layers fully exercised end-to-end. See `SESSION_HANDOFF.md` for run instructions, live verification status, and what comes next.
 
@@ -29,14 +29,15 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — Milestones 0–4 complete + post-MVP hardening"
+project_phase: "Active development — v0.2.0 sprint: AI Assets Pillar"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "MVP Launch Prep"
+current_sprint: "v0.2.0 — AI Assets Pillar"
 last_release: "v0.1.0 (2026-06-02)"
 ticket_prefix: "KC"
+next_ticket: "KC-032"
 ```
 
 ## Architecture Summary
@@ -52,13 +53,45 @@ ticket_prefix: "KC"
 
 ---
 
-## 🎫 Active — Post-MVP Hardening
+## 🎫 Active — v0.2.0: AI Assets Pillar (KC-032–040)
 
-*All three layers live and verified. GitHub remote configured (prototowb/knomms). Workflow: feature branches → development (local merge + push); development → main via PR.*
+*v0.1.0 shipped. Starting the fourth pillar: AI asset versioning, harness composition, and local eval runs for practitioner teams. Branching convention unchanged: feature branches from `development`, local merge, push `development`; PR to `main` for releases.*
 
-Next candidates (see SESSION_HANDOFF.md §What Comes Next):
-- KC-030: Async board summary — add background job if prompt size grows with multi-source boards
-- KC-031: `development` → `main` release PR — tag v0.1.0
+### Sprint order (implement in sequence — each ticket unblocks the next)
+
+- **KC-032** — schema: Migration 006 — 7 new tables (`assets`, `asset_versions`, `harnesses`, `harness_assets`, `eval_cases`, `eval_runs`, `asset_source_projections`); add `prompt_asset` to `Source.type` enum; add `User` back-populates for `assets`, `harnesses`, `eval_runs`
+- **KC-033** — backend: `AssetService` + router at `/api/v1/assets` — create asset, add version (dedup via SHA-256 `content_hash`, auto-increment `version_num` scoped to asset), get, list, deprecate version; types: `system_prompt | few_shot_set | eval_suite | chain_spec | tool_spec`
+- **KC-034** — backend: `HarnessService` + router at `/api/v1/harnesses` — create, fork (mirrors `BoardService.fork_board` exactly: copy `HarnessAsset` rows, increment parent `fork_count`, populate `fork_lineage`), get, list, add/swap asset version by role
+- **KC-035** — backend: eval worker — add `eval.jobs` to `_STREAMS` in `worker/__main__.py`; implement `worker/eval.py`: load harness + eval suite asset version, resolve `EvalCase` records, call existing Ollama client per case, apply grading strategy (`exact_match | contains | llm_judge | regex`), write `EvalRun.metrics` (JSONB) + `status`; `POST /harnesses/{id}/eval` returns 202 + `run_id`; progress via SSE; fails with 422 if `model_pin` not available locally (zero-external-cost invariant)
+- **KC-036** — backend: `AssetProjectionService.project(asset_version_id, kb_id, owner_user_id)` — creates `Source(type="prompt_asset")`, writes content to Redis under `upload:{source_id}`, pushes to `ingestion.jobs`, writes `AssetSourceProjection`; enforces UNIQUE(asset_version_id, kb_id); endpoint: `POST /assets/{id}/versions/{version_num}/project`
+- **KC-037** — frontend: asset library — `/assets` list page (type filter, visibility filter, search); `/assets/[id]` detail page (version history timeline, content with syntax highlight for YAML/JSON, rationale annotation, model-binding badge, status label); version diff view between any two versions
+- **KC-038** — frontend: harness composer + eval — `/harnesses/[id]/compose` for adding/swapping asset versions by role; eval submission panel (Ollama model selector, run button, SSE progress bar); eval result view (aggregate score, per-case pass/fail + latency table); fork dialog reusing existing board fork component
+- **KC-039** — frontend: drift alert + model-pin badge — yellow banner on asset/harness detail when `model_pin` matches a deprecated slug in `/backend/app/core/deprecated_models.json`; model-binding badge component (family chip + pin chip) used on asset cards, version rows, harness headers
+- **KC-040** — backend: asset full-text search — PostgreSQL `tsvector` GIN index over `assets.title`, `assets.description`, `asset_versions.rationale`, `asset_versions.tags` (JSONB); `GET /api/v1/assets?q=` scoped to visibility (own private + team [= all instance users for now] + public); no new infrastructure
+
+### Design decisions (resolved, do not re-open without cause)
+
+| # | Decision | Call | Rationale |
+|---|---|---|---|
+| OQ-1 | Source type for projected assets | `prompt_asset` added to enum | Boards need to distinguish projected prompts from pasted text |
+| OQ-2 | Cloud-pinned model evals | Zero-external-cost strict; cloud adapter Tier 3 | Invariant is load-bearing for self-hosted value prop |
+| OQ-3 | Team visibility scope | `team` = all registered users on this instance | No `organisations` table yet; document as known limitation |
+| OQ-4 | EvalCase immutability | Adding cases requires a new AssetVersion commit | Aligns with versioning philosophy; eval suites are immutable per version |
+| OQ-5 | Explore page surface | Tab on `/explore` (KBs \| Boards \| Harnesses) | Unified discovery; avoids top-nav proliferation |
+
+### Deferred to Tier 2 (next sprint after KC-040)
+
+- KC-030: Async board summary — defer until boards have multiple sources
+- Harness fork-compare diff view (eval scores side-by-side vs. parent)
+- Asset board curation (projected Sources as CollectionItems on boards)
+- Asset library full-text search (KC-040 delivers this)
+
+### Deferred to Tier 3 (future)
+
+- Self-teaching curriculum from harness corpus (project harness + eval logs into KB → curriculum agent)
+- Federation / selective public sharing with community quality signals
+- Cloud model eval adapter (opt-in, with explicit cost + privacy guardrails)
+- `organisations` table for true team-scoped visibility
 
 ## ✅ Post-MVP Sprint (KC-026–029)
 
@@ -138,6 +171,9 @@ Next candidates (see SESSION_HANDOFF.md §What Comes Next):
 
 ## Recent Updates
 
+- 2026-06-05: v0.2.0 sprint prepared — AI Assets Pillar (KC-032–040); all design decisions resolved
+- 2026-06-03: Git history rewritten — all commits now authored as `prototowb@gmail.com`; history force-pushed clean
+- 2026-06-02: KC-029 — MC grading normalisation; v0.1.0 tagged and released (PR #4)
 - 2026-06-02: KC-028 — similar boards recommendations via board_embedding centroid
 - 2026-06-02: KC-027 — curriculum worker rollback fix; board AI summary button
 - 2026-06-02: KC-026 — async curriculum generation via Redis Streams; GitHub remote configured
