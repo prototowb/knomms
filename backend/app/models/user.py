@@ -25,3 +25,6 @@ class User(Base):
     sources: Mapped[list["Source"]] = relationship("Source", back_populates="owner")  # type: ignore[name-defined]
     collections: Mapped[list["Collection"]] = relationship("Collection", back_populates="owner")  # type: ignore[name-defined]
     knowledge_bases: Mapped[list["KnowledgeBase"]] = relationship("KnowledgeBase", back_populates="owner")  # type: ignore[name-defined]
+    assets: Mapped[list["Asset"]] = relationship("Asset", back_populates="owner")  # type: ignore[name-defined]
+    harnesses: Mapped[list["Harness"]] = relationship("Harness", back_populates="owner")  # type: ignore[name-defined]
+    eval_runs: Mapped[list["EvalRun"]] = relationship("EvalRun", back_populates="triggering_user")  # type: ignore[name-defined]
