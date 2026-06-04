@@ -73,3 +73,18 @@ class AssetSummary(BaseModel):
     version_count: int = 0
 
     model_config = {"from_attributes": True}
+
+
+class ProjectVersionRequest(BaseModel):
+    kb_id: str
+
+
+class ProjectionOut(BaseModel):
+    id: str
+    asset_version_id: str
+    kb_id: str
+    source_id: str
+    owner_user_id: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

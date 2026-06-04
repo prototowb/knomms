@@ -1,14 +1,20 @@
-"""Asset service — create assets, version management, list, deprecate."""
+"""Asset service — create assets, version management, list, deprecate, project."""
 
 import hashlib
+import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.asset import Asset, AssetVersion
+from app.core.redis import get_redis
+from app.models.asset import Asset, AssetSourceProjection, AssetVersion
+from app.models.source import Source
 from app.models.user import User
+
+_INGESTION_STREAM_KEY = "ingestion.jobs"
 
 ASSET_TYPES = frozenset({"system_prompt", "few_shot_set", "eval_suite", "chain_spec", "tool_spec"})
 VISIBILITIES = frozenset({"private", "team", "public"})
@@ -166,6 +172,86 @@ class AssetService:
         await self.db.commit()
         await self.db.refresh(version)
         return version
+
+    async def project_version(
+        self,
+        asset_id: str,
+        version_num: int,
+        kb_id: str,
+        user: User,
+    ) -> AssetSourceProjection:
+        """Project an asset version into a KB as a prompt_asset Source, then ingest it."""
+        # Resolve asset and version
+        asset = await self.db.get(Asset, asset_id)
+        if asset is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
+        if asset.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the asset owner")
+
+        version_stmt = select(AssetVersion).where(
+            AssetVersion.asset_id == asset_id,
+            AssetVersion.version_num == version_num,
+        )
+        version = (await self.db.execute(version_stmt)).scalar_one_or_none()
+        if version is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+        # Verify the KB exists and belongs to the user
+        from app.models.knowledge_base import KnowledgeBase
+        kb = await self.db.get(KnowledgeBase, kb_id)
+        if kb is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+        if kb.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the KB owner")
+
+        # Create a Source record of type prompt_asset
+        source_id = str(uuid.uuid4())
+        source = Source(
+            id=source_id,
+            owner_user_id=user.id,
+            type="prompt_asset",
+            title=f"{asset.title} v{version_num}",
+            description=asset.description,
+            kb_id=kb_id,
+            ingestion_status="pending",
+        )
+        self.db.add(source)
+        await self.db.flush()
+
+        projection = AssetSourceProjection(
+            asset_version_id=version.id,
+            kb_id=kb_id,
+            source_id=source_id,
+            owner_user_id=user.id,
+        )
+        self.db.add(projection)
+
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            await self.db.rollback()
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="This asset version is already projected into the specified KB",
+            )
+
+        # Write content to Redis so the worker can read it without MinIO
+        redis = await get_redis()
+        content_bytes = version.content.encode("utf-8")
+        await redis.setex(f"upload:{source_id}", 3600, content_bytes)
+
+        # Push ingestion job — upload=1 so worker reads from Redis
+        await redis.xadd(_INGESTION_STREAM_KEY, {
+            "source_id": source_id,
+            "user_id": user.id,
+            "kb_id": kb_id,
+            "vector_namespace": kb.vector_namespace,
+            "upload": "1",
+        })
+
+        await self.db.commit()
+        await self.db.refresh(projection)
+        return projection
 
     async def deprecate_version(
         self,
