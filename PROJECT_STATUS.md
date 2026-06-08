@@ -64,7 +64,7 @@ next_ticket: "KC-033"
 - ~~**KC-034**~~ ✅ backend: `HarnessService` + router at `/api/v1/harnesses` — create, fork (copies HarnessAsset rows, increments fork_count, populates fork_lineage), get, list, add/swap asset version by role; code complete (2026-06-05)
 - ~~**KC-035**~~ ✅ backend: eval worker — `eval.jobs` stream in `worker/__main__.py`; `worker/eval.py` grades EvalCase records (exact_match/contains/regex/llm_judge), writes EvalRun.metrics; 422 if model not local; SSE via Redis list polling; code complete (2026-06-05)
 - ~~**KC-036**~~ ✅ backend: `AssetProjectionService.project` — creates `Source(type="prompt_asset")`, caches in Redis, pushes to ingestion.jobs, writes AssetSourceProjection; 409 on UNIQUE conflict; code complete (2026-06-05)
-- **KC-037** — frontend: asset library — `/assets` list page (type filter, visibility filter, search); `/assets/[id]` detail page (version history timeline, content with syntax highlight for YAML/JSON, rationale annotation, model-binding badge, status label); version diff view between any two versions
+- ~~**KC-037**~~ ✅ frontend: asset library — `/assets` list page (type filter, visibility filter, debounced FTS search, create form); `/assets/[id]` detail page (version timeline, content block, rationale annotation, model-pin badge, status label, deprecate action); LCS-based version diff view; BFF catch-all routes for assets+harnesses; AI Assets nav link; syntax highlight deferred (Shiki not available) (2026-06-09)
 - **KC-038** — frontend: harness composer + eval — `/harnesses/[id]/compose` for adding/swapping asset versions by role; eval submission panel (Ollama model selector, run button, SSE progress bar); eval result view (aggregate score, per-case pass/fail + latency table); fork dialog reusing existing board fork component
 - **KC-039** — frontend: drift alert + model-pin badge — yellow banner on asset/harness detail when `model_pin` matches a deprecated slug in `/backend/app/core/deprecated_models.json`; model-binding badge component (family chip + pin chip) used on asset cards, version rows, harness headers
 - ~~**KC-040**~~ ✅ backend: asset full-text search — Migration 007: GIN indexes on assets+asset_versions; `GET /api/v1/assets?q=` with plainto_tsquery scoped to visibility; code complete (2026-06-05)
@@ -171,6 +171,7 @@ next_ticket: "KC-033"
 
 ## Recent Updates
 
+- 2026-06-09: KC-037 — asset library UI complete; migration 007 applied; BFF routes + list + detail + diff view; next: KC-038 (harness composer + eval UI)
 - 2026-06-05: KC-033–036, KC-040 — all backend AI Assets tickets code complete; 79/79 tests pass; next: KC-037 (frontend asset library)
 - 2026-06-05: KC-032 — Migration 006: 7 AI Assets tables (assets, asset_versions, harnesses, harness_assets, eval_cases, eval_runs, asset_source_projections); 69/69 tests pass
 - 2026-06-05: v0.2.0 sprint prepared — AI Assets Pillar (KC-032–040); all design decisions resolved

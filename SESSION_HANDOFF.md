@@ -1,10 +1,10 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-05  
-**State:** v0.2.0 in progress — KC-032–036 + KC-040 code complete; KC-037 (frontend asset library) is next  
+**Session date:** 2026-06-09  
+**State:** v0.2.0 in progress — KC-032–037 + KC-040 complete; KC-038 (harness composer + eval UI) is next  
 **Branch:** `development` ahead of `main`; `main` at v0.1.0  
 **Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** KC-033–036, KC-040 are code-complete but NOT live-verified on Colima (run `alembic upgrade head` + smoke test before marking ✅)  
+**Live verification:** KC-033–037, KC-040 verified on Colima. Migration 007 applied.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 ---
@@ -87,11 +87,12 @@ docker compose build api
 | Layer 3 (Discovery) | Similar boards | ✓ | `GET /boards/{id}/similar` — pure pgvector cosine distance on stored centroid; grid on board detail page |
 | Layer 2 (Learning) | MC answer submit | ✓ | Radio-button choices; endpoint returns correct/incorrect + correct answer text; verified via API |
 | Layer 2 (Learning) | MC grading normalisation | ✓ | NFC + lower + collapse whitespace + trim punctuation; distractor feedback uses same normaliser (KC-029) |
-| Layer 4 (AI Assets) | AssetService CRUD | ⚠ code complete | KC-033 — POST/GET/list/deprecate at /api/v1/assets; needs live smoke test |
-| Layer 4 (AI Assets) | HarnessService CRUD | ⚠ code complete | KC-034 — create/fork/get/list/add-slot/swap-slot at /api/v1/harnesses |
+| Layer 4 (AI Assets) | AssetService CRUD | ✓ | KC-033 — POST/GET/list/deprecate at /api/v1/assets |
+| Layer 4 (AI Assets) | HarnessService CRUD | ✓ | KC-034 — create/fork/get/list/add-slot/swap-slot at /api/v1/harnesses |
 | Layer 4 (AI Assets) | Eval worker | ⚠ code complete | KC-035 — eval.jobs stream; grades EvalCase records; SSE progress; 422 on missing model |
-| Layer 4 (AI Assets) | Asset projection | ⚠ code complete | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
-| Layer 4 (AI Assets) | Asset FTS | ⚠ code complete | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 (run alembic upgrade head) |
+| Layer 4 (AI Assets) | Asset projection | ✓ | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
+| Layer 4 (AI Assets) | Asset FTS | ✓ | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 applied |
+| Layer 4 (AI Assets) | Asset library UI | ✓ | KC-037 — /assets list + /assets/[id] detail + diff view; BFF routes; nav link |
 
 ---
 
@@ -164,67 +165,44 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-### Sprint entry point: KC-037
+### Sprint entry point: KC-038
 
-All backend tickets (KC-033–036, KC-040) are code complete. Wall hit at frontend. Next session starts with KC-037 (asset library UI).
+KC-037 is done. Next is KC-038 — harness composer + eval UI.
 
 ```
-✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → KC-037 → KC-038 → KC-039 → ✅KC-040
+✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → KC-038 → KC-039 → ✅KC-040
 schema       asset      harness    eval        project    asset    harness  drift    search
              svc        svc        worker      svc        UI       UI       alert
 ```
 
-**⚠ Live verification pending for KC-033–036, KC-040:**
+### KC-037 notes (for reference)
+
+Auth lesson: all asset/harness endpoints require auth. Pages use `middleware: 'auth'` + client-side `$fetch` with `Bearer ${auth.token}` (NOT SSR useFetch — the token is client-only from Pinia/localStorage).
+
+BFF routes added:
+- `server/api/assets/index.get.ts` / `index.post.ts` — list/create
+- `server/api/assets/[...path].ts` — catch-all for all sub-paths (via `proxyRequest`)
+- Same for `server/api/harnesses/`
+
+Syntax highlighting: `@shikijs/vue` was NOT in package.json — the handoff was wrong. Plain `<pre>` with monospace styling used instead. To add Shiki later: install it and wrap in `<ClientOnly>` to avoid SSR config pain, then rebuild frontend.
+
+### KC-038 frontend entry point
+
+KC-038: `/harnesses/[id]/compose` for adding/swapping asset versions by role; eval submission panel (Ollama model selector, run button, SSE progress); eval result view (aggregate score, per-case pass/fail + latency table); fork dialog reusing the board fork component pattern.
+
+Existing BFF routes already created for harnesses:
+- `server/api/harnesses/index.get.ts` — list
+- `server/api/harnesses/index.post.ts` — create
+- `server/api/harnesses/[...path].ts` — catch-all (fork, add-slot, swap-slot, eval submit, eval status, SSE stream)
+
+SSE eval events route: `GET /api/v1/harnesses/{id}/eval/{run_id}/events` — the SSE stream uses `text/event-stream`. The catch-all BFF `proxyRequest` already handles this; frontend uses `EventSource` or `ReadableStream` on the client.
+
+For the Ollama model selector: call `GET http://localhost/api/v1/harnesses/...` to get the harness, then for available models call direct to `http://ollama:11434/api/tags` via a BFF route (or use a dedicated `server/api/models/index.get.ts` proxy).
 
 ```bash
-# 0. Apply migration 007 (GIN indexes)
-docker compose exec api alembic upgrade head
-
-# 1. Rebuild API + worker (Colima cache bug — always use --no-cache)
-docker build --no-cache -t knomms-api:latest ./backend
-docker build --no-cache -t knomms-worker:latest ./backend
-docker compose up --force-recreate -d api worker
-docker compose restart nginx
-
-# 2. Get a token
-TOKEN=$(curl -s -X POST http://localhost/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"dev@localhost.dev","password":"devdev99"}' | jq -r .access_token)
-
-# 3. Create an asset
-ASSET=$(curl -s -X POST http://localhost/api/v1/assets \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"My Prompt","asset_type":"system_prompt","visibility":"private"}')
-ASSET_ID=$(echo $ASSET | jq -r .id)
-
-# 4. Add a version
-curl -s -X POST http://localhost/api/v1/assets/$ASSET_ID/versions \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"content":"You are a helpful assistant.","rationale":"initial version"}'
-
-# 5. List assets (search)
-curl -s "http://localhost/api/v1/assets?q=helpful" \
-  -H "Authorization: Bearer $TOKEN" | jq .
-
-# 6. Create a harness
-curl -s -X POST http://localhost/api/v1/harnesses \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"Test Harness","visibility":"private"}' | jq .
+# See available Ollama models:
+docker compose exec ollama ollama list
 ```
-
-### KC-037 frontend entry point
-
-KC-037 is the asset library UI. Look at `/frontend/pages/boards.vue` (board list page) and `/frontend/pages/board/[boardId].vue` (board detail page) as the direct analogues — asset pages follow the same patterns.
-
-Key frontend patterns to reuse:
-- Auth token from Pinia store: `const auth = useAuthStore(); auth.token`
-- SSR data fetch: `useFetch('/api/assets', { headers: ... })` via BFF route
-- BFF route template: copy `server/api/boards/[...path].ts` → `server/api/assets/[...path].ts`
-- Syntax highlighting: `@shikijs/vue` (Shiki) already available for YAML/JSON content
-
-New BFF routes needed:
-- `server/api/assets/[...path].ts` → proxies to FastAPI `/v1/assets`
-- `server/api/harnesses/[...path].ts` → proxies to FastAPI `/v1/harnesses`
 
 ### Key architectural decisions for this sprint
 
