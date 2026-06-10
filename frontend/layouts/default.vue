@@ -63,6 +63,17 @@ function logout() {
           </svg>
           AI Assets
         </NuxtLink>
+
+        <NuxtLink
+          to="/harnesses"
+          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+          active-class="bg-surface-secondary text-text-primary font-medium"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+          </svg>
+          Harnesses
+        </NuxtLink>
       </nav>
 
       <!-- User section at bottom -->
