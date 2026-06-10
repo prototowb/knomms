@@ -1,7 +1,7 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-09  
-**State:** v0.2.0 in progress — KC-032–037 + KC-040 complete; KC-038 (harness composer + eval UI) is next  
+**Session date:** 2026-06-10  
+**State:** v0.2.0 in progress — KC-032–038 + KC-040 complete; KC-039 (drift alert + model-pin badge) is next  
 **Branch:** `development` ahead of `main`; `main` at v0.1.0  
 **Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Live verification:** KC-033–037, KC-040 verified on Colima. Migration 007 applied.  
@@ -93,6 +93,7 @@ docker compose build api
 | Layer 4 (AI Assets) | Asset projection | ✓ | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
 | Layer 4 (AI Assets) | Asset FTS | ✓ | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 applied |
 | Layer 4 (AI Assets) | Asset library UI | ✓ | KC-037 — /assets list + /assets/[id] detail + diff view; BFF routes; nav link |
+| Layer 4 (AI Assets) | Harness composer + eval | ⚠ code complete | KC-038 — /harnesses list+compose; slot manager; eval SSE; fork dialog; Harnesses nav + explore tab |
 
 ---
 
@@ -165,15 +166,27 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-### Sprint entry point: KC-038
+### Sprint entry point: KC-039
 
-KC-037 is done. Next is KC-038 — harness composer + eval UI.
+KC-038 is done. Next is KC-039 — drift alert + model-pin badge.
 
 ```
-✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → KC-038 → KC-039 → ✅KC-040
+✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → ✅KC-038 → KC-039 → ✅KC-040
 schema       asset      harness    eval        project    asset    harness  drift    search
              svc        svc        worker      svc        UI       UI       alert
 ```
+
+### KC-038 notes (for reference)
+
+**Known limitation:** Eval cases (`EvalCase` rows) have no API endpoint to create them. The `eval_suite` asset version must have cases seeded directly in the database for eval to grade anything. The eval worker runs successfully with 0 cases (returns `{total:0, passed:0, pass_rate:0.0}`). The compose page shows a note about this when eval returns 0 cases.
+
+**Role strings are load-bearing:** `eval_suite` and `system_prompt` roles are hardcoded in `worker/eval.py:98,121`. The UI uses a constrained dropdown — no free-text role input.
+
+**Models BFF:** `GET /api/models` → proxies to `http://ollama:11434/api/tags`. Returns `{models: string[]}`. Returns empty array if Ollama is unreachable (soft failure).
+
+**Version meta enrichment:** On compose page mount, all accessible assets are fetched in parallel (summaries + full details) to build a `versionId → {assetTitle, versionNum, modelPin, status}` map for slot display.
+
+**Eval SSE pattern:** Uses `fetch()` + `ReadableStream` (not `EventSource`) so the Bearer token can be sent. Same pattern as `useStreamingQuery`.
 
 ### KC-037 notes (for reference)
 
