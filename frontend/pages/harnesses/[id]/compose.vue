@@ -86,6 +86,7 @@ const harness = ref<HarnessOut | null>(null)
 const allAssets = ref<AssetOut[]>([])
 const loading = ref(true)
 const pageError = ref<string | null>(null)
+const deprecatedModels = ref<string[]>([])
 
 // Version lookup map: version_id → {assetTitle, versionNum, modelPin, status}
 const versionById = computed(() => {
@@ -347,6 +348,20 @@ async function fetchFinalEvalRun(runId: string) {
   }
 }
 
+// ── Deprecated model helpers ───────────────────────────────────────────────
+
+function isDeprecated(pin: string | null | undefined, list: string[]): boolean {
+  if (!pin) return false
+  return list.includes(pin) || list.includes(pin.split(':')[0])
+}
+
+const hasDrift = computed(() =>
+  harness.value?.assets.some(slot => {
+    const meta = versionById.value.get(slot.asset_version_id)
+    return isDeprecated(meta?.modelPin, deprecatedModels.value)
+  }) ?? false
+)
+
 // ── Role display helpers ───────────────────────────────────────────────────
 
 const roleLabel: Record<string, string> = {
@@ -377,7 +392,7 @@ async function loadPage() {
   loading.value = true
   pageError.value = null
   try {
-    const [h, assets, modelsRes] = await Promise.all([
+    const [h, assets, modelsRes, deprecatedRes] = await Promise.all([
       $fetch<HarnessOut>(`/api/harnesses/${harnessId}`, {
         headers: { Authorization: `Bearer ${auth.token}` },
       }),
@@ -386,6 +401,7 @@ async function loadPage() {
         { headers: { Authorization: `Bearer ${auth.token}` } }
       ),
       $fetch<{ models: string[] }>('/api/models'),
+      $fetch<{ deprecated: string[] }>('/api/deprecated-models').catch(() => ({ deprecated: [] })),
     ])
 
     harness.value = h as HarnessOut
@@ -402,6 +418,7 @@ async function loadPage() {
 
     availableModels.value = modelsRes.models
     if (modelsRes.models.length > 0) selectedModel.value = modelsRes.models[0]
+    deprecatedModels.value = deprecatedRes.deprecated
   } catch {
     pageError.value = 'Harness not found or you do not have access.'
   } finally {
@@ -466,6 +483,18 @@ onMounted(loadPage)
         </div>
       </div>
 
+      <!-- Drift alert -->
+      <div v-if="hasDrift" class="max-w-5xl mx-auto px-6 pt-5">
+        <div class="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
+          <svg class="w-4 h-4 text-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <p class="text-xs text-warning leading-5">
+            One or more slots are pinned to deprecated models. Swap to a current version to avoid eval drift.
+          </p>
+        </div>
+      </div>
+
       <!-- Body -->
       <div class="max-w-5xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
 
@@ -519,9 +548,11 @@ onMounted(loadPage)
                       >
                         {{ versionById.get(slot.asset_version_id)!.status }}
                       </span>
-                      <span v-if="versionById.get(slot.asset_version_id)!.modelPin" class="text-xs font-mono text-text-muted">
-                        {{ versionById.get(slot.asset_version_id)!.modelPin }}
-                      </span>
+                      <ModelPinBadge
+                        v-if="versionById.get(slot.asset_version_id)!.modelPin"
+                        :model-pin="versionById.get(slot.asset_version_id)!.modelPin!"
+                        :deprecated="isDeprecated(versionById.get(slot.asset_version_id)!.modelPin, deprecatedModels)"
+                      />
                     </div>
                   </template>
 

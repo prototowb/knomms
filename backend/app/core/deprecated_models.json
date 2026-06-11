@@ -1,0 +1,14 @@
+{
+  "deprecated": [
+    "llama2",
+    "codellama",
+    "orca-mini",
+    "vicuna",
+    "wizard-vicuna-uncensored",
+    "nous-hermes",
+    "mistral:7b-instruct-v0.1",
+    "mistral:7b-instruct-v0.2",
+    "llama2-uncensored",
+    "stable-beluga"
+  ]
+}

@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +19,13 @@ from app.schemas.asset import (
 )
 
 router = APIRouter(tags=["assets"])
+
+_DEPRECATED_MODELS_PATH = Path(__file__).parent.parent.parent / "core" / "deprecated_models.json"
+
+
+@router.get("/deprecated-models", summary="List deprecated model slugs for drift detection")
+async def get_deprecated_models() -> dict:
+    return json.loads(_DEPRECATED_MODELS_PATH.read_text())
 
 
 def _asset_to_out(asset) -> AssetOut:

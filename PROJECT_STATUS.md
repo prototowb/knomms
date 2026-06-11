@@ -66,7 +66,7 @@ next_ticket: "KC-033"
 - ~~**KC-036**~~ ✅ backend: `AssetProjectionService.project` — creates `Source(type="prompt_asset")`, caches in Redis, pushes to ingestion.jobs, writes AssetSourceProjection; 409 on UNIQUE conflict; code complete (2026-06-05)
 - ~~**KC-037**~~ ✅ frontend: asset library — `/assets` list page (type filter, visibility filter, debounced FTS search, create form); `/assets/[id]` detail page (version timeline, content block, rationale annotation, model-pin badge, status label, deprecate action); LCS-based version diff view; BFF catch-all routes for assets+harnesses; AI Assets nav link; syntax highlight deferred (Shiki not available) (2026-06-09)
 - ~~**KC-038**~~ ✅ frontend: harness composer + eval — `/harnesses` list+create; `/harnesses/[id]/compose` slot manager (constrained role dropdown, add/swap modal, version meta from parallel asset fetch), eval panel (Ollama model selector, SSE progress, per-case table, 422/503 error distinction), fork dialog; `/api/models` BFF; Harnesses nav + explore tab (OQ-5); code complete (2026-06-10)
-- **KC-039** — frontend: drift alert + model-pin badge — yellow banner on asset/harness detail when `model_pin` matches a deprecated slug in `/backend/app/core/deprecated_models.json`; model-binding badge component (family chip + pin chip) used on asset cards, version rows, harness headers
+- ~~**KC-039**~~ ✅ frontend: drift alert + model-pin badge — `deprecated_models.json` (10 slugs); `GET /deprecated-models` endpoint; `ModelPinBadge` component (family chip + pin chip, deprecated=yellow); drift banner on asset detail + harness compose when any pin matches deprecated list (exact or family prefix); badge used in version timeline, content section, harness slot rows; code complete (2026-06-11)
 - ~~**KC-040**~~ ✅ backend: asset full-text search — Migration 007: GIN indexes on assets+asset_versions; `GET /api/v1/assets?q=` with plainto_tsquery scoped to visibility; code complete (2026-06-05)
 
 ### Design decisions (resolved, do not re-open without cause)
@@ -171,6 +171,7 @@ next_ticket: "KC-033"
 
 ## Recent Updates
 
+- 2026-06-11: KC-039 — drift alert + model-pin badge complete; all KC-032–040 done; v0.2.0 AI Assets Pillar feature-complete
 - 2026-06-10: KC-038 — harness composer + eval UI complete; Harnesses nav + explore tab; next: KC-039 (drift alert + model-pin badge)
 - 2026-06-09: KC-037 — asset library UI complete; migration 007 applied; BFF routes + list + detail + diff view; next: KC-038 (harness composer + eval UI)
 - 2026-06-05: KC-033–036, KC-040 — all backend AI Assets tickets code complete; 79/79 tests pass; next: KC-037 (frontend asset library)

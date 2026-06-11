@@ -1,7 +1,7 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-10  
-**State:** v0.2.0 in progress — KC-032–038 + KC-040 complete; KC-039 (drift alert + model-pin badge) is next  
+**Session date:** 2026-06-11  
+**State:** v0.2.0 feature-complete — all KC-032–040 done; v0.2.0 ready for release  
 **Branch:** `development` ahead of `main`; `main` at v0.1.0  
 **Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Live verification:** KC-033–037, KC-040 verified on Colima. Migration 007 applied.  
@@ -94,6 +94,7 @@ docker compose build api
 | Layer 4 (AI Assets) | Asset FTS | ✓ | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 applied |
 | Layer 4 (AI Assets) | Asset library UI | ✓ | KC-037 — /assets list + /assets/[id] detail + diff view; BFF routes; nav link |
 | Layer 4 (AI Assets) | Harness composer + eval | ⚠ code complete | KC-038 — /harnesses list+compose; slot manager; eval SSE; fork dialog; Harnesses nav + explore tab |
+| Layer 4 (AI Assets) | Drift alert + model-pin badge | ⚠ code complete | KC-039 — ModelPinBadge component; deprecated_models.json; GET /deprecated-models; drift banner on asset detail + harness compose |
 
 ---
 
@@ -166,13 +167,13 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
 
-### Sprint entry point: KC-039
+### Sprint complete — v0.2.0 AI Assets Pillar feature-complete
 
-KC-038 is done. Next is KC-039 — drift alert + model-pin badge.
+All KC-032–040 are done. v0.2.0 is ready for release.
 
 ```
-✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → ✅KC-038 → KC-039 → ✅KC-040
-schema       asset      harness    eval        project    asset    harness  drift    search
+✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → ✅KC-038 → ✅KC-039 → ✅KC-040
+schema       asset      harness    eval        project    asset    harness  drift      search
              svc        svc        worker      svc        UI       UI       alert
 ```
 

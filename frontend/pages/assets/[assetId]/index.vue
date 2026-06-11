@@ -45,6 +45,7 @@ interface AssetOut {
 const asset = ref<AssetOut | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const deprecatedModels = ref<string[]>([])
 
 // Selected version for main view
 const selectedVersionNum = ref<number | null>(null)
@@ -74,6 +75,15 @@ const isOwner = computed(() =>
 // Sorted versions newest-first for timeline, but version detail shows selected
 const sortedVersions = computed(() =>
   [...(asset.value?.versions ?? [])].sort((a, b) => b.version_num - a.version_num)
+)
+
+function isDeprecated(pin: string | null, list: string[]): boolean {
+  if (!pin) return false
+  return list.includes(pin) || list.includes(pin.split(':')[0])
+}
+
+const hasDrift = computed(() =>
+  (asset.value?.versions ?? []).some(v => isDeprecated(v.model_pin, deprecatedModels.value))
 )
 
 async function fetchAsset() {
@@ -199,7 +209,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-onMounted(fetchAsset)
+onMounted(async () => {
+  const [_, res] = await Promise.all([
+    fetchAsset(),
+    $fetch<{ deprecated: string[] }>('/api/deprecated-models').catch(() => ({ deprecated: [] })),
+  ])
+  deprecatedModels.value = res.deprecated
+})
 </script>
 
 <template>
@@ -249,6 +265,18 @@ onMounted(fetchAsset)
         </div>
       </div>
 
+      <!-- Drift alert -->
+      <div v-if="hasDrift" class="max-w-5xl mx-auto px-6 pt-5">
+        <div class="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
+          <svg class="w-4 h-4 text-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <p class="text-xs text-warning leading-5">
+            One or more versions are pinned to deprecated models. Eval results may drift — commit a new version with an updated model pin.
+          </p>
+        </div>
+      </div>
+
       <!-- Body: timeline + content -->
       <div class="max-w-5xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
 
@@ -290,9 +318,7 @@ onMounted(fetchAsset)
                 <p class="text-xs text-text-muted mt-1 pl-4">{{ formatDate(v.created_at) }}</p>
                 <!-- Model pin badge -->
                 <div v-if="v.model_pin" class="mt-1 pl-4">
-                  <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-surface-secondary text-text-secondary border border-border">
-                    {{ v.model_pin }}
-                  </span>
+                  <ModelPinBadge :model-pin="v.model_pin" :deprecated="isDeprecated(v.model_pin, deprecatedModels)" />
                 </div>
               </button>
             </li>
@@ -364,9 +390,7 @@ onMounted(fetchAsset)
             <!-- Model binding badge -->
             <div v-if="selectedVersion.model_pin" class="mb-4 flex items-center gap-2">
               <span class="text-xs text-text-muted">Model pin:</span>
-              <span class="text-xs font-mono px-2 py-0.5 rounded bg-surface-secondary text-text-primary border border-border">
-                {{ selectedVersion.model_pin }}
-              </span>
+              <ModelPinBadge :model-pin="selectedVersion.model_pin" :deprecated="isDeprecated(selectedVersion.model_pin, deprecatedModels)" />
             </div>
 
             <!-- Tags -->
