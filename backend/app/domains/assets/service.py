@@ -1,6 +1,7 @@
 """Asset service — create assets, version management, list, search, deprecate, project."""
 
 import hashlib
+import re
 import uuid
 
 from fastapi import HTTPException, status
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.redis import get_redis
-from app.models.asset import Asset, AssetSourceProjection, AssetVersion
+from app.models.asset import Asset, AssetSourceProjection, AssetVersion, EvalCase
 from app.models.source import Source
 from app.models.user import User
 
@@ -18,6 +19,41 @@ _INGESTION_STREAM_KEY = "ingestion.jobs"
 
 ASSET_TYPES = frozenset({"system_prompt", "few_shot_set", "eval_suite", "chain_spec", "tool_spec"})
 VISIBILITIES = frozenset({"private", "team", "public"})
+GRADING_STRATEGIES = frozenset({"exact_match", "contains", "regex", "llm_judge"})
+
+
+def validate_eval_cases(cases: list) -> None:
+    """Validate eval case payloads before persisting. Raises 422 on any problem.
+
+    Each case must have non-blank input and expected_output, a known grading
+    strategy, and — for regex — a pattern (from grading_config or falling back
+    to expected_output) that compiles.
+    """
+    for i, case in enumerate(cases):
+        if not case.input.strip():
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"eval_cases[{i}]: input must not be blank",
+            )
+        if not case.expected_output.strip():
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"eval_cases[{i}]: expected_output must not be blank",
+            )
+        if case.grading_strategy not in GRADING_STRATEGIES:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"eval_cases[{i}]: grading_strategy must be one of: {sorted(GRADING_STRATEGIES)}",
+            )
+        if case.grading_strategy == "regex":
+            pattern = (case.grading_config or {}).get("pattern", case.expected_output)
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"eval_cases[{i}]: invalid regex pattern: {exc}",
+                ) from exc
 
 
 def compute_content_hash(content: str) -> str:
@@ -156,12 +192,16 @@ class AssetService:
         rationale: str = "",
         tags: list[str] | None = None,
         model_pin: str | None = None,
+        eval_cases: list | None = None,
     ) -> AssetVersion:
         asset = await self.db.get(Asset, asset_id)
         if asset is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
         if asset.owner_user_id != user.id:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the asset owner")
+
+        if eval_cases:
+            validate_eval_cases(eval_cases)
 
         content_hash = compute_content_hash(content)
 
@@ -172,6 +212,17 @@ class AssetService:
         )
         existing = (await self.db.execute(existing_stmt)).scalar_one_or_none()
         if existing is not None:
+            if eval_cases:
+                # Eval suites are immutable per version (OQ-4) — cases cannot be
+                # attached to an already-committed version via dedup.
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Identical content already exists as v{existing.version_num}; "
+                        "eval cases cannot be added to an existing version. "
+                        "Change the content to commit a new version with these cases."
+                    ),
+                )
             return existing
 
         # Compute the next version number scoped to this asset
@@ -191,9 +242,45 @@ class AssetService:
             created_by=user.id,
         )
         self.db.add(version)
+        await self.db.flush()
+
+        # Cases are committed atomically with the version they belong to
+        for case in eval_cases or []:
+            self.db.add(
+                EvalCase(
+                    asset_version_id=version.id,
+                    input=case.input,
+                    expected_output=case.expected_output,
+                    grading_strategy=case.grading_strategy,
+                    grading_config=case.grading_config,
+                )
+            )
+
         await self.db.commit()
         await self.db.refresh(version)
         return version
+
+    async def list_cases(
+        self,
+        asset_id: str,
+        version_num: int,
+        user: User,
+    ) -> list[EvalCase]:
+        """Return the eval cases of a version, respecting asset visibility."""
+        asset = await self.get_asset(asset_id, user)
+        if asset is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+        version = next((v for v in asset.versions if v.version_num == version_num), None)
+        if version is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+        stmt = (
+            select(EvalCase)
+            .where(EvalCase.asset_version_id == version.id)
+            .order_by(EvalCase.created_at, EvalCase.id)
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
 
     async def project_version(
         self,

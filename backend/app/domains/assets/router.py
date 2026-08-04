@@ -14,6 +14,7 @@ from app.schemas.asset import (
     AssetSummary,
     AssetVersionOut,
     CreateAssetRequest,
+    EvalCaseOut,
     ProjectionOut,
     ProjectVersionRequest,
 )
@@ -115,9 +116,26 @@ async def add_version(
 ) -> AssetVersionOut:
     svc = AssetService(db)
     version = await svc.add_version(
-        asset_id, user, req.content, req.rationale, req.tags or [], req.model_pin
+        asset_id, user, req.content, req.rationale, req.tags or [], req.model_pin,
+        eval_cases=req.eval_cases,
     )
     return AssetVersionOut.model_validate(version)
+
+
+@router.get(
+    "/assets/{asset_id}/versions/{version_num}/cases",
+    response_model=list[EvalCaseOut],
+    summary="List the eval cases of an asset version",
+)
+async def list_cases(
+    asset_id: str,
+    version_num: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[EvalCaseOut]:
+    svc = AssetService(db)
+    cases = await svc.list_cases(asset_id, version_num, user)
+    return [EvalCaseOut.model_validate(c) for c in cases]
 
 
 @router.post(

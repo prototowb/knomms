@@ -76,7 +76,10 @@ class AssetVersion(Base):
 
     asset: Mapped["Asset"] = relationship("Asset", back_populates="versions")
     eval_cases: Mapped[list["EvalCase"]] = relationship(
-        "EvalCase", back_populates="asset_version", cascade="all, delete-orphan"
+        "EvalCase",
+        back_populates="asset_version",
+        cascade="all, delete-orphan",
+        order_by="EvalCase.created_at, EvalCase.id",  # stable case numbering in eval runs/SSE
     )
     source_projections: Mapped[list["AssetSourceProjection"]] = relationship(
         "AssetSourceProjection", back_populates="asset_version", cascade="all, delete-orphan"
