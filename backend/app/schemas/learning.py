@@ -12,12 +12,20 @@ class DistractorOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChoiceOut(BaseModel):
+    id: str  # opaque post-shuffle index — never identifies the correct answer
+    text: str
+
+
 class AssessmentItemOut(BaseModel):
     id: str
     question_text: str
-    correct_answer: str
+    # None for non-owner readers — shipping the answer to learners was a
+    # pre-existing leak; graded server-side on attempt (KC-055)
+    correct_answer: str | None = None
     grounding_passage_id: str
     distractors: list[DistractorOut] = []
+    choices: list[ChoiceOut] = []
 
     model_config = {"from_attributes": True}
 

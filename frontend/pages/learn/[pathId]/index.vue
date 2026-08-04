@@ -24,12 +24,18 @@ interface Distractor {
   misconception_label: string | null
 }
 
+interface Choice {
+  id: string
+  text: string
+}
+
 interface AssessmentItem {
   id: string
   question_text: string
-  correct_answer: string
+  correct_answer: string | null
   grounding_passage_id: string
   distractors: Distractor[]
+  choices: Choice[]
 }
 
 interface SourcePassage {
@@ -464,8 +470,29 @@ onUnmounted(_clearPoll)
                 >
                   <p class="text-sm text-text-primary font-medium mb-4">{{ item.question_text }}</p>
 
-                  <!-- Free-text answer input -->
+                  <!-- Multiple-choice buttons (when the item has distractor-backed choices) -->
+                  <div v-if="item.choices.length > 0" class="space-y-2">
+                    <button
+                      v-for="choice in item.choices"
+                      :key="choice.id"
+                      :disabled="!!attemptResults[item.id] || submitting[item.id]"
+                      class="w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors disabled:cursor-default"
+                      :class="attemptResults[item.id] && selectedAnswer[item.id] === choice.text
+                        ? attemptResults[item.id].correct
+                          ? 'border-grounded bg-grounded/5 text-grounded font-medium'
+                          : 'border-warning bg-warning/5 text-warning font-medium'
+                        : selectedAnswer[item.id] === choice.text
+                          ? 'border-accent bg-accent/5 text-text-primary'
+                          : 'border-border text-text-secondary hover:border-accent/40 hover:bg-surface-secondary'"
+                      @click="selectedAnswer[item.id] = choice.text"
+                    >
+                      {{ choice.text }}
+                    </button>
+                  </div>
+
+                  <!-- Free-text answer input (items without choices) -->
                   <input
+                    v-else
                     v-model="selectedAnswer[item.id]"
                     type="text"
                     :disabled="!!attemptResults[item.id]"
