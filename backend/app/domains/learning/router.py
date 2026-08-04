@@ -71,10 +71,13 @@ async def list_learning_paths(
 ) -> list[LearningPathSummary]:
     svc = LearningService(db)
     paths = await svc.list_paths(kb_id, user)
+    all_concept_ids = [c.id for p in paths for c in (p.concepts or [])]
+    learned = await svc.learned_concept_ids(user, all_concept_ids)
     result = []
     for p in paths:
-        # concepts may not be loaded — load count separately if needed
-        concept_count = len(p.concepts) if hasattr(p, "concepts") and p.concepts else 0
+        # Learner-facing completion counts non-pruned concepts only
+        active = [c for c in (p.concepts or []) if c.status != "pruned"]
+        learned_count = sum(1 for c in active if c.id in learned)
         result.append(
             LearningPathSummary(
                 id=p.id,
@@ -82,7 +85,9 @@ async def list_learning_paths(
                 learning_goal=p.learning_goal,
                 status=p.status,
                 version=p.version,
-                concept_count=concept_count,
+                concept_count=len(p.concepts or []),
+                learned_count=learned_count,
+                completion_pct=round(learned_count / len(active), 4) if active else 0.0,
                 created_at=p.created_at,
             )
         )
@@ -103,7 +108,11 @@ async def get_learning_path(
     path = await svc.get_path(path_id, user)
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
-    return LearningPathOut.model_validate(path)
+    out = LearningPathOut.model_validate(path)
+    out.learned_concept_ids = sorted(
+        await svc.learned_concept_ids(user, [c.id for c in path.concepts])
+    )
+    return out
 
 
 @router.patch(
@@ -127,6 +136,36 @@ async def update_concept(
         instructor_annotation=req.instructor_annotation,
     )
     return PathConceptOut.model_validate(concept)
+
+
+@router.post(
+    "/learning-paths/{path_id}/concepts/{concept_id}/learned",
+    summary="Mark a concept as learned for the current user (idempotent)",
+)
+async def mark_learned(
+    path_id: str,
+    concept_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    svc = LearningService(db)
+    await svc.set_learned(path_id, concept_id, user, learned=True)
+    return {"learned": True}
+
+
+@router.delete(
+    "/learning-paths/{path_id}/concepts/{concept_id}/learned",
+    summary="Unmark a concept as learned for the current user (idempotent)",
+)
+async def unmark_learned(
+    path_id: str,
+    concept_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    svc = LearningService(db)
+    await svc.set_learned(path_id, concept_id, user, learned=False)
+    return {"learned": False}
 
 
 @router.get(

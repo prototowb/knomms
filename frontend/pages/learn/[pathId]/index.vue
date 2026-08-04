@@ -58,6 +58,7 @@ interface LearningPath {
   status: string
   version: number
   concepts: PathConcept[]
+  learned_concept_ids: string[]
 }
 
 interface AttemptResult {
@@ -124,6 +125,37 @@ watch(
   (id) => { if (id) loadNote(id) },
   { immediate: true },
 )
+
+// ── Learner progress (KC-048) ───────────────────────────────────────────────
+
+const learnedIds = ref<Set<string>>(new Set())
+const learnedSaving = ref<Record<string, boolean>>({})
+
+watch(
+  () => path.value?.learned_concept_ids,
+  (ids) => { if (ids) learnedIds.value = new Set(ids) },
+  { immediate: true },
+)
+
+async function toggleLearned(conceptId: string) {
+  if (learnedSaving.value[conceptId]) return
+  const wasLearned = learnedIds.value.has(conceptId)
+  learnedSaving.value[conceptId] = true
+  try {
+    await $fetch(`/api/learning-paths/${pathId}/concepts/${conceptId}/learned`, {
+      method: wasLearned ? 'DELETE' : 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    const next = new Set(learnedIds.value)
+    if (wasLearned) next.delete(conceptId)
+    else next.add(conceptId)
+    learnedIds.value = next
+  } catch {
+    // leave state unchanged; the user can retry
+  } finally {
+    learnedSaving.value[conceptId] = false
+  }
+}
 
 async function fetchPath() {
   loading.value = true
@@ -330,6 +362,16 @@ onUnmounted(_clearPoll)
                   <h2 class="text-xl font-semibold text-text-primary">{{ concept.title }}</h2>
                 </div>
                 <div class="flex gap-2 shrink-0">
+                  <button
+                    :disabled="learnedSaving[concept.id]"
+                    class="text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
+                    :class="learnedIds.has(concept.id)
+                      ? 'bg-grounded text-white hover:bg-green-700'
+                      : 'border border-border text-text-secondary hover:bg-surface-secondary'"
+                    @click="toggleLearned(concept.id)"
+                  >
+                    {{ learnedIds.has(concept.id) ? '✓ Learned' : 'Mark learned' }}
+                  </button>
                   <button
                     v-if="concept.status !== 'accepted'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-grounded text-grounded hover:bg-grounded/10 transition-colors"
