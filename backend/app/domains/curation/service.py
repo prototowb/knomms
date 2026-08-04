@@ -277,6 +277,122 @@ class BoardService:
         await self.db.commit()
         return await self._reload_item(item.id)
 
+    async def add_asset_to_board(
+        self,
+        board_id: str,
+        user: User,
+        asset_id: str,
+        version_num: int,
+        note: str,
+        lane: str,
+    ) -> CollectionItem:
+        """Project an asset version onto a board as a prompt_asset CollectionItem.
+
+        Mirrors add_source_to_board + AssetService.project_version rather than
+        calling the latter (it commits internally — same precedent as
+        add_file_to_board vs IngestionService.submit_file). Re-adding a version
+        already projected into the board's KB reuses the existing Source.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        from app.models.asset import Asset, AssetSourceProjection, AssetVersion
+
+        board = await self.get_board_for_owner(board_id, user)
+        if board is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
+
+        asset = await self.db.get(Asset, asset_id)
+        if asset is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
+        if asset.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the asset owner")
+
+        version = (await self.db.execute(
+            select(AssetVersion).where(
+                AssetVersion.asset_id == asset_id,
+                AssetVersion.version_num == version_num,
+            )
+        )).scalar_one_or_none()
+        if version is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+        kb = await self._resolve_board_kb(board, user)
+        # Capture scalars before any rollback — expired ORM attributes cannot be
+        # lazily refreshed on an async session.
+        user_id = user.id
+        kb_id, vector_namespace = kb.id, kb.vector_namespace
+        version_id, version_content = version.id, version.content
+        asset_title, asset_description = asset.title, asset.description
+
+        source_id = str(uuid.uuid4())
+        source = Source(
+            id=source_id,
+            owner_user_id=user.id,
+            type="prompt_asset",
+            title=f"{asset_title} v{version_num}",
+            description=asset_description,
+            kb_id=kb_id,
+            ingestion_status="pending",
+        )
+        self.db.add(source)
+        await self.db.flush()
+
+        projection = AssetSourceProjection(
+            asset_version_id=version_id,
+            kb_id=kb_id,
+            source_id=source_id,
+            owner_user_id=user.id,
+        )
+        self.db.add(projection)
+
+        needs_ingestion = True
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            # Version already projected into this board's KB — reuse that Source
+            # instead of erroring; the user's intent is "put this on my board".
+            # Re-select the board directly (by captured user_id, not the expired
+            # `user` instance) — every ORM object in the session expired on rollback.
+            await self.db.rollback()
+            board = (await self.db.execute(
+                select(Collection)
+                .where(Collection.id == board_id, Collection.owner_user_id == user_id)
+                .options(selectinload(Collection.items))
+            )).scalar_one()
+            existing = (await self.db.execute(
+                select(AssetSourceProjection).where(
+                    AssetSourceProjection.asset_version_id == version_id,
+                    AssetSourceProjection.kb_id == kb_id,
+                )
+            )).scalar_one()
+            source_id = existing.source_id
+            needs_ingestion = False
+
+        item = CollectionItem(
+            collection_id=board.id,
+            source_id=source_id,
+            added_by=user_id,
+            note=note,
+            lane=lane,
+            position=len(board.items),
+        )
+        self.db.add(item)
+        await self.db.flush()
+
+        if needs_ingestion:
+            redis = await get_redis()
+            await redis.setex(f"upload:{source_id}", 3600, version_content.encode("utf-8"))
+            await redis.xadd(STREAM_KEY, {
+                "source_id": source_id,
+                "user_id": user_id,
+                "kb_id": kb_id,
+                "vector_namespace": vector_namespace,
+                "upload": "1",
+            })
+
+        await self.db.commit()
+        return await self._reload_item(item.id)
+
     async def add_file_to_board(
         self,
         board_id: str,
@@ -445,29 +561,30 @@ class BoardService:
         await self.db.refresh(fork)
         return fork
 
-    async def generate_board_summary(self, board_id: str, user: User) -> str:
+    async def request_board_summary(self, board_id: str, user: User) -> Collection:
+        """Mark a board summary as queued for async generation (KC-030).
+
+        Raises 404/422 synchronously so the client gets immediate feedback;
+        the actual Ollama call happens in the board.summary.jobs worker.
+        """
         board = await self.get_board_for_owner(board_id, user)
         if board is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
+        if not board.items:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Board has no sources to summarize",
+            )
+        if board.summary_status == "generating":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="A summary is already being generated for this board",
+            )
 
-        source_lines = "\n".join(
-            f"  - {item.source.title}: {item.note or item.source.description[:100]}"
-            for item in board.items
-            if item.source
-        )
-        prompt = _SUMMARY_PROMPT.format(
-            title=board.title,
-            description=board.description or "(none)",
-            count=len(board.items),
-            source_list=source_lines or "  (no sources yet)",
-        )
-
-        from app.domains.generation.ollama import generate
-
-        summary = await generate(prompt)
-        board.ai_summary = summary.strip()
+        board.summary_status = "generating"
         await self.db.commit()
-        return board.ai_summary
+        await self.db.refresh(board)
+        return board
 
     async def update_board_embedding(self, board_id: str) -> None:
         """Recompute the board's centroid embedding from all its sources' chunks."""

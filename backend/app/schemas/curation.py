@@ -44,6 +44,7 @@ class BoardOut(BaseModel):
     fork_lineage: list[str] = []
     layout_config: dict = {}
     ai_summary: str | None = None
+    summary_status: str = "idle"
     item_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -61,6 +62,7 @@ class BoardSummary(BaseModel):
     fork_count: int
     item_count: int
     ai_summary: str | None = None
+    summary_status: str = "idle"
     created_at: datetime
     owner: CuratorOut | None = None
 
@@ -81,6 +83,13 @@ class ForkBoardRequest(BaseModel):
 
 class AddSourceRequest(BaseModel):
     source_url: str
+    note: str = ""
+    lane: str = ""
+
+
+class AddAssetRequest(BaseModel):
+    asset_id: str
+    version_num: int
     note: str = ""
     lane: str = ""
 

@@ -40,6 +40,7 @@ interface BoardOut {
   fork_lineage: string[]
   layout_config: { mode?: string; lanes?: string[] }
   ai_summary: string | null
+  summary_status: string
   item_count: number
   created_at: string
   updated_at: string
@@ -105,6 +106,7 @@ const sourceTypeIcon: Record<string, string> = {
   audio: '🎵',
   plain_text: '📝',
   epub: '📚',
+  prompt_asset: '🧩',
 }
 
 // Similar boards
@@ -126,30 +128,73 @@ watch(showFork, (v) => {
   if (v && board.value) forkTitle.value = `${board.value.title} [fork]`
 })
 
-// AI summary generation
-const summarizing = ref(false)
+// AI summary generation — async (KC-030): POST returns 202, worker generates,
+// we poll GET /boards/{id} every 4s until summary_status leaves 'generating'.
+const summarySubmitting = ref(false)
 const summaryError = ref<string | null>(null)
+let _summaryPollTimer: ReturnType<typeof setInterval> | null = null
 
 const isOwner = computed(() =>
   auth.isLoggedIn && board.value?.owner?.handle === auth.user?.handle
 )
 
+const summaryGenerating = computed(() =>
+  summarySubmitting.value || board.value?.summary_status === 'generating'
+)
+
+function _clearSummaryPoll() {
+  if (_summaryPollTimer) {
+    clearInterval(_summaryPollTimer)
+    _summaryPollTimer = null
+  }
+}
+
+async function _pollSummary() {
+  try {
+    const data = await $fetch<BoardOut>(`/api/boards/${boardId}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    board.value = data
+    if (data.summary_status !== 'generating') {
+      _clearSummaryPoll()
+      if (data.summary_status === 'failed') {
+        summaryError.value = 'Summary generation failed — try again'
+      }
+    }
+  } catch {
+    // transient — keep polling
+  }
+}
+
+function _startSummaryPoll() {
+  _clearSummaryPoll()
+  _summaryPollTimer = setInterval(_pollSummary, 4000)
+}
+
 async function generateSummary() {
-  if (summarizing.value) return
-  summarizing.value = true
+  if (summaryGenerating.value) return
+  summarySubmitting.value = true
   summaryError.value = null
   try {
-    const result = await $fetch<{ summary: string }>(`/api/boards/${boardId}/generate-summary`, {
+    await $fetch(`/api/boards/${boardId}/generate-summary`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${auth.token}` },
     })
-    if (board.value) board.value = { ...board.value, ai_summary: result.summary }
+    if (board.value) board.value = { ...board.value, summary_status: 'generating' }
+    _startSummaryPoll()
   } catch (err: unknown) {
     summaryError.value = err instanceof Error ? err.message : 'Summary generation failed'
   } finally {
-    summarizing.value = false
+    summarySubmitting.value = false
   }
 }
+
+// Resume polling after a reload mid-generation
+onMounted(() => {
+  if (board.value?.summary_status === 'generating') _startSummaryPoll()
+})
+
+onUnmounted(_clearSummaryPoll)
 </script>
 
 <template>
@@ -179,11 +224,11 @@ async function generateSummary() {
               <ClientOnly>
                 <div v-if="isOwner" class="mt-3 flex items-center gap-3">
                   <button
-                    :disabled="summarizing"
+                    :disabled="summaryGenerating"
                     class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary disabled:opacity-50 transition-colors"
                     @click="generateSummary"
                   >
-                    {{ summarizing ? 'Generating summary…' : board.ai_summary ? 'Regenerate summary' : 'Generate AI summary' }}
+                    {{ summaryGenerating ? 'Generating summary…' : board.ai_summary ? 'Regenerate summary' : 'Generate AI summary' }}
                   </button>
                   <p v-if="summaryError" class="text-xs text-warning">{{ summaryError }}</p>
                 </div>

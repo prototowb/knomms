@@ -1,8 +1,10 @@
+import { ofetch } from 'ofetch'
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const body = await readBody(event)
 
-  const response = await $fetch<unknown>('http://api:8000/v1/auth/login', {
+  const response = await ofetch<unknown>('http://api:8000/v1/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

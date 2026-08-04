@@ -76,6 +76,7 @@ interface EvalRunOut {
       grading_strategy: string
     }[]
   } | null
+  eval_suite_version_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -225,6 +226,62 @@ const hasEvalSuiteSlot = computed(() =>
   harness.value?.assets.some(s => s.role === 'eval_suite') ?? false
 )
 
+const evalSuiteAssetId = computed(() => {
+  const slot = harness.value?.assets.find(s => s.role === 'eval_suite')
+  return slot ? versionById.value.get(slot.asset_version_id)?.assetId ?? null : null
+})
+
+// ── Fork comparison (KC-045) ────────────────────────────────────────────────
+
+const parentHarness = ref<{ id: string; title: string } | null>(null)
+const myLatestRun = ref<EvalRunOut | null>(null)
+const parentLatestRun = ref<EvalRunOut | null>(null)
+const parentRunsHidden = ref(false)
+const compareLoading = ref(false)
+
+async function loadForkComparison() {
+  const parentId = harness.value?.forked_from_id
+  if (!parentId) return
+  compareLoading.value = true
+  parentRunsHidden.value = false
+  try {
+    const headers = { Authorization: `Bearer ${auth.token}` }
+    const [parent, myRuns, parentRuns] = await Promise.all([
+      $fetch<HarnessOut>(`/api/harnesses/${parentId}`, { headers }).catch(() => null),
+      $fetch<EvalRunOut[]>(`/api/harnesses/${harnessId}/eval`, { headers }).catch(() => [] as EvalRunOut[]),
+      $fetch<EvalRunOut[]>(`/api/harnesses/${parentId}/eval`, { headers }).catch(() => {
+        parentRunsHidden.value = true
+        return [] as EvalRunOut[]
+      }),
+    ])
+    parentHarness.value = parent ? { id: parent.id, title: parent.title } : null
+    myLatestRun.value = myRuns.find(r => r.status === 'completed' && r.metrics) ?? null
+    parentLatestRun.value = parentRuns.find(r => r.status === 'completed' && r.metrics) ?? null
+  } finally {
+    compareLoading.value = false
+  }
+}
+
+const sameSuiteVersion = computed(() =>
+  !!myLatestRun.value?.eval_suite_version_id &&
+  myLatestRun.value.eval_suite_version_id === parentLatestRun.value?.eval_suite_version_id
+)
+
+const passRateDelta = computed(() => {
+  const mine = myLatestRun.value?.metrics?.pass_rate
+  const theirs = parentLatestRun.value?.metrics?.pass_rate
+  if (mine === undefined || theirs === undefined) return null
+  return Math.round((mine - theirs) * 100)
+})
+
+const caseComparison = computed(() => {
+  if (!sameSuiteVersion.value) return []
+  const mine = new Map((myLatestRun.value?.metrics?.results ?? []).map(r => [r.case_id, r]))
+  const theirs = new Map((parentLatestRun.value?.metrics?.results ?? []).map(r => [r.case_id, r]))
+  const ids = [...new Set([...mine.keys(), ...theirs.keys()])]
+  return ids.map(id => ({ case_id: id, mine: mine.get(id) ?? null, parent: theirs.get(id) ?? null }))
+})
+
 const evalProgressPct = computed(() =>
   evalProgress.value.total > 0
     ? Math.round((evalProgress.value.current / evalProgress.value.total) * 100)
@@ -318,6 +375,8 @@ async function streamEvalEvents(runId: string) {
             }
             // Fetch full run for per-case actual_output
             await fetchFinalEvalRun(runId)
+            // A fresh completed run changes the fork comparison
+            loadForkComparison()
           } else if (evt.type === 'error') {
             evalStatus.value = 'failed'
             evalError.value = evt.message || 'Eval job failed — check worker logs'
@@ -417,8 +476,14 @@ async function loadPage() {
     allAssets.value = assetDetails.filter(Boolean) as AssetOut[]
 
     availableModels.value = modelsRes.models
-    if (modelsRes.models.length > 0) selectedModel.value = modelsRes.models[0]
+    // Default to a generation model — embedding models (e.g. nomic-embed-text)
+    // are valid Ollama tags but produce garbage through /api/generate.
+    const generationModels = modelsRes.models.filter(m => !/embed/i.test(m))
+    const preferred = generationModels[0] ?? modelsRes.models[0]
+    if (preferred) selectedModel.value = preferred
     deprecatedModels.value = deprecatedRes.deprecated
+
+    loadForkComparison()
   } catch {
     pageError.value = 'Harness not found or you do not have access.'
   } finally {
@@ -676,8 +741,107 @@ onMounted(loadPage)
               </div>
 
               <p v-else-if="evalMetrics.total === 0" class="text-xs text-text-muted">
-                No eval cases found on this harness's eval_suite version. Eval cases are seeded directly on the asset version — no UI editor is available yet.
+                No eval cases found on this harness's eval_suite version.
+                <template v-if="evalSuiteAssetId">
+                  <NuxtLink :to="`/assets/${evalSuiteAssetId}`" class="text-accent hover:underline">Commit a new version with cases</NuxtLink>
+                  on the eval suite asset, then swap the slot to it.
+                </template>
+                <template v-else>
+                  Cases are committed per asset version on the asset detail page.
+                </template>
               </p>
+            </div>
+          </div>
+
+          <!-- Fork comparison (KC-045) -->
+          <div v-if="harness.forked_from_id" class="mt-6">
+            <h2 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Fork comparison</h2>
+
+            <div class="rounded-xl border border-border bg-surface p-5 space-y-4">
+              <p v-if="compareLoading" class="text-xs text-text-muted">Loading comparison…</p>
+
+              <template v-else>
+                <div class="grid grid-cols-2 gap-3">
+                  <!-- This harness -->
+                  <div class="rounded-lg bg-surface-secondary border border-border px-4 py-3">
+                    <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">This fork</p>
+                    <template v-if="myLatestRun?.metrics">
+                      <span class="text-2xl font-semibold" :class="myLatestRun.metrics.pass_rate >= 0.8 ? 'text-grounded' : myLatestRun.metrics.pass_rate >= 0.5 ? 'text-warning' : 'text-red-500'">
+                        {{ Math.round(myLatestRun.metrics.pass_rate * 100) }}%
+                      </span>
+                      <p class="text-xs text-text-muted mt-0.5">
+                        {{ myLatestRun.metrics.passed }} / {{ myLatestRun.metrics.total }} · {{ myLatestRun.model_pin }}
+                      </p>
+                    </template>
+                    <p v-else class="text-xs text-text-muted">No completed eval yet.</p>
+                  </div>
+
+                  <!-- Parent -->
+                  <div class="rounded-lg bg-surface-secondary border border-border px-4 py-3">
+                    <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                      Parent
+                      <NuxtLink
+                        v-if="parentHarness"
+                        :to="`/harnesses/${parentHarness.id}/compose`"
+                        class="text-accent hover:underline font-normal normal-case tracking-tight ml-1"
+                      >
+                        {{ parentHarness.title }}
+                      </NuxtLink>
+                    </p>
+                    <template v-if="parentLatestRun?.metrics">
+                      <span class="text-2xl font-semibold" :class="parentLatestRun.metrics.pass_rate >= 0.8 ? 'text-grounded' : parentLatestRun.metrics.pass_rate >= 0.5 ? 'text-warning' : 'text-red-500'">
+                        {{ Math.round(parentLatestRun.metrics.pass_rate * 100) }}%
+                      </span>
+                      <p class="text-xs text-text-muted mt-0.5">
+                        {{ parentLatestRun.metrics.passed }} / {{ parentLatestRun.metrics.total }} · {{ parentLatestRun.model_pin }}
+                      </p>
+                    </template>
+                    <p v-else-if="parentRunsHidden" class="text-xs text-text-muted">
+                      Parent eval runs are visible to the parent's owner only.
+                    </p>
+                    <p v-else class="text-xs text-text-muted">No completed eval yet.</p>
+                  </div>
+                </div>
+
+                <!-- Delta -->
+                <p v-if="passRateDelta !== null" class="text-xs font-medium" :class="passRateDelta > 0 ? 'text-grounded' : passRateDelta < 0 ? 'text-red-500' : 'text-text-muted'">
+                  {{ passRateDelta > 0 ? '+' : '' }}{{ passRateDelta }} pt vs parent's latest run
+                </p>
+
+                <!-- Per-case comparison -->
+                <div v-if="caseComparison.length > 0" class="rounded-lg border border-border overflow-hidden">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b border-border bg-surface-secondary">
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">Case</th>
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">This fork</th>
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">Parent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in caseComparison" :key="row.case_id" class="border-b border-border last:border-0">
+                        <td class="px-3 py-2 font-mono text-text-muted">{{ row.case_id.slice(0, 8) }}…</td>
+                        <td class="px-3 py-2">
+                          <span v-if="row.mine" class="font-medium" :class="row.mine.passed ? 'text-grounded' : 'text-red-500'">
+                            {{ row.mine.passed ? 'PASS' : 'FAIL' }}
+                          </span>
+                          <span v-else class="text-text-muted">—</span>
+                        </td>
+                        <td class="px-3 py-2">
+                          <span v-if="row.parent" class="font-medium" :class="row.parent.passed ? 'text-grounded' : 'text-red-500'">
+                            {{ row.parent.passed ? 'PASS' : 'FAIL' }}
+                          </span>
+                          <span v-else class="text-text-muted">—</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p v-else-if="myLatestRun?.metrics && parentLatestRun?.metrics && !sameSuiteVersion" class="text-xs text-text-muted">
+                  Runs used different eval suite versions — case-level comparison unavailable.
+                </p>
+              </template>
             </div>
           </div>
         </section>

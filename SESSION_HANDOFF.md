@@ -1,10 +1,10 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-04  
-**State:** v0.2.0 released — all KC-032–040 done and live-verified  
-**Branch:** `development` merged to `main` via PR; `main` at v0.2.0  
-**Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** ALL of KC-032–040 verified on Colima (API + browser/Playwright, 2026-08-04). Migration 007 applied.  
+**State:** v0.3.0 released — v0.2.0 (KC-032–040) and Tier 2 (KC-030, KC-041–046) both shipped and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.3.0  
+**Tests:** 104/104 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** ALL of KC-032–046 + KC-030 verified on Colima (API + browser/Playwright, 2026-08-04). Migration head: 008.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 > ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
@@ -168,15 +168,18 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-v0.2.0 is **released** (2026-08-04) — AI Assets Pillar shipped and live-verified. Next sprint is **Tier 2**:
+**v0.3.0 released 2026-08-04** — the entire Tier 2 sprint (KC-030, KC-041–046) implemented, live-verified, and shipped the same day as v0.2.0. 104 backend tests, 0 TS errors, all features exercised on Colima via API + Playwright.
 
-- Harness fork-compare diff view (eval scores side-by-side vs. parent)
-- Asset board curation (projected Sources as CollectionItems on boards)
-- KC-030: Async board summary (boards now have multiple sources)
-- `EvalCase` CRUD API (currently SQL-seeded only) + UI editor on the asset version page
-- Unit tests for `worker/eval._grade` (currently untested; `test_grading.py` covers the learning module's normaliser, not eval grading)
-- Compose-page model selector: prefer a generation model over `nomic-embed-text` as the default selection
-- Backlog ideas: progress tracking, explore improvements, user annotations, KB search
+Candidates for the next sprint (backlog ideas, not yet ticketed):
+- Progress tracking, explore improvements, user annotations, KB search
+- Free-text MC input (grading already supports it — UI work only)
+- Migration head is now **008** (`summary_status` on collections)
+
+New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
+
+**Gotchas learned this sprint:**
+- Nitro's typed-router `$fetch` hit TS "excessive stack depth" when the server route count grew — all server BFF routes now import `ofetch` explicitly; new BFF files must do the same (or use `proxyRequest`).
+- After `await db.rollback()` on an async session, every ORM instance (including the request's `User`) is expired and attribute access raises MissingGreenlet — capture scalars before any flush that can raise, and re-select what you need afterwards.
 
 ### Sprint complete — v0.2.0 AI Assets Pillar released
 

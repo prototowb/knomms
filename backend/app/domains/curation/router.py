@@ -8,6 +8,7 @@ from app.models.user import User
 from pydantic import BaseModel as _BaseModel
 
 from app.schemas.curation import (
+    AddAssetRequest,
     AddSourceRequest,
     BoardItemOut,
     BoardOut,
@@ -26,6 +27,8 @@ class UpdateBoardRequest(_BaseModel):
 
 router = APIRouter(tags=["curation"])
 
+BOARD_SUMMARY_STREAM_KEY = "board.summary.jobs"
+
 
 def _board_to_out(board) -> BoardOut:
     return BoardOut(
@@ -38,6 +41,7 @@ def _board_to_out(board) -> BoardOut:
         fork_lineage=board.fork_lineage or [],
         layout_config=board.layout_config or {},
         ai_summary=board.ai_summary,
+        summary_status=board.summary_status,
         item_count=len(board.items) if hasattr(board, "items") else 0,
         created_at=board.created_at,
         updated_at=board.updated_at,
@@ -56,6 +60,7 @@ def _board_to_summary(board) -> BoardSummary:
         fork_count=board.fork_count,
         item_count=item_count,
         ai_summary=board.ai_summary,
+        summary_status=board.summary_status,
         created_at=board.created_at,
         owner=board.owner if hasattr(board, "owner") and board.owner else None,
     )
@@ -102,14 +107,18 @@ async def similar_boards(
     return [_board_to_summary(b) for b in boards]
 
 
-@router.get("/boards/{board_id}", response_model=BoardOut, summary="Get a public board")
+@router.get("/boards/{board_id}", response_model=BoardOut, summary="Get a board (public, or own board when authenticated)")
 async def get_board(
     board_id: str,
     db: AsyncSession = Depends(get_db),
-    _user: User | None = Depends(get_optional_user),
+    user: User | None = Depends(get_optional_user),
 ) -> BoardOut:
     svc = BoardService(db)
     board = await svc.get_public_board(board_id)
+    if board is None and user is not None:
+        # Owners can view their own non-public boards (also lets the owner
+        # page poll summary_status on private boards).
+        board = await svc.get_board_for_owner(board_id, user)
     if board is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
     return _board_to_out(board)
@@ -160,6 +169,23 @@ async def add_source(
 
 
 @router.post(
+    "/boards/{board_id}/assets",
+    response_model=BoardItemOut,
+    status_code=201,
+    summary="Project an asset version onto a board as a prompt_asset source",
+)
+async def add_asset(
+    board_id: str,
+    req: AddAssetRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BoardItemOut:
+    svc = BoardService(db)
+    item = await svc.add_asset_to_board(board_id, user, req.asset_id, req.version_num, req.note, req.lane)
+    return BoardItemOut.model_validate(item)
+
+
+@router.post(
     "/boards/{board_id}/upload",
     response_model=BoardItemOut,
     status_code=201,
@@ -180,7 +206,8 @@ async def upload_file_to_board(
 
 @router.post(
     "/boards/{board_id}/generate-summary",
-    summary="Generate an AI board summary",
+    status_code=202,
+    summary="Enqueue async AI board summary generation (poll GET /boards/{id} for summary_status)",
 )
 async def generate_summary(
     board_id: str,
@@ -188,8 +215,13 @@ async def generate_summary(
     user: User = Depends(get_current_user),
 ) -> dict:
     svc = BoardService(db)
-    summary = await svc.generate_board_summary(board_id, user)
-    return {"summary": summary}
+    board = await svc.request_board_summary(board_id, user)
+
+    from app.core.redis import get_redis
+
+    redis = await get_redis()
+    await redis.xadd(BOARD_SUMMARY_STREAM_KEY, {"board_id": board_id, "user_id": user.id})
+    return {"summary_status": board.summary_status}
 
 
 @router.get("/my/boards", response_model=list[BoardSummary], summary="List the current user's boards")
