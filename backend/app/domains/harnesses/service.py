@@ -232,6 +232,22 @@ class HarnessService:
 
         return eval_run
 
+    async def list_eval_runs(self, harness_id: str, user: User, limit: int = 20) -> list[EvalRun]:
+        """List a harness's eval runs, newest first. Owner-only, like get_eval_run —
+        returns None-equivalent (404 at the router) for non-owners to avoid leaking
+        run history through public/team harnesses."""
+        harness = await self.db.get(Harness, harness_id)
+        if harness is None or harness.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
+
+        stmt = (
+            select(EvalRun)
+            .where(EvalRun.harness_id == harness_id)
+            .order_by(EvalRun.created_at.desc())
+            .limit(limit)
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
     async def get_eval_run(self, run_id: str, user: User) -> EvalRun | None:
         eval_run = await self.db.get(EvalRun, run_id)
         if eval_run is None:
