@@ -163,6 +163,22 @@ async def submit_eval(
 
 
 @router.get(
+    "/harnesses/{harness_id}/eval",
+    response_model=list[EvalRunOut],
+    summary="List a harness's eval runs, newest first (owner only)",
+)
+async def list_eval_runs(
+    harness_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[EvalRunOut]:
+    svc = HarnessService(db)
+    runs = await svc.list_eval_runs(harness_id, user, limit=limit)
+    return [EvalRunOut.model_validate(r) for r in runs]
+
+
+@router.get(
     "/harnesses/{harness_id}/eval/{run_id}",
     response_model=EvalRunOut,
     summary="Get the status and results of an eval run",

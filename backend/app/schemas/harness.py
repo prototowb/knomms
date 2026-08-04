@@ -85,6 +85,7 @@ class EvalRunOut(BaseModel):
     model_pin: str
     status: str
     metrics: Any | None = None
+    eval_suite_version_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
