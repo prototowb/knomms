@@ -3,12 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps.auth import get_current_user
+from app.deps.auth import get_current_user, get_optional_user
 from app.deps.db import get_db
 from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.source import Source
 from app.models.user import User
-from app.schemas.knowledge_base import ChunkSearchResult, KnowledgeBaseOut
+from app.schemas.knowledge_base import ChunkSearchResult, KnowledgeBaseOut, PublicKBOut
 from app.schemas.source import SourceStatusOut
 
 router = APIRouter(prefix="/kbs", tags=["knowledge-bases"])
@@ -32,6 +32,22 @@ async def list_kbs(
     svc = KnowledgeBaseService(db)
     kbs = await svc.list_for_user(user)
     return [KnowledgeBaseOut.model_validate(kb) for kb in kbs]
+
+
+@router.get(
+    "/public",
+    response_model=list[PublicKBOut],
+    summary="List public knowledge bases (no auth required — explore surface)",
+)
+async def list_public_kbs(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    _user: User | None = Depends(get_optional_user),
+) -> list[PublicKBOut]:
+    svc = KnowledgeBaseService(db)
+    kbs = await svc.list_public(limit=limit, offset=offset)
+    return [PublicKBOut.model_validate(kb) for kb in kbs]
 
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseOut)
