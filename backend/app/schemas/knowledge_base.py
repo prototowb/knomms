@@ -11,3 +11,13 @@ class KnowledgeBaseOut(BaseModel):
     vector_namespace: str
     index_status: str
     created_at: datetime
+
+
+class ChunkSearchResult(BaseModel):
+    chunk_id: str
+    source_id: str
+    source_title: str
+    source_type: str
+    locator: str
+    text: str
+    score: float  # cosine distance for semantic mode (lower = more similar)
