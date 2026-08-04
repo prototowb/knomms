@@ -44,10 +44,19 @@ interface AssetSummary {
   version_count: number
 }
 
+interface PublicKB {
+  id: string
+  title: string
+  visibility: string
+  index_status: string
+  created_at: string
+  owner: CuratorOut | null
+}
+
 const auth = useAuthStore()
 
 // Active tab
-const activeTab = ref<'boards' | 'harnesses' | 'assets'>('boards')
+const activeTab = ref<'boards' | 'harnesses' | 'assets' | 'kbs'>('boards')
 
 // Boards tab
 const { data: trending, pending: trendingPending } = await useFetch<BoardSummary[]>(
@@ -133,10 +142,27 @@ async function loadAssets(force = false) {
   }
 }
 
-function switchTab(tab: 'boards' | 'harnesses' | 'assets') {
+// KBs tab (KC-057)
+const publicKbs = ref<PublicKB[]>([])
+const kbsLoading = ref(false)
+const kbsLoaded = ref(false)
+
+async function loadKbs() {
+  if (kbsLoaded.value || kbsLoading.value) return
+  kbsLoading.value = true
+  try {
+    publicKbs.value = await $fetch<PublicKB[]>('/api/kbs/public').catch(() => [])
+  } finally {
+    kbsLoading.value = false
+    kbsLoaded.value = true
+  }
+}
+
+function switchTab(tab: 'boards' | 'harnesses' | 'assets' | 'kbs') {
   activeTab.value = tab
   if (tab === 'harnesses') loadHarnesses()
   if (tab === 'assets') loadAssets()
+  if (tab === 'kbs') loadKbs()
 }
 
 function formatDate(iso: string) {
@@ -182,6 +208,15 @@ function formatDate(iso: string) {
         @click="switchTab('assets')"
       >
         AI Assets
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px"
+        :class="activeTab === 'kbs'
+          ? 'border-accent text-text-primary'
+          : 'border-transparent text-text-muted hover:text-text-secondary'"
+        @click="switchTab('kbs')"
+      >
+        Knowledge Bases
       </button>
     </div>
 
@@ -370,6 +405,47 @@ function formatDate(iso: string) {
         <NuxtLink :to="auth.isLoggedIn ? '/assets' : '/login'" class="mt-2 text-sm text-accent hover:underline block">
           {{ auth.isLoggedIn ? 'Go to your assets' : 'Log in' }}
         </NuxtLink>
+      </div>
+    </template>
+
+    <!-- Knowledge Bases tab (KC-057) -->
+    <template v-if="activeTab === 'kbs'">
+      <div v-if="kbsLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div v-for="n in 6" :key="n" class="rounded-xl border border-border p-5 animate-pulse">
+          <div class="h-4 bg-surface-secondary rounded w-3/4 mb-3" />
+          <div class="h-3 bg-surface-secondary rounded w-2/3" />
+        </div>
+      </div>
+
+      <div v-else-if="publicKbs.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <NuxtLink
+          v-for="kb in publicKbs"
+          :key="kb.id"
+          :to="`/kb/${kb.id}`"
+          class="group block rounded-xl border border-border bg-surface p-5 hover:border-accent/40 hover:shadow-sm transition-all"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <h2 class="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2">
+              {{ kb.title }}
+            </h2>
+            <span
+              class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+              :class="kb.index_status === 'ready' ? 'text-grounded bg-grounded/10' : 'text-warning bg-warning/10'"
+            >
+              {{ kb.index_status }}
+            </span>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-text-muted">
+            <span v-if="kb.owner">@{{ kb.owner.handle }}</span>
+            <span>· {{ formatDate(kb.created_at) }}</span>
+          </div>
+          <p class="text-xs text-text-muted mt-2">Ask, search, and learn from this corpus (login required).</p>
+        </NuxtLink>
+      </div>
+
+      <div v-else class="text-center py-16 text-text-muted">
+        <p class="text-sm">No public knowledge bases yet.</p>
+        <p class="text-xs mt-1">Owners can make a KB public from its workspace visibility badge.</p>
       </div>
     </template>
   </div>

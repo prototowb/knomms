@@ -6,6 +6,7 @@ const auth = useAuthStore()
 interface KBOut {
   id: string
   title: string
+  visibility: string
   index_status: string
   created_at: string
 }
@@ -161,6 +162,13 @@ onMounted(() => {
               Created {{ new Date(kb.created_at).toLocaleDateString() }}
             </p>
           </div>
+          <span
+            v-if="kb.visibility !== 'private'"
+            class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+            :class="kb.visibility === 'public' ? 'text-grounded bg-grounded/10' : 'text-accent bg-accent/10'"
+          >
+            {{ kb.visibility }}
+          </span>
           <span
             class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
             :class="statusLabel[kb.index_status]?.cls ?? 'text-text-muted bg-border'"
