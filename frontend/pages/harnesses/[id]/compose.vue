@@ -225,6 +225,11 @@ const hasEvalSuiteSlot = computed(() =>
   harness.value?.assets.some(s => s.role === 'eval_suite') ?? false
 )
 
+const evalSuiteAssetId = computed(() => {
+  const slot = harness.value?.assets.find(s => s.role === 'eval_suite')
+  return slot ? versionById.value.get(slot.asset_version_id)?.assetId ?? null : null
+})
+
 const evalProgressPct = computed(() =>
   evalProgress.value.total > 0
     ? Math.round((evalProgress.value.current / evalProgress.value.total) * 100)
@@ -680,7 +685,14 @@ onMounted(loadPage)
               </div>
 
               <p v-else-if="evalMetrics.total === 0" class="text-xs text-text-muted">
-                No eval cases found on this harness's eval_suite version. Eval cases are seeded directly on the asset version — no UI editor is available yet.
+                No eval cases found on this harness's eval_suite version.
+                <template v-if="evalSuiteAssetId">
+                  <NuxtLink :to="`/assets/${evalSuiteAssetId}`" class="text-accent hover:underline">Commit a new version with cases</NuxtLink>
+                  on the eval suite asset, then swap the slot to it.
+                </template>
+                <template v-else>
+                  Cases are committed per asset version on the asset detail page.
+                </template>
               </p>
             </div>
           </div>
