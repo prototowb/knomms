@@ -4,6 +4,32 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.4.0] — 2026-08-04
+
+Learner layer + KB search (KC-047–052) — the June backlog, live-verified on Colima (API + Playwright) on release day.
+
+### Features
+
+#### Learning layer
+- Private learner notes per concept — `GET/PUT /learning-paths/{pid}/concepts/{cid}/note`, unique per (user, concept), "My private note" card on the concept view (Migration 009)
+- Learner progress — mark concepts learned (`POST/DELETE .../learned`, idempotent); "✓ Learned" pill distinct from the instructor Accept control; `completion_pct` (non-pruned denominator) and "% learned" on the path list (Migration 010)
+- Learning pages now auth-guarded — logged-out visitors are redirected to login instead of silently failing
+
+#### Knowledge core
+- KB search — `GET /kbs/{kb_id}/search?q=&mode=semantic|keyword`: semantic reuses the namespace-scoped pgvector retrieval; keyword uses PostgreSQL FTS over chunks (GIN index, Migration 011); results carry source title/type attribution; Search tab with mode selector on the KB workspace
+
+#### Discovery
+- AI Assets tab on `/explore` — public-asset grid with FTS search; login hint for anonymous visitors
+
+### Notes
+- Free-text MC answer input was found already shipped (pre-v0.2.0) — stale docs corrected
+- Deferred with rationale: KBs tab on explore (needs KB visibility schema), distractor rehabilitation (dead data since free-text input)
+
+### Test Coverage
+- 104 backend tests (pytest) · 0 TypeScript errors (vue-tsc)
+
+---
+
 ## [0.3.0] — 2026-08-04
 
 Tier 2 — AI Assets hardening + discovery integration (KC-030, KC-041–046). All features live-verified on Colima (API + Playwright) the same day.
