@@ -4,6 +4,41 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.5.0] — 2026-08-04
+
+Sharing layer (KC-053–057) — knowledge bases become shareable and everything downstream unblocks. Live-verified on Colima with a second user account (cross-user reads, write denials, learner shapes).
+
+### Features
+
+#### KB sharing
+- `knowledge_bases.visibility` (private|team|public, Migration 012); team = all registered users per OQ-3
+- Reads relaxed for readable KBs: workspace, source list, semantic/keyword search, grounded Q&A, source-status polling; writes (ingest, upload, asset projection, path creation) stay owner-only
+- `PATCH /kbs/{id}` (title/visibility); create accepts visibility; `KnowledgeBaseOut` carries `visibility` + `owner`
+- Workspace: owner-clickable visibility badge (cycles private→team→public); add-URL/upload hidden for readers; owner attribution shown
+
+#### Shared learning paths
+- Published paths on readable KBs are usable by any registered user: view, attempt, private notes, mark-learned — all per-user (no schema change needed); Accept/Prune/Publish stay owner-only
+- Path list endpoint gains KB authz (previously returned 200 `[]` with no check); readers see published paths with owner attribution
+
+#### Assessment
+- Multiple-choice answers: server-built `choices` (correct + distractors, deterministic per-user shuffle, opaque ids); choice buttons submit the choice text so grading is unchanged; free-text remains for choice-less items
+- **Security fix:** learner responses no longer include `correct_answer` or the distractor list — both shipped the answer key to every client since M2
+
+#### Metadata editing
+- `PATCH /assets/{id}` and `PATCH /harnesses/{id}` (title/description/visibility, owner-only); clickable visibility badges on asset detail and harness compose
+
+#### Explore
+- Knowledge Bases tab: public-KB grid (unauthenticated), `GET /kbs/public` omits internal fields; dashboard KB cards show team/public badges
+
+### Known limitations
+- Board-dedicated KBs remain private even when their board is public
+- `POST /v1/sources` (no trailing slash) 307-redirects through the proxy chain — use `/v1/sources/` for direct API calls (BFF routes unaffected; pre-existing)
+
+### Test Coverage
+- 104 backend tests (pytest) · 0 TypeScript errors (vue-tsc)
+
+---
+
 ## [0.4.0] — 2026-08-04
 
 Learner layer + KB search (KC-047–052) — the June backlog, live-verified on Colima (API + Playwright) on release day.

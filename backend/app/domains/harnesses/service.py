@@ -100,6 +100,36 @@ class HarnessService:
         await self.db.refresh(harness)
         return harness
 
+    async def update_harness(
+        self,
+        harness_id: str,
+        user: User,
+        title: str | None = None,
+        description: str | None = None,
+        visibility: str | None = None,
+    ) -> Harness:
+        """Owner-only metadata update — None means unchanged (boards precedent)."""
+        harness = await self.db.get(Harness, harness_id)
+        if harness is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
+        if harness.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the harness owner")
+
+        if title is not None:
+            harness.title = title
+        if description is not None:
+            harness.description = description
+        if visibility is not None:
+            if visibility not in VISIBILITIES:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"visibility must be one of: {sorted(VISIBILITIES)}",
+                )
+            harness.visibility = visibility
+
+        await self.db.commit()
+        return await self.get_harness(harness_id, user)
+
     async def fork_harness(
         self,
         harness_id: str,

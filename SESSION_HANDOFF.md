@@ -1,10 +1,10 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-04  
-**State:** v0.4.0 released — three releases today (v0.2.0, v0.3.0, v0.4.0); KC-032–052 + KC-030 all shipped and live-verified  
-**Branch:** `development` merged to `main` via PR; `main` at v0.4.0  
+**State:** v0.5.0 released — four releases today (v0.2.0–v0.5.0); KC-032–057 + KC-030 all shipped and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.5.0  
 **Tests:** 104/104 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** everything through KC-052 verified on Colima (API + browser/Playwright, 2026-08-04). Migration head: 011.  
+**Live verification:** everything through KC-057 verified on Colima (API + browser/Playwright, incl. two-user sharing checks, 2026-08-04). Migration head: 012.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 > ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
@@ -170,11 +170,10 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 **v0.4.0 released 2026-08-04** — the June backlog shipped: private concept notes, learner progress, KB semantic+keyword search, explore assets tab, learning-page auth guards (KC-047–052). Migration head is now **011**.
 
-Candidates for the next sprint (not yet ticketed):
-- KBs tab on explore — needs `knowledge_bases.visibility` + public listing endpoint (deferred from v0.4.0 with rationale in PROJECT_STATUS)
-- Distractor rehabilitation — generated + stored but rendered nowhere since free-text answers shipped
-- Asset visibility update endpoint — there is no API to change an asset's visibility after creation (v0.4.0 verification had to flip it via SQL)
-- Multi-learner progress — `concept_progress` is per-user but paths are owner-visible only; opening paths up needs a visibility model
+All previously listed candidates shipped in v0.5.0. Remaining ideas (not ticketed):
+- Board-dedicated KBs stay private when the board goes public (`_resolve_board_kb` creates default-private KBs)
+- `POST /v1/sources` trailing-slash 307 through the proxy chain (pre-existing; BFF unaffected)
+- An `organisations` table to make team ≠ public meaningful (OQ-3 currently equates them for reads)
 
 New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
 

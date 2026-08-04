@@ -8,12 +8,48 @@ const route = useRoute()
 const auth = useAuthStore()
 const kbId = route.params.kbId as string
 
-interface KBMeta { id: string; title: string; index_status: string }
+interface KBMeta {
+  id: string
+  title: string
+  index_status: string
+  visibility: string
+  owner: { id: string; handle: string; display_name: string } | null
+}
 const kbMeta = ref<KBMeta | null>(null)
 async function fetchKBMeta() {
   kbMeta.value = await $fetch<KBMeta>(`/api/kbs/${kbId}`, {
     headers: { Authorization: `Bearer ${auth.token}` },
   }).catch(() => null)
+}
+
+const isOwner = computed(() =>
+  auth.isLoggedIn && kbMeta.value?.owner?.id === auth.user?.id
+)
+
+const visibilityColor: Record<string, string> = {
+  private: 'text-text-muted bg-border',
+  team: 'text-accent bg-accent/10',
+  public: 'text-grounded bg-grounded/10',
+}
+
+const updatingVisibility = ref(false)
+async function cycleVisibility() {
+  if (!isOwner.value || updatingVisibility.value || !kbMeta.value) return
+  const order = ['private', 'team', 'public']
+  const next = order[(order.indexOf(kbMeta.value.visibility) + 1) % order.length]
+  updatingVisibility.value = true
+  try {
+    const updated = await $fetch<KBMeta>(`/api/kbs/${kbId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { visibility: next },
+    })
+    kbMeta.value = { ...kbMeta.value, visibility: updated.visibility }
+  } catch {
+    // leave as-is; the badge simply doesn't change
+  } finally {
+    updatingVisibility.value = false
+  }
 }
 
 // ── Q&A ──────────────────────────────────────────────────────────────────────
@@ -221,8 +257,25 @@ onUnmounted(stopPolling)
             <h1 class="text-base font-semibold text-text-primary">
               {{ kbMeta?.title ?? 'Knowledge Base' }}
             </h1>
-            <p class="text-xs mt-0.5" :class="kbMeta?.index_status === 'ready' ? 'text-grounded' : 'text-warning'">
-              {{ kbMeta?.index_status ?? '…' }}
+            <p class="text-xs mt-0.5 flex items-center gap-2">
+              <span :class="kbMeta?.index_status === 'ready' ? 'text-grounded' : 'text-warning'">
+                {{ kbMeta?.index_status ?? '…' }}
+              </span>
+              <ClientOnly>
+                <button
+                  v-if="kbMeta"
+                  :disabled="!isOwner || updatingVisibility"
+                  :title="isOwner ? 'Click to change visibility' : undefined"
+                  class="px-2 py-0.5 rounded-full font-medium transition-colors"
+                  :class="[visibilityColor[kbMeta.visibility] ?? 'text-text-muted bg-border', isOwner ? 'cursor-pointer hover:opacity-80' : 'cursor-default']"
+                  @click="cycleVisibility"
+                >
+                  {{ kbMeta.visibility }}
+                </button>
+                <span v-if="!isOwner && kbMeta?.owner" class="text-text-muted">
+                  by @{{ kbMeta.owner.handle }}
+                </span>
+              </ClientOnly>
             </p>
           </div>
           <NuxtLink
@@ -335,8 +388,8 @@ onUnmounted(stopPolling)
 
       <!-- Sources tab -->
       <div v-show="activeTab === 'sources'" class="flex flex-col flex-1 min-h-0 p-5 gap-4 overflow-y-auto">
-        <!-- URL add -->
-        <div>
+        <!-- URL add (owner only) -->
+        <div v-if="isOwner">
           <p class="text-xs font-medium text-text-secondary mb-2">Add a URL</p>
           <form class="flex gap-2" @submit.prevent="addUrl">
             <input
@@ -357,8 +410,8 @@ onUnmounted(stopPolling)
           <p v-if="urlError" class="text-xs text-warning mt-1.5">{{ urlError }}</p>
         </div>
 
-        <!-- File upload -->
-        <div>
+        <!-- File upload (owner only) -->
+        <div v-if="isOwner">
           <p class="text-xs font-medium text-text-secondary mb-2">Upload a file</p>
           <label
             class="block rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"

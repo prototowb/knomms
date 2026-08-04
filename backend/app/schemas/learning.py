@@ -12,12 +12,20 @@ class DistractorOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChoiceOut(BaseModel):
+    id: str  # opaque post-shuffle index — never identifies the correct answer
+    text: str
+
+
 class AssessmentItemOut(BaseModel):
     id: str
     question_text: str
-    correct_answer: str
+    # None for non-owner readers — shipping the answer to learners was a
+    # pre-existing leak; graded server-side on attempt (KC-055)
+    correct_answer: str | None = None
     grounding_passage_id: str
     distractors: list[DistractorOut] = []
+    choices: list[ChoiceOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -36,6 +44,14 @@ class PathConceptOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PathOwnerOut(BaseModel):
+    id: str
+    handle: str
+    display_name: str
+
+    model_config = {"from_attributes": True}
+
+
 class LearningPathOut(BaseModel):
     id: str
     kb_id: str
@@ -47,6 +63,7 @@ class LearningPathOut(BaseModel):
     updated_at: datetime
     concepts: list[PathConceptOut] = []
     learned_concept_ids: list[str] = []
+    owner: PathOwnerOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -61,6 +78,7 @@ class LearningPathSummary(BaseModel):
     learned_count: int = 0
     completion_pct: float = 0.0
     created_at: datetime
+    owner: PathOwnerOut | None = None
 
     model_config = {"from_attributes": True}
 

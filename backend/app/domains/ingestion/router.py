@@ -48,8 +48,17 @@ async def get_source(
 ) -> SourceStatusOut:
     svc = IngestionService(db)
     source = await svc.get_source(source_id, current_user)
-    if source is None or source.owner_user_id != current_user.id:
+    if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Source not found")
+    if source.owner_user_id != current_user.id:
+        # Readers of a shared KB may poll ingestion status of its sources
+        from app.domains.knowledge_base.service import KnowledgeBaseService
+
+        kb = None
+        if source.kb_id:
+            kb = await KnowledgeBaseService(db).get_readable_by_id(source.kb_id, current_user)
+        if kb is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Source not found")
     return SourceStatusOut.model_validate(source)
 
 

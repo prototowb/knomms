@@ -24,12 +24,18 @@ interface Distractor {
   misconception_label: string | null
 }
 
+interface Choice {
+  id: string
+  text: string
+}
+
 interface AssessmentItem {
   id: string
   question_text: string
-  correct_answer: string
+  correct_answer: string | null
   grounding_passage_id: string
   distractors: Distractor[]
+  choices: Choice[]
 }
 
 interface SourcePassage {
@@ -59,6 +65,7 @@ interface LearningPath {
   version: number
   concepts: PathConcept[]
   learned_concept_ids: string[]
+  owner: { id: string; handle: string; display_name: string } | null
 }
 
 interface AttemptResult {
@@ -127,6 +134,10 @@ watch(
 )
 
 // ── Learner progress (KC-048) ───────────────────────────────────────────────
+
+const isOwner = computed(() =>
+  auth.isLoggedIn && path.value?.owner?.id === auth.user?.id
+)
 
 const learnedIds = ref<Set<string>>(new Set())
 const learnedSaving = ref<Record<string, boolean>>({})
@@ -299,7 +310,7 @@ onUnmounted(_clearPoll)
             Published
           </span>
           <button
-            v-if="path.status === 'draft'"
+            v-if="isOwner && path.status === 'draft'"
             class="text-xs px-3 py-1.5 rounded-lg bg-grounded text-white hover:bg-green-700 transition-colors"
             @click="publishPath"
           >
@@ -373,14 +384,14 @@ onUnmounted(_clearPoll)
                     {{ learnedIds.has(concept.id) ? '✓ Learned' : 'Mark learned' }}
                   </button>
                   <button
-                    v-if="concept.status !== 'accepted'"
+                    v-if="isOwner && concept.status !== 'accepted'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-grounded text-grounded hover:bg-grounded/10 transition-colors"
                     @click="updateConceptStatus(concept, 'accepted')"
                   >
                     Accept
                   </button>
                   <button
-                    v-if="concept.status !== 'pruned'"
+                    v-if="isOwner && concept.status !== 'pruned'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary transition-colors"
                     @click="updateConceptStatus(concept, 'pruned')"
                   >
@@ -459,8 +470,29 @@ onUnmounted(_clearPoll)
                 >
                   <p class="text-sm text-text-primary font-medium mb-4">{{ item.question_text }}</p>
 
-                  <!-- Free-text answer input -->
+                  <!-- Multiple-choice buttons (when the item has distractor-backed choices) -->
+                  <div v-if="item.choices.length > 0" class="space-y-2">
+                    <button
+                      v-for="choice in item.choices"
+                      :key="choice.id"
+                      :disabled="!!attemptResults[item.id] || submitting[item.id]"
+                      class="w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors disabled:cursor-default"
+                      :class="attemptResults[item.id] && selectedAnswer[item.id] === choice.text
+                        ? attemptResults[item.id].correct
+                          ? 'border-grounded bg-grounded/5 text-grounded font-medium'
+                          : 'border-warning bg-warning/5 text-warning font-medium'
+                        : selectedAnswer[item.id] === choice.text
+                          ? 'border-accent bg-accent/5 text-text-primary'
+                          : 'border-border text-text-secondary hover:border-accent/40 hover:bg-surface-secondary'"
+                      @click="selectedAnswer[item.id] = choice.text"
+                    >
+                      {{ choice.text }}
+                    </button>
+                  </div>
+
+                  <!-- Free-text answer input (items without choices) -->
                   <input
+                    v-else
                     v-model="selectedAnswer[item.id]"
                     type="text"
                     :disabled="!!attemptResults[item.id]"

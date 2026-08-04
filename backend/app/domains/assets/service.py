@@ -184,6 +184,36 @@ class AssetService:
         await self.db.refresh(asset)
         return asset
 
+    async def update_asset(
+        self,
+        asset_id: str,
+        user: User,
+        title: str | None = None,
+        description: str | None = None,
+        visibility: str | None = None,
+    ) -> Asset:
+        """Owner-only metadata update — None means unchanged (boards precedent)."""
+        asset = await self.db.get(Asset, asset_id)
+        if asset is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
+        if asset.owner_user_id != user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the asset owner")
+
+        if title is not None:
+            asset.title = title
+        if description is not None:
+            asset.description = description
+        if visibility is not None:
+            if visibility not in VISIBILITIES:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"visibility must be one of: {sorted(VISIBILITIES)}",
+                )
+            asset.visibility = visibility
+
+        await self.db.commit()
+        return await self.get_asset(asset_id, user)
+
     async def add_version(
         self,
         asset_id: str,

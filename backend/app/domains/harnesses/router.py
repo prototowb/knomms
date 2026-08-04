@@ -93,6 +93,29 @@ async def get_harness(
     return _harness_to_out(harness)
 
 
+from pydantic import BaseModel as _BaseModel
+
+
+class UpdateHarnessRequest(_BaseModel):
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+
+
+@router.patch("/harnesses/{harness_id}", response_model=HarnessOut, summary="Update harness metadata (owner only)")
+async def update_harness(
+    harness_id: str,
+    req: UpdateHarnessRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> HarnessOut:
+    svc = HarnessService(db)
+    harness = await svc.update_harness(
+        harness_id, user, title=req.title, description=req.description, visibility=req.visibility
+    )
+    return _harness_to_out(harness)
+
+
 @router.post(
     "/harnesses/{harness_id}/fork",
     response_model=HarnessOut,
