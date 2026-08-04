@@ -106,6 +106,28 @@ watch(selectedVersionNum, (num) => {
   if (num !== null && asset.value?.asset_type === 'eval_suite') fetchCases(num)
 })
 
+// ── Visibility editing (KC-056) ─────────────────────────────────────────────
+
+const updatingVisibility = ref(false)
+async function cycleVisibility() {
+  if (!isOwner.value || updatingVisibility.value || !asset.value) return
+  const order = ['private', 'team', 'public']
+  const next = order[(order.indexOf(asset.value.visibility) + 1) % order.length]
+  updatingVisibility.value = true
+  try {
+    const updated = await $fetch<AssetOut>(`/api/assets/${assetId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { visibility: next },
+    })
+    asset.value = { ...asset.value, visibility: updated.visibility }
+  } catch {
+    // badge simply doesn't change
+  } finally {
+    updatingVisibility.value = false
+  }
+}
+
 // ── Add to board (KC-046) ────────────────────────────────────────────────────
 
 interface BoardSummary {
@@ -426,9 +448,17 @@ onMounted(async () => {
                 <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-border text-text-secondary">
                   {{ typeLabel[asset.asset_type] ?? asset.asset_type }}
                 </span>
-                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="visibilityColor[asset.visibility]">
-                  {{ asset.visibility }}
-                </span>
+                <ClientOnly>
+                  <button
+                    :disabled="!isOwner || updatingVisibility"
+                    :title="isOwner ? 'Click to change visibility' : undefined"
+                    class="text-xs px-2 py-0.5 rounded-full font-medium transition-colors"
+                    :class="[visibilityColor[asset.visibility], isOwner ? 'cursor-pointer hover:opacity-80' : 'cursor-default']"
+                    @click="cycleVisibility"
+                  >
+                    {{ asset.visibility }}
+                  </button>
+                </ClientOnly>
                 <span class="text-xs text-text-muted">
                   {{ asset.versions.length }} version{{ asset.versions.length !== 1 ? 's' : '' }}
                 </span>
