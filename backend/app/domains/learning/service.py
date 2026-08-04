@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.chunk import Chunk
-from app.models.learning import AssessmentItem, LearningPath, PathConcept
+from app.models.learning import AssessmentItem, ConceptNote, LearningPath, PathConcept
 from app.models.user import User
 
 
@@ -93,6 +93,33 @@ class LearningService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def _get_owned_concept_id(self, path_id: str, concept_id: str, user: User) -> str:
+        """Authz helper: 404 unless the concept belongs to a path the user owns."""
+        path = await self.get_path(path_id, user)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+        if not any(c.id == concept_id for c in path.concepts):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Concept not found")
+        return concept_id
+
+    async def get_note(self, path_id: str, concept_id: str, user: User) -> ConceptNote | None:
+        await self._get_owned_concept_id(path_id, concept_id, user)
+        stmt = select(ConceptNote).where(
+            ConceptNote.user_id == user.id, ConceptNote.concept_id == concept_id
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def upsert_note(self, path_id: str, concept_id: str, user: User, body: str) -> ConceptNote:
+        note = await self.get_note(path_id, concept_id, user)
+        if note is None:
+            note = ConceptNote(user_id=user.id, concept_id=concept_id, body=body)
+            self.db.add(note)
+        else:
+            note.body = body
+        await self.db.commit()
+        await self.db.refresh(note)
+        return note
 
     async def update_concept(
         self,

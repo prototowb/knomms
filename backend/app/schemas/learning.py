@@ -62,6 +62,20 @@ class LearningPathSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConceptNoteOut(BaseModel):
+    id: str
+    concept_id: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UpsertNoteRequest(BaseModel):
+    body: str
+
+
 class CreateLearningPathRequest(BaseModel):
     learning_goal: str
     time_budget_hours: float | None = None
