@@ -37,7 +37,7 @@ initialization_date: "2026-06-01"
 current_sprint: "v0.2.0 — AI Assets Pillar (complete)"
 last_release: "v0.2.0 (2026-08-04)"
 ticket_prefix: "KC"
-next_ticket: "KC-033"
+next_ticket: "KC-047"
 ```
 
 ## Architecture Summary
@@ -53,9 +53,21 @@ next_ticket: "KC-033"
 
 ---
 
-## 🎫 Active — v0.2.0: AI Assets Pillar (KC-032–040)
+## 🎫 Active — v0.3.0: Tier 2 — AI Assets hardening + discovery (KC-030, KC-041–046)
 
-*v0.1.0 shipped. Starting the fourth pillar: AI asset versioning, harness composition, and local eval runs for practitioner teams. Branching convention unchanged: feature branches from `development`, local merge, push `development`; PR to `main` for releases.*
+*v0.2.0 shipped 2026-08-04. Tier 2: harden what shipped (eval grading tests, EvalCase API, UX fixes), then the deferred discovery features. Branching convention unchanged: feature branches from `development`, local merge, push `development`; PR to `main` for releases.*
+
+### Sprint order (implement in sequence)
+
+- **KC-041** backend: unit tests for `worker/eval._normalize` + `_grade` — all 4 strategies, regex config/pattern fallback, unknown strategy → False (gap found during v0.2.0 release verification)
+- **KC-042** backend: EvalCase API — `GET /assets/{id}/versions/{num}/cases`; extend `POST /assets/{id}/versions` with optional `eval_cases[]` created atomically with the version (preserves OQ-4 immutability — no update/delete endpoints)
+- **KC-043** frontend: eval case viewer + new-version-with-cases composer on asset detail; compose-page 0-case note links there
+- **KC-044** frontend: model selector prefers a generation model over embedding models as default selection (`nomic-embed-text` gotcha)
+- **KC-045** fork-compare diff view — eval pass rates side-by-side vs. parent harness
+- **KC-046** asset board curation — projected `prompt_asset` Sources as CollectionItems on boards
+- **KC-030** async board summary — worker-based, boards now have multiple sources
+
+## ✅ v0.2.0: AI Assets Pillar (KC-032–040) — released 2026-08-04
 
 ### Sprint order (implement in sequence — each ticket unblocks the next)
 
