@@ -554,29 +554,30 @@ class BoardService:
         await self.db.refresh(fork)
         return fork
 
-    async def generate_board_summary(self, board_id: str, user: User) -> str:
+    async def request_board_summary(self, board_id: str, user: User) -> Collection:
+        """Mark a board summary as queued for async generation (KC-030).
+
+        Raises 404/422 synchronously so the client gets immediate feedback;
+        the actual Ollama call happens in the board.summary.jobs worker.
+        """
         board = await self.get_board_for_owner(board_id, user)
         if board is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
+        if not board.items:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Board has no sources to summarize",
+            )
+        if board.summary_status == "generating":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="A summary is already being generated for this board",
+            )
 
-        source_lines = "\n".join(
-            f"  - {item.source.title}: {item.note or item.source.description[:100]}"
-            for item in board.items
-            if item.source
-        )
-        prompt = _SUMMARY_PROMPT.format(
-            title=board.title,
-            description=board.description or "(none)",
-            count=len(board.items),
-            source_list=source_lines or "  (no sources yet)",
-        )
-
-        from app.domains.generation.ollama import generate
-
-        summary = await generate(prompt)
-        board.ai_summary = summary.strip()
+        board.summary_status = "generating"
         await self.db.commit()
-        return board.ai_summary
+        await self.db.refresh(board)
+        return board
 
     async def update_board_embedding(self, board_id: str) -> None:
         """Recompute the board's centroid embedding from all its sources' chunks."""

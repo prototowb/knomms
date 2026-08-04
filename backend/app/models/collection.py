@@ -31,6 +31,9 @@ class Collection(Base):
     # Board layout: {"mode": "swim-lane"|"canvas", "lanes": [...]}
     layout_config: Mapped[dict] = mapped_column(JSONB, nullable=True, default=dict)
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="idle"
+    )  # idle | generating | ready | failed
     # Centroid of all source chunk embeddings — used for semantic recommendation
     board_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 

@@ -11,6 +11,7 @@ import signal
 
 from app.core.db import AsyncSessionLocal
 from app.core.redis import get_redis
+from app.worker.board_summary import run_board_summary_job
 from app.worker.curriculum import run_curriculum_job
 from app.worker.eval import run_eval_job
 from app.worker.pipeline import run_ingestion_pipeline
@@ -41,6 +42,12 @@ _STREAMS = {
         "group": "eval-workers",
         "handler": run_eval_job,
         "log_field": "run_id",
+    },
+    "board_summary": {
+        "stream_key": "board.summary.jobs",
+        "group": "board-summary-workers",
+        "handler": run_board_summary_job,
+        "log_field": "board_id",
     },
 }
 
