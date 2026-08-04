@@ -11,6 +11,10 @@ from app.schemas.source import SourceOut, SourceStatusOut, SourceSubmit
 router = APIRouter(prefix="/sources", tags=["ingestion"])
 
 
+# Registered at both "" and "/" so neither form 307-redirects — the redirect
+# breaks through the nginx→Nuxt proxy chain (KC-059). The BFF calls the
+# slashed path; Swagger/curl clients use the slashless one.
+@router.post("", response_model=SourceOut, status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
 @router.post("/", response_model=SourceOut, status_code=status.HTTP_202_ACCEPTED)
 async def submit_url(
     body: SourceSubmit,
