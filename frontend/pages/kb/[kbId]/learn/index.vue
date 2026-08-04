@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ middleware: 'auth' })
+
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 
