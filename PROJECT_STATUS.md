@@ -29,13 +29,13 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.5.0 sprint: Sharing layer"
+project_phase: "Active development — v0.5.0 released"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.5.0 — Sharing layer (KC-053–057)"
-last_release: "v0.4.0 (2026-08-04)"
+current_sprint: "v0.5.0 — Sharing layer (complete)"
+last_release: "v0.5.0 (2026-08-04)"
 ticket_prefix: "KC"
 next_ticket: "KC-058"
 ```
@@ -53,17 +53,17 @@ next_ticket: "KC-058"
 
 ---
 
-## 🎫 Active — v0.5.0: Sharing layer (KC-053–057)
+## ✅ v0.5.0: Sharing layer (KC-053–057) — released 2026-08-04
 
 *v0.4.0 shipped 2026-08-04. This sprint makes KBs shareable and everything that unblocks: shared learning paths with multi-learner progress, MC answer choices, metadata editing, and the deferred explore KBs tab. Design decisions: KB visibility uses the existing private|team|public enum (OQ-3: team = all instance users); the KB is the access boundary — `Source.visibility` stays dormant (documented, do not "fix"); reads relax, writes stay owner-only.*
 
 ### Sprint order (implement in sequence — 053 unblocks 054/057; 054 unblocks 055)
 
-- **KC-053** KB visibility — Migration 012 `knowledge_bases.visibility` (+index); `get_readable_by_id` (new method; `get_by_id` stays the write guard); relax the 4 read sites (GET kb / sources / search, POST query) + drop the Source owner clause in the sources list; relax source-status poll to readable-KB; `KnowledgeBaseOut` gains `visibility` + `owner`; `PATCH /kbs/{id}` (boards precedent); create accepts visibility; frontend: `isOwner` gating on add-URL/upload, visibility badge
-- **KC-054** shared learning paths — `get_readable_path` (owner OR published+readable-KB); split `_get_owned_concept_id` into readable (attempt/note/learned) vs owner (update/publish); add KB authz to the path-list endpoint (returns owner's paths + published for readers); `LearningPathOut`+Summary gain `owner`; frontend `isOwner` gates Publish/Accept/Prune. No schema change — progress/notes are already per-user
-- **KC-055** MC answer choices — learner-facing `AssessmentItemLearnerOut` (omits `correct_answer` — fixes a pre-existing leak; adds server-shuffled `choices` seeded per item+user); owner keeps the full shape; frontend choice buttons submitting the choice *text* (grading unchanged); free-text fallback when an item has no distractors
-- **KC-056** asset/harness metadata PATCH — `PATCH /assets/{id}` + `PATCH /harnesses/{id}` (title/description/visibility, boards PATCH shape, validation via service VISIBILITIES); edit controls on asset detail + harness compose (needs new `isOwner` there)
-- **KC-057** KBs tab on explore — public-KB listing endpoint (`get_optional_user`); fourth explore tab; visibility badges on dashboard KB cards
+- ~~**KC-053**~~ ✅ KB visibility — Migration 012 `knowledge_bases.visibility` (+index); `get_readable_by_id` (new method; `get_by_id` stays the write guard); relax the 4 read sites (GET kb / sources / search, POST query) + drop the Source owner clause in the sources list; relax source-status poll to readable-KB; `KnowledgeBaseOut` gains `visibility` + `owner`; `PATCH /kbs/{id}` (boards precedent); create accepts visibility; frontend: `isOwner` gating on add-URL/upload, visibility badge
+- ~~**KC-054**~~ ✅ shared learning paths — `get_readable_path` (owner OR published+readable-KB); split `_get_owned_concept_id` into readable (attempt/note/learned) vs owner (update/publish); add KB authz to the path-list endpoint (returns owner's paths + published for readers); `LearningPathOut`+Summary gain `owner`; frontend `isOwner` gates Publish/Accept/Prune. No schema change — progress/notes are already per-user
+- ~~**KC-055**~~ ✅ MC answer choices — learner-facing `AssessmentItemLearnerOut` (omits `correct_answer` — fixes a pre-existing leak; adds server-shuffled `choices` seeded per item+user); owner keeps the full shape; frontend choice buttons submitting the choice *text* (grading unchanged); free-text fallback when an item has no distractors
+- ~~**KC-056**~~ ✅ asset/harness metadata PATCH — `PATCH /assets/{id}` + `PATCH /harnesses/{id}` (title/description/visibility, boards PATCH shape, validation via service VISIBILITIES); edit controls on asset detail + harness compose (needs new `isOwner` there)
+- ~~**KC-057**~~ ✅ KBs tab on explore — public-KB listing endpoint (`get_optional_user`); fourth explore tab; visibility badges on dashboard KB cards
 
 ### Known non-goals (documented, deliberate)
 
@@ -218,6 +218,8 @@ next_ticket: "KC-058"
 ---
 
 ## Recent Updates
+
+- 2026-08-04: v0.5.0 released — Sharing layer (KB visibility, shared learning paths, MC choices + answer-key leak fix, metadata PATCH, explore KBs tab); verified with a second user account; Migration 012
 
 - 2026-08-04: v0.4.0 released — KC-047–052 (private notes, learner progress, explore assets tab, auth guards, KB semantic+keyword search) implemented and live-verified same day; migrations 009–011
 
