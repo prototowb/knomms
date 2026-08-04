@@ -36,6 +36,14 @@ class PathConceptOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PathOwnerOut(BaseModel):
+    id: str
+    handle: str
+    display_name: str
+
+    model_config = {"from_attributes": True}
+
+
 class LearningPathOut(BaseModel):
     id: str
     kb_id: str
@@ -47,6 +55,7 @@ class LearningPathOut(BaseModel):
     updated_at: datetime
     concepts: list[PathConceptOut] = []
     learned_concept_ids: list[str] = []
+    owner: PathOwnerOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -61,6 +70,7 @@ class LearningPathSummary(BaseModel):
     learned_count: int = 0
     completion_pct: float = 0.0
     created_at: datetime
+    owner: PathOwnerOut | None = None
 
     model_config = {"from_attributes": True}
 

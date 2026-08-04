@@ -69,6 +69,12 @@ async def list_learning_paths(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[LearningPathSummary]:
+    from app.domains.knowledge_base.service import KnowledgeBaseService
+
+    kb = await KnowledgeBaseService(db).get_readable_by_id(kb_id, user)
+    if kb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+
     svc = LearningService(db)
     paths = await svc.list_paths(kb_id, user)
     all_concept_ids = [c.id for p in paths for c in (p.concepts or [])]
@@ -89,6 +95,7 @@ async def list_learning_paths(
                 learned_count=learned_count,
                 completion_pct=round(learned_count / len(active), 4) if active else 0.0,
                 created_at=p.created_at,
+                owner=p.owner,
             )
         )
     return result
@@ -105,7 +112,7 @@ async def get_learning_path(
     user: User = Depends(get_current_user),
 ) -> LearningPathOut:
     svc = LearningService(db)
-    path = await svc.get_path(path_id, user)
+    path = await svc.get_readable_path(path_id, user)
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
     out = LearningPathOut.model_validate(path)

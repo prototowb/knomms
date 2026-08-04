@@ -4,12 +4,13 @@ import re
 import unicodedata
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.chunk import Chunk
+from app.models.knowledge_base import KnowledgeBase
 from app.models.learning import (
     AssessmentItem,
     ConceptNote,
@@ -77,32 +78,80 @@ class LearningService:
         await self.db.refresh(path)
         return path, kb.vector_namespace
 
+    _PATH_LOAD_OPTIONS = (
+        selectinload(LearningPath.concepts)
+        .selectinload(PathConcept.assessment_items)
+        .selectinload(AssessmentItem.distractors),
+        selectinload(LearningPath.owner),
+    )
+
     async def get_path(self, path_id: str, user: User) -> LearningPath | None:
+        """Owner-only lookup — the guard for instructor actions (update/publish)."""
         stmt = (
             select(LearningPath)
             .where(LearningPath.id == path_id, LearningPath.user_id == user.id)
-            .options(
-                selectinload(LearningPath.concepts).selectinload(
-                    PathConcept.assessment_items
-                ).selectinload(AssessmentItem.distractors)
+            .options(*self._PATH_LOAD_OPTIONS)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _readable_kb_exists(user: User):
+        """Correlated EXISTS: the path's KB is readable by this user (OQ-3)."""
+        return (
+            select(KnowledgeBase.id)
+            .where(
+                KnowledgeBase.id == LearningPath.kb_id,
+                or_(
+                    KnowledgeBase.owner_user_id == user.id,
+                    KnowledgeBase.visibility.in_(("team", "public")),
+                ),
             )
+            .exists()
+        )
+
+    async def get_readable_path(self, path_id: str, user: User) -> LearningPath | None:
+        """Learner lookup: the owner, or anyone when the path is published and
+        its KB is team/public-readable."""
+        stmt = (
+            select(LearningPath)
+            .where(
+                LearningPath.id == path_id,
+                or_(
+                    LearningPath.user_id == user.id,
+                    and_(
+                        LearningPath.status == "published",
+                        self._readable_kb_exists(user),
+                    ),
+                ),
+            )
+            .options(*self._PATH_LOAD_OPTIONS)
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def list_paths(self, kb_id: str, user: User) -> list[LearningPath]:
+        """Own paths plus published paths on this KB (KB readability is checked
+        at the router — this only decides which rows a reader may see)."""
         stmt = (
             select(LearningPath)
-            .where(LearningPath.kb_id == kb_id, LearningPath.user_id == user.id)
-            .options(selectinload(LearningPath.concepts))
+            .where(
+                LearningPath.kb_id == kb_id,
+                or_(
+                    LearningPath.user_id == user.id,
+                    LearningPath.status == "published",
+                ),
+            )
+            .options(selectinload(LearningPath.concepts), selectinload(LearningPath.owner))
             .order_by(LearningPath.created_at.desc())
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def _get_owned_concept_id(self, path_id: str, concept_id: str, user: User) -> str:
-        """Authz helper: 404 unless the concept belongs to a path the user owns."""
-        path = await self.get_path(path_id, user)
+    async def _get_readable_concept_id(self, path_id: str, concept_id: str, user: User) -> str:
+        """Authz helper for learner actions (attempt/note/learned): 404 unless
+        the concept belongs to a path the user can read."""
+        path = await self.get_readable_path(path_id, user)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
         if not any(c.id == concept_id for c in path.concepts):
@@ -111,7 +160,7 @@ class LearningService:
 
     async def set_learned(self, path_id: str, concept_id: str, user: User, learned: bool) -> bool:
         """Idempotently mark/unmark a concept as learned for this user."""
-        await self._get_owned_concept_id(path_id, concept_id, user)
+        await self._get_readable_concept_id(path_id, concept_id, user)
         stmt = select(ConceptProgress).where(
             ConceptProgress.user_id == user.id, ConceptProgress.concept_id == concept_id
         )
@@ -135,7 +184,7 @@ class LearningService:
         return set((await self.db.execute(stmt)).scalars().all())
 
     async def get_note(self, path_id: str, concept_id: str, user: User) -> ConceptNote | None:
-        await self._get_owned_concept_id(path_id, concept_id, user)
+        await self._get_readable_concept_id(path_id, concept_id, user)
         stmt = select(ConceptNote).where(
             ConceptNote.user_id == user.id, ConceptNote.concept_id == concept_id
         )
@@ -202,7 +251,7 @@ class LearningService:
         user: User,
         answer: str,
     ) -> dict:
-        path = await self.get_path(path_id, user)
+        path = await self.get_readable_path(path_id, user)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
 
