@@ -89,6 +89,29 @@ async def create_asset(
     return _asset_to_out(asset)
 
 
+from pydantic import BaseModel as _BaseModel
+
+
+class UpdateAssetRequest(_BaseModel):
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+
+
+@router.patch("/assets/{asset_id}", response_model=AssetOut, summary="Update asset metadata (owner only)")
+async def update_asset(
+    asset_id: str,
+    req: UpdateAssetRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> AssetOut:
+    svc = AssetService(db)
+    asset = await svc.update_asset(
+        asset_id, user, title=req.title, description=req.description, visibility=req.visibility
+    )
+    return _asset_to_out(asset)
+
+
 @router.get("/assets/{asset_id}", response_model=AssetOut, summary="Get an asset with all versions")
 async def get_asset(
     asset_id: str,

@@ -231,6 +231,32 @@ const evalSuiteAssetId = computed(() => {
   return slot ? versionById.value.get(slot.asset_version_id)?.assetId ?? null : null
 })
 
+// ── Visibility editing (KC-056) ─────────────────────────────────────────────
+
+const isOwner = computed(() =>
+  auth.isLoggedIn && harness.value?.owner?.id === auth.user?.id
+)
+
+const updatingVisibility = ref(false)
+async function cycleVisibility() {
+  if (!isOwner.value || updatingVisibility.value || !harness.value) return
+  const order = ['private', 'team', 'public']
+  const next = order[(order.indexOf(harness.value.visibility) + 1) % order.length]
+  updatingVisibility.value = true
+  try {
+    const updated = await $fetch<HarnessOut>(`/api/harnesses/${harnessId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { visibility: next },
+    })
+    harness.value = { ...harness.value, visibility: updated.visibility }
+  } catch {
+    // badge simply doesn't change
+  } finally {
+    updatingVisibility.value = false
+  }
+}
+
 // ── Fork comparison (KC-045) ────────────────────────────────────────────────
 
 const parentHarness = ref<{ id: string; title: string } | null>(null)
@@ -520,9 +546,17 @@ onMounted(loadPage)
                 {{ harness.description }}
               </p>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="visibilityColor[harness.visibility]">
-                  {{ harness.visibility }}
-                </span>
+                <ClientOnly>
+                  <button
+                    :disabled="!isOwner || updatingVisibility"
+                    :title="isOwner ? 'Click to change visibility' : undefined"
+                    class="text-xs px-2 py-0.5 rounded-full font-medium transition-colors"
+                    :class="[visibilityColor[harness.visibility], isOwner ? 'cursor-pointer hover:opacity-80' : 'cursor-default']"
+                    @click="cycleVisibility"
+                  >
+                    {{ harness.visibility }}
+                  </button>
+                </ClientOnly>
                 <span class="text-xs text-text-muted">{{ harness.assets.length }} slot{{ harness.assets.length !== 1 ? 's' : '' }}</span>
                 <span v-if="harness.fork_count > 0" class="text-xs text-text-muted">
                   · {{ harness.fork_count }} fork{{ harness.fork_count !== 1 ? 's' : '' }}
