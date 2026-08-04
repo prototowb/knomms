@@ -417,7 +417,11 @@ async function loadPage() {
     allAssets.value = assetDetails.filter(Boolean) as AssetOut[]
 
     availableModels.value = modelsRes.models
-    if (modelsRes.models.length > 0) selectedModel.value = modelsRes.models[0]
+    // Default to a generation model — embedding models (e.g. nomic-embed-text)
+    // are valid Ollama tags but produce garbage through /api/generate.
+    const generationModels = modelsRes.models.filter(m => !/embed/i.test(m))
+    const preferred = generationModels[0] ?? modelsRes.models[0]
+    if (preferred) selectedModel.value = preferred
     deprecatedModels.value = deprecatedRes.deprecated
   } catch {
     pageError.value = 'Harness not found or you do not have access.'
