@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ middleware: 'auth' })
+
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 
@@ -13,6 +15,8 @@ interface LearningPathSummary {
   status: string
   version: number
   concept_count: number
+  learned_count: number
+  completion_pct: number
   created_at: string
 }
 
@@ -152,7 +156,7 @@ onMounted(fetchPaths)
             <div class="flex-1 min-w-0">
               <p class="font-medium text-text-primary text-sm truncate">{{ p.learning_goal }}</p>
               <p class="text-xs text-text-muted mt-1">
-                {{ p.concept_count }} concept{{ p.concept_count !== 1 ? 's' : '' }} · v{{ p.version }}
+                {{ p.concept_count }} concept{{ p.concept_count !== 1 ? 's' : '' }} · v{{ p.version }}<template v-if="p.learned_count > 0"> · <span class="text-grounded font-medium">{{ Math.round(p.completion_pct * 100) }}% learned</span></template>
               </p>
             </div>
             <span

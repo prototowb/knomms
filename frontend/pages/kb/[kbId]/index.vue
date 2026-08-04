@@ -45,7 +45,44 @@ interface SourceOut {
   id: string; type: string; title: string; ingestion_status: string; created_at: string
 }
 
-const activeTab = ref<'query' | 'sources'>('query')
+const activeTab = ref<'query' | 'search' | 'sources'>('query')
+
+// ── KB search (KC-051) ──────────────────────────────────────────────────────
+
+interface ChunkSearchResult {
+  chunk_id: string
+  source_id: string
+  source_title: string
+  source_type: string
+  locator: string
+  text: string
+  score: number
+}
+
+const kbSearchQuery = ref('')
+const kbSearchMode = ref<'semantic' | 'keyword'>('semantic')
+const kbSearchResults = ref<ChunkSearchResult[]>([])
+const kbSearching = ref(false)
+const kbSearched = ref(false)
+const kbSearchError = ref<string | null>(null)
+
+async function runKbSearch() {
+  const q = kbSearchQuery.value.trim()
+  if (q.length < 2 || kbSearching.value) return
+  kbSearching.value = true
+  kbSearchError.value = null
+  try {
+    kbSearchResults.value = await $fetch<ChunkSearchResult[]>(`/api/kb/${kbId}/search`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+      query: { q, mode: kbSearchMode.value, limit: 10 },
+    })
+    kbSearched.value = true
+  } catch {
+    kbSearchError.value = 'Search failed — is the KB indexed yet?'
+  } finally {
+    kbSearching.value = false
+  }
+}
 const sources = ref<SourceOut[]>([])
 const sourcesLoading = ref(false)
 const urlInput = ref('')
@@ -201,7 +238,7 @@ onUnmounted(stopPolling)
 
         <div class="flex gap-0">
           <button
-            v-for="tab in (['query', 'sources'] as const)"
+            v-for="tab in (['query', 'search', 'sources'] as const)"
             :key="tab"
             class="px-4 py-2 text-sm border-b-2 transition-colors"
             :class="activeTab === tab
@@ -209,7 +246,7 @@ onUnmounted(stopPolling)
               : 'border-transparent text-text-muted hover:text-text-secondary'"
             @click="activeTab = tab"
           >
-            {{ tab === 'query' ? 'Ask' : `Sources (${sources.length})` }}
+            {{ tab === 'query' ? 'Ask' : tab === 'search' ? 'Search' : `Sources (${sources.length})` }}
           </button>
         </div>
       </div>
@@ -240,6 +277,60 @@ onUnmounted(stopPolling)
             {{ isStreaming ? 'Thinking…' : 'Ask' }}
           </button>
         </form>
+      </div>
+
+      <!-- Search tab (KC-051) -->
+      <div v-show="activeTab === 'search'" class="flex flex-col flex-1 min-h-0 p-5">
+        <form class="flex gap-3 mb-4" @submit.prevent="runKbSearch">
+          <input
+            v-model="kbSearchQuery"
+            type="text"
+            :placeholder="kbSearchMode === 'semantic' ? 'Search this KB\'s sources by meaning…' : 'Search this KB\'s sources by keyword…'"
+            :disabled="kbSearching"
+            class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
+          />
+          <select
+            v-model="kbSearchMode"
+            :disabled="kbSearching"
+            class="border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary bg-surface focus:outline-none focus:border-accent disabled:opacity-50"
+          >
+            <option value="semantic">Semantic</option>
+            <option value="keyword">Keyword</option>
+          </select>
+          <button
+            type="submit"
+            :disabled="kbSearching || kbSearchQuery.trim().length < 2"
+            class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+          >
+            {{ kbSearching ? 'Searching…' : 'Search' }}
+          </button>
+        </form>
+
+        <div class="flex-1 overflow-y-auto">
+          <p v-if="kbSearchError" class="text-warning text-sm">{{ kbSearchError }}</p>
+          <p v-else-if="!kbSearched" class="text-text-muted text-sm">
+            Find passages by meaning — results come from this KB's indexed chunks, with source attribution.
+          </p>
+          <p v-else-if="kbSearchResults.length === 0" class="text-text-muted text-sm">
+            No matching passages. Try different wording, or check the Sources tab that ingestion has completed.
+          </p>
+          <ul v-else class="space-y-3">
+            <li
+              v-for="r in kbSearchResults"
+              :key="r.chunk_id"
+              class="rounded-lg border border-grounded/20 bg-grounded-light p-4"
+            >
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <p class="text-xs font-medium text-text-primary truncate">
+                  {{ r.source_title }}
+                  <span class="text-text-muted font-normal ml-1">({{ r.source_type.replace('_', ' ') }})</span>
+                </p>
+                <p class="text-xs font-mono text-grounded shrink-0">{{ r.locator }}</p>
+              </div>
+              <p class="text-xs text-text-secondary leading-5 whitespace-pre-wrap break-words">{{ r.text }}</p>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- Sources tab -->

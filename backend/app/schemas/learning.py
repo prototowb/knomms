@@ -46,6 +46,7 @@ class LearningPathOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     concepts: list[PathConceptOut] = []
+    learned_concept_ids: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -57,9 +58,25 @@ class LearningPathSummary(BaseModel):
     status: str
     version: int
     concept_count: int = 0
+    learned_count: int = 0
+    completion_pct: float = 0.0
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConceptNoteOut(BaseModel):
+    id: str
+    concept_id: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UpsertNoteRequest(BaseModel):
+    body: str
 
 
 class CreateLearningPathRequest(BaseModel):

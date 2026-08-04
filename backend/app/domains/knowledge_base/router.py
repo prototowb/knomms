@@ -8,7 +8,7 @@ from app.deps.db import get_db
 from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.source import Source
 from app.models.user import User
-from app.schemas.knowledge_base import KnowledgeBaseOut
+from app.schemas.knowledge_base import ChunkSearchResult, KnowledgeBaseOut
 from app.schemas.source import SourceStatusOut
 
 router = APIRouter(prefix="/kbs", tags=["knowledge-bases"])
@@ -59,6 +59,75 @@ async def list_kb_sources(
         .limit(limit)
     )
     return [SourceStatusOut.model_validate(s) for s in result.scalars().all()]
+
+
+@router.get(
+    "/{kb_id}/search",
+    response_model=list[ChunkSearchResult],
+    summary="Search within a KB's sources — semantic (pgvector) or keyword (FTS)",
+)
+async def search_kb(
+    kb_id: str,
+    q: str = Query(min_length=2),
+    mode: str = Query("semantic", pattern="^(semantic|keyword)$"),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ChunkSearchResult]:
+    svc = KnowledgeBaseService(db)
+    kb = await svc.get_by_id(kb_id, user)
+    if kb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+
+    if mode == "keyword":
+        from sqlalchemy import func
+
+        from app.models.chunk import Chunk
+
+        tsvector = func.to_tsvector("english", Chunk.text)
+        tsquery = func.plainto_tsquery("english", q)
+        result = await db.execute(
+            select(Chunk, func.ts_rank(tsvector, tsquery).label("rank"))
+            .where(
+                Chunk.vector_namespace == kb.vector_namespace,
+                tsvector.op("@@")(tsquery),
+            )
+            .order_by(func.ts_rank(tsvector, tsquery).desc())
+            .limit(limit)
+        )
+        rows = result.all()
+        # score is ts_rank here (higher = better), cosine distance in
+        # semantic mode (lower = better) — clients sort by list order.
+        hits = [
+            (chunk.id, chunk.source_id, chunk.locator, chunk.text, float(rank))
+            for chunk, rank in rows
+        ]
+    else:
+        from app.domains.generation.ollama import embed
+        from app.domains.retrieval.service import RetrievalService
+
+        query_vec = (await embed([q]))[0]
+        chunks = await RetrievalService(db).retrieve(query_vec, kb.vector_namespace, top_k=limit)
+        hits = [(c.chunk_id, c.source_id, c.locator, c.text, c.score) for c in chunks]
+
+    source_ids = {h[1] for h in hits}
+    sources = {}
+    if source_ids:
+        result = await db.execute(select(Source).where(Source.id.in_(source_ids)))
+        sources = {s.id: s for s in result.scalars().all()}
+
+    return [
+        ChunkSearchResult(
+            chunk_id=chunk_id,
+            source_id=source_id,
+            source_title=sources[source_id].title if source_id in sources else "(unknown source)",
+            source_type=sources[source_id].type if source_id in sources else "unknown",
+            locator=locator,
+            text=text,
+            score=score,
+        )
+        for chunk_id, source_id, locator, text, score in hits
+    ]
 
 
 @router.post("", response_model=KnowledgeBaseOut, status_code=status.HTTP_201_CREATED)

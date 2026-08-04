@@ -29,15 +29,15 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.3.0 released; backlog ideas next"
+project_phase: "Active development — v0.4.0 released"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.3.0 — Tier 2 (complete)"
-last_release: "v0.3.0 (2026-08-04)"
+current_sprint: "v0.4.0 — Learner layer + KB search (complete)"
+last_release: "v0.4.0 (2026-08-04)"
 ticket_prefix: "KC"
-next_ticket: "KC-047"
+next_ticket: "KC-053"
 ```
 
 ## Architecture Summary
@@ -53,7 +53,25 @@ next_ticket: "KC-047"
 
 ---
 
-## 🎫 Active — v0.3.0: Tier 2 — AI Assets hardening + discovery (KC-030, KC-041–046)
+## ✅ v0.4.0: Learner layer + KB search (KC-047–052) — released 2026-08-04
+
+*v0.3.0 shipped 2026-08-04. This sprint delivers the June backlog: private concept notes, learner progress, KB search, plus explore/auth polish. Notes: free-text MC input already shipped (f0fc1ed); "KBs tab on explore" deferred — it needs a `visibility` column + public listing endpoint (a pillar, not a ticket).*
+
+### Sprint order (implement in sequence)
+
+- ~~**KC-047**~~ ✅ backend+frontend: private concept notes — Migration 009 `concept_notes(user_id, concept_id UNIQUE, body)`; `GET/PUT /learning-paths/{pid}/concepts/{cid}/note`; private note card on the concept view
+- ~~**KC-048**~~ ✅ backend+frontend: learner progress — Migration 010 `concept_progress(user_id, concept_id UNIQUE, learned_at)`; `POST/DELETE .../concepts/{cid}/learned`; `completion_pct` on `LearningPathSummary`; learner "Mark learned" toggle (distinct from the instructor ✓); scope: path owner only
+- ~~**KC-049**~~ ✅ frontend: Assets tab on `/explore` — third tab against the existing public `GET /assets?q=` FTS
+- ~~**KC-050**~~ ✅ frontend: auth-guard learning pages — `middleware: 'auth'` on `learn/[pathId]` and `kb/[kbId]/learn` (currently silent-fail when logged out)
+- ~~**KC-051**~~ ✅ backend+frontend: KB semantic search — `GET /kbs/{kb_id}/search?q=` reusing `RetrievalService.retrieve`; result cards with Source title/type attribution; Search tab on the KB workspace
+- ~~**KC-052**~~ ✅ backend: KB keyword search — Migration 011 GIN index on `chunks.text`; `mode=keyword|semantic` param on the search endpoint
+
+### Deferred (design first, do not start)
+
+- KBs tab on explore — requires `knowledge_bases.visibility`, public listing endpoint, privacy review
+- Distractor rehabilitation — distractors are generated + stored but rendered nowhere since free-text input shipped; needs an answer-mode design decision
+
+## ✅ v0.3.0: Tier 2 — AI Assets hardening + discovery (KC-030, KC-041–046)
 
 *v0.2.0 shipped 2026-08-04. Tier 2: harden what shipped (eval grading tests, EvalCase API, UX fixes), then the deferred discovery features. Branching convention unchanged: feature branches from `development`, local merge, push `development`; PR to `main` for releases.*
 
@@ -182,6 +200,8 @@ next_ticket: "KC-047"
 ---
 
 ## Recent Updates
+
+- 2026-08-04: v0.4.0 released — KC-047–052 (private notes, learner progress, explore assets tab, auth guards, KB semantic+keyword search) implemented and live-verified same day; migrations 009–011
 
 - 2026-08-04: v0.3.0 released — KC-046 + KC-030 complete and live-verified (board curation, async summary); full Tier 2 sprint done in one day; 104 backend tests
 - 2026-08-04: KC-041–045 complete and live-verified (104 backend tests; API + Playwright) — eval grading tests, EvalCase API, case viewer/composer UI, generation-model default, fork-compare view; KC-046 + KC-030 remain in v0.3.0

@@ -32,8 +32,22 @@ interface HarnessSummary {
   asset_count: number
 }
 
+interface AssetSummary {
+  id: string
+  title: string
+  description: string
+  asset_type: string
+  visibility: string
+  fork_count: number
+  created_at: string
+  owner: CuratorOut | null
+  version_count: number
+}
+
+const auth = useAuthStore()
+
 // Active tab
-const activeTab = ref<'boards' | 'harnesses'>('boards')
+const activeTab = ref<'boards' | 'harnesses' | 'assets'>('boards')
 
 // Boards tab
 const { data: trending, pending: trendingPending } = await useFetch<BoardSummary[]>(
@@ -88,9 +102,41 @@ async function loadHarnesses() {
   }
 }
 
-function switchTab(tab: 'boards' | 'harnesses') {
+// Assets tab (KC-049)
+const assets = ref<AssetSummary[]>([])
+const assetsLoading = ref(false)
+const assetsLoaded = ref(false)
+const assetQuery = ref('')
+
+const assetTypeLabel: Record<string, string> = {
+  system_prompt: 'System Prompt',
+  few_shot_set: 'Few-Shot Set',
+  eval_suite: 'Eval Suite',
+  chain_spec: 'Chain Spec',
+  tool_spec: 'Tool Spec',
+}
+
+async function loadAssets(force = false) {
+  if ((assetsLoaded.value && !force) || assetsLoading.value) return
+  assetsLoading.value = true
+  try {
+    const q = assetQuery.value.trim()
+    // Listing requires auth (visibility is user-relative); logged-out
+    // visitors get an empty grid, same as the harnesses tab.
+    assets.value = await $fetch<AssetSummary[]>('/api/assets', {
+      query: { visibility: 'public', ...(q ? { q } : {}) },
+      headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
+    }).catch(() => [])
+  } finally {
+    assetsLoading.value = false
+    assetsLoaded.value = true
+  }
+}
+
+function switchTab(tab: 'boards' | 'harnesses' | 'assets') {
   activeTab.value = tab
   if (tab === 'harnesses') loadHarnesses()
+  if (tab === 'assets') loadAssets()
 }
 
 function formatDate(iso: string) {
@@ -127,6 +173,15 @@ function formatDate(iso: string) {
         @click="switchTab('harnesses')"
       >
         Harnesses
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px"
+        :class="activeTab === 'assets'
+          ? 'border-accent text-text-primary'
+          : 'border-transparent text-text-muted hover:text-text-secondary'"
+        @click="switchTab('assets')"
+      >
+        AI Assets
       </button>
     </div>
 
@@ -252,6 +307,69 @@ function formatDate(iso: string) {
       <div v-else class="text-center py-16 text-text-muted">
         <p class="text-sm">No public harnesses yet.</p>
         <NuxtLink to="/harnesses" class="mt-2 text-sm text-accent hover:underline block">Go to your harnesses</NuxtLink>
+      </div>
+    </template>
+
+    <!-- AI Assets tab (KC-049) -->
+    <template v-if="activeTab === 'assets'">
+      <!-- FTS search -->
+      <form class="flex gap-2 mb-6" @submit.prevent="loadAssets(true)">
+        <input
+          v-model="assetQuery"
+          type="text"
+          placeholder="Search public assets — title, description, rationale…"
+          class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent"
+        />
+        <button
+          type="submit"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+        >
+          Search
+        </button>
+      </form>
+
+      <div v-if="assetsLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div v-for="n in 6" :key="n" class="rounded-xl border border-border p-5 animate-pulse">
+          <div class="h-4 bg-surface-secondary rounded w-3/4 mb-3" />
+          <div class="h-3 bg-surface-secondary rounded w-full mb-2" />
+          <div class="h-3 bg-surface-secondary rounded w-2/3" />
+        </div>
+      </div>
+
+      <div v-else-if="assets.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <NuxtLink
+          v-for="a in assets"
+          :key="a.id"
+          :to="`/assets/${a.id}`"
+          class="group block rounded-xl border border-border bg-surface p-5 hover:border-accent/40 hover:shadow-sm transition-all"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <h2 class="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2">
+              {{ a.title }}
+            </h2>
+            <span class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium bg-border text-text-secondary">
+              {{ assetTypeLabel[a.asset_type] ?? a.asset_type }}
+            </span>
+          </div>
+          <p v-if="a.description" class="text-xs text-text-secondary leading-5 line-clamp-3 mb-3">
+            {{ a.description }}
+          </p>
+          <div class="flex items-center gap-3 text-xs text-text-muted">
+            <span>{{ a.version_count }} version{{ a.version_count !== 1 ? 's' : '' }}</span>
+            <span v-if="a.fork_count > 0">· {{ a.fork_count }} fork{{ a.fork_count !== 1 ? 's' : '' }}</span>
+            <span v-if="a.owner">· @{{ a.owner.handle }}</span>
+            <span>· {{ formatDate(a.created_at) }}</span>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <div v-else class="text-center py-16 text-text-muted">
+        <p class="text-sm">
+          {{ auth.isLoggedIn ? 'No public AI assets yet.' : 'Log in to browse public AI assets.' }}
+        </p>
+        <NuxtLink :to="auth.isLoggedIn ? '/assets' : '/login'" class="mt-2 text-sm text-accent hover:underline block">
+          {{ auth.isLoggedIn ? 'Go to your assets' : 'Log in' }}
+        </NuxtLink>
       </div>
     </template>
   </div>

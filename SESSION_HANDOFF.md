@@ -1,10 +1,10 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-04  
-**State:** v0.3.0 released — v0.2.0 (KC-032–040) and Tier 2 (KC-030, KC-041–046) both shipped and live-verified  
-**Branch:** `development` merged to `main` via PR; `main` at v0.3.0  
+**State:** v0.4.0 released — three releases today (v0.2.0, v0.3.0, v0.4.0); KC-032–052 + KC-030 all shipped and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.4.0  
 **Tests:** 104/104 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** ALL of KC-032–046 + KC-030 verified on Colima (API + browser/Playwright, 2026-08-04). Migration head: 008.  
+**Live verification:** everything through KC-052 verified on Colima (API + browser/Playwright, 2026-08-04). Migration head: 011.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
 > ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
@@ -168,12 +168,13 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-**v0.3.0 released 2026-08-04** — the entire Tier 2 sprint (KC-030, KC-041–046) implemented, live-verified, and shipped the same day as v0.2.0. 104 backend tests, 0 TS errors, all features exercised on Colima via API + Playwright.
+**v0.4.0 released 2026-08-04** — the June backlog shipped: private concept notes, learner progress, KB semantic+keyword search, explore assets tab, learning-page auth guards (KC-047–052). Migration head is now **011**.
 
-Candidates for the next sprint (backlog ideas, not yet ticketed):
-- Progress tracking, explore improvements, user annotations, KB search
-- Free-text MC input (grading already supports it — UI work only)
-- Migration head is now **008** (`summary_status` on collections)
+Candidates for the next sprint (not yet ticketed):
+- KBs tab on explore — needs `knowledge_bases.visibility` + public listing endpoint (deferred from v0.4.0 with rationale in PROJECT_STATUS)
+- Distractor rehabilitation — generated + stored but rendered nowhere since free-text answers shipped
+- Asset visibility update endpoint — there is no API to change an asset's visibility after creation (v0.4.0 verification had to flip it via SQL)
+- Multi-learner progress — `concept_progress` is per-user but paths are owner-visible only; opening paths up needs a visibility model
 
 New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
 

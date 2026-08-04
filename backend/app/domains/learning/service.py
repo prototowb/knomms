@@ -10,7 +10,13 @@ from sqlalchemy.orm import selectinload
 
 from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.chunk import Chunk
-from app.models.learning import AssessmentItem, LearningPath, PathConcept
+from app.models.learning import (
+    AssessmentItem,
+    ConceptNote,
+    ConceptProgress,
+    LearningPath,
+    PathConcept,
+)
 from app.models.user import User
 
 
@@ -93,6 +99,58 @@ class LearningService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def _get_owned_concept_id(self, path_id: str, concept_id: str, user: User) -> str:
+        """Authz helper: 404 unless the concept belongs to a path the user owns."""
+        path = await self.get_path(path_id, user)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+        if not any(c.id == concept_id for c in path.concepts):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Concept not found")
+        return concept_id
+
+    async def set_learned(self, path_id: str, concept_id: str, user: User, learned: bool) -> bool:
+        """Idempotently mark/unmark a concept as learned for this user."""
+        await self._get_owned_concept_id(path_id, concept_id, user)
+        stmt = select(ConceptProgress).where(
+            ConceptProgress.user_id == user.id, ConceptProgress.concept_id == concept_id
+        )
+        existing = (await self.db.execute(stmt)).scalar_one_or_none()
+        if learned and existing is None:
+            self.db.add(ConceptProgress(user_id=user.id, concept_id=concept_id))
+            await self.db.commit()
+        elif not learned and existing is not None:
+            await self.db.delete(existing)
+            await self.db.commit()
+        return learned
+
+    async def learned_concept_ids(self, user: User, concept_ids: list[str]) -> set[str]:
+        """Which of the given concepts has this user marked as learned."""
+        if not concept_ids:
+            return set()
+        stmt = select(ConceptProgress.concept_id).where(
+            ConceptProgress.user_id == user.id,
+            ConceptProgress.concept_id.in_(concept_ids),
+        )
+        return set((await self.db.execute(stmt)).scalars().all())
+
+    async def get_note(self, path_id: str, concept_id: str, user: User) -> ConceptNote | None:
+        await self._get_owned_concept_id(path_id, concept_id, user)
+        stmt = select(ConceptNote).where(
+            ConceptNote.user_id == user.id, ConceptNote.concept_id == concept_id
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def upsert_note(self, path_id: str, concept_id: str, user: User, body: str) -> ConceptNote:
+        note = await self.get_note(path_id, concept_id, user)
+        if note is None:
+            note = ConceptNote(user_id=user.id, concept_id=concept_id, body=body)
+            self.db.add(note)
+        else:
+            note.body = body
+        await self.db.commit()
+        await self.db.refresh(note)
+        return note
 
     async def update_concept(
         self,

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+definePageMeta({ middleware: 'auth' })
+
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 
 const route = useRoute()
@@ -56,6 +58,7 @@ interface LearningPath {
   status: string
   version: number
   concepts: PathConcept[]
+  learned_concept_ids: string[]
 }
 
 interface AttemptResult {
@@ -77,6 +80,82 @@ const submitting = ref<Record<string, boolean>>({})
 
 // Instructor panel
 const showPassages = ref<Record<string, boolean>>({})
+
+// ── Private notes (KC-047) ──────────────────────────────────────────────────
+
+const noteBodies = ref<Record<string, string>>({})
+const noteLoaded = ref<Record<string, boolean>>({})
+const noteSaving = ref<Record<string, boolean>>({})
+const noteSaved = ref<Record<string, boolean>>({})
+
+async function loadNote(conceptId: string) {
+  if (noteLoaded.value[conceptId]) return
+  noteLoaded.value[conceptId] = true
+  try {
+    const note = await $fetch<{ body: string } | null>(
+      `/api/learning-paths/${pathId}/concepts/${conceptId}/note`,
+      { headers: { Authorization: `Bearer ${auth.token}` } },
+    )
+    if (note?.body) noteBodies.value[conceptId] = note.body
+  } catch {
+    noteLoaded.value[conceptId] = false
+  }
+}
+
+async function saveNote(conceptId: string) {
+  if (noteSaving.value[conceptId]) return
+  noteSaving.value[conceptId] = true
+  try {
+    await $fetch(`/api/learning-paths/${pathId}/concepts/${conceptId}/note`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { body: noteBodies.value[conceptId] ?? '' },
+    })
+    noteSaved.value[conceptId] = true
+    setTimeout(() => { noteSaved.value[conceptId] = false }, 2000)
+  } catch {
+    // keep the draft in the textarea; the user can retry
+  } finally {
+    noteSaving.value[conceptId] = false
+  }
+}
+
+watch(
+  () => path.value?.concepts[activeConcept.value]?.id,
+  (id) => { if (id) loadNote(id) },
+  { immediate: true },
+)
+
+// ── Learner progress (KC-048) ───────────────────────────────────────────────
+
+const learnedIds = ref<Set<string>>(new Set())
+const learnedSaving = ref<Record<string, boolean>>({})
+
+watch(
+  () => path.value?.learned_concept_ids,
+  (ids) => { if (ids) learnedIds.value = new Set(ids) },
+  { immediate: true },
+)
+
+async function toggleLearned(conceptId: string) {
+  if (learnedSaving.value[conceptId]) return
+  const wasLearned = learnedIds.value.has(conceptId)
+  learnedSaving.value[conceptId] = true
+  try {
+    await $fetch(`/api/learning-paths/${pathId}/concepts/${conceptId}/learned`, {
+      method: wasLearned ? 'DELETE' : 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    const next = new Set(learnedIds.value)
+    if (wasLearned) next.delete(conceptId)
+    else next.add(conceptId)
+    learnedIds.value = next
+  } catch {
+    // leave state unchanged; the user can retry
+  } finally {
+    learnedSaving.value[conceptId] = false
+  }
+}
 
 async function fetchPath() {
   loading.value = true
@@ -284,6 +363,16 @@ onUnmounted(_clearPoll)
                 </div>
                 <div class="flex gap-2 shrink-0">
                   <button
+                    :disabled="learnedSaving[concept.id]"
+                    class="text-xs px-3 py-1.5 rounded-full font-medium transition-colors disabled:opacity-50"
+                    :class="learnedIds.has(concept.id)
+                      ? 'bg-grounded text-white hover:bg-green-700'
+                      : 'border border-border text-text-secondary hover:bg-surface-secondary'"
+                    @click="toggleLearned(concept.id)"
+                  >
+                    {{ learnedIds.has(concept.id) ? '✓ Learned' : 'Mark learned' }}
+                  </button>
+                  <button
                     v-if="concept.status !== 'accepted'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-grounded text-grounded hover:bg-grounded/10 transition-colors"
                     @click="updateConceptStatus(concept, 'accepted')"
@@ -313,6 +402,29 @@ onUnmounted(_clearPoll)
                   class="font-prose text-text-primary text-sm leading-7"
                   v-html="highlightCitations(concept.explanation_text)"
                 />
+              </div>
+
+              <!-- Private note (KC-047) -->
+              <div class="rounded-xl border border-border bg-surface p-4 mb-5">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider">My private note</p>
+                  <span v-if="noteSaved[concept.id]" class="text-xs text-grounded">Saved</span>
+                </div>
+                <textarea
+                  v-model="noteBodies[concept.id]"
+                  rows="3"
+                  placeholder="Only you can see this note."
+                  class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent resize-none"
+                />
+                <div class="flex justify-end mt-2">
+                  <button
+                    :disabled="noteSaving[concept.id]"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-surface-secondary disabled:opacity-50 transition-colors"
+                    @click="saveNote(concept.id)"
+                  >
+                    {{ noteSaving[concept.id] ? 'Saving…' : 'Save note' }}
+                  </button>
+                </div>
               </div>
 
               <!-- Source passages toggle -->
