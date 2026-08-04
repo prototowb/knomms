@@ -29,13 +29,13 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.2.0 released; Tier 2 sprint next"
+project_phase: "Active development — v0.3.0 released; backlog ideas next"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.2.0 — AI Assets Pillar (complete)"
-last_release: "v0.2.0 (2026-08-04)"
+current_sprint: "v0.3.0 — Tier 2 (complete)"
+last_release: "v0.3.0 (2026-08-04)"
 ticket_prefix: "KC"
 next_ticket: "KC-047"
 ```
@@ -64,8 +64,8 @@ next_ticket: "KC-047"
 - ~~**KC-043**~~ ✅ frontend: eval case table per version + owner-only new-version composer (prefills content+cases from selected version); compose-page 0-case note links to the asset; live-verified via Playwright (2026-08-04)
 - ~~**KC-044**~~ ✅ frontend: eval model default skips embedding models (`/embed/i` filter); live-verified (2026-08-04)
 - ~~**KC-045**~~ ✅ fork-compare — `GET /harnesses/{id}/eval` run listing (owner-only); compose page Fork comparison section: pass-rate tiles, delta, per-case join when suite versions match; live-verified (2026-08-04)
-- **KC-046** asset board curation — projected `prompt_asset` Sources as CollectionItems on boards
-- **KC-030** async board summary — worker-based, boards now have multiple sources
+- ~~**KC-046**~~ ✅ asset board curation — `POST /boards/{id}/assets` projects a version as a `prompt_asset` CollectionItem (idempotent re-add reuses the Source); Add-to-board modal on asset detail; live-verified incl. bugfix for MissingGreenlet in the re-add path (2026-08-04)
+- ~~**KC-030**~~ ✅ async board summary — Migration 008 `summary_status`; `board.summary.jobs` stream + worker handler; 202/409/422; board page 4s poll; owner GET fix for private boards; live-verified (~25s generation on CPU) (2026-08-04)
 
 ## ✅ v0.2.0: AI Assets Pillar (KC-032–040) — released 2026-08-04
 
@@ -183,6 +183,7 @@ next_ticket: "KC-047"
 
 ## Recent Updates
 
+- 2026-08-04: v0.3.0 released — KC-046 + KC-030 complete and live-verified (board curation, async summary); full Tier 2 sprint done in one day; 104 backend tests
 - 2026-08-04: KC-041–045 complete and live-verified (104 backend tests; API + Playwright) — eval grading tests, EvalCase API, case viewer/composer UI, generation-model default, fork-compare view; KC-046 + KC-030 remain in v0.3.0
 - 2026-08-04: v0.2.0 released — KC-035/038/039 live-verified on Colima (API + Playwright browser run); stale mid-sprint Docker images rebuilt; CHANGELOG updated; PR to main + tag v0.2.0
 - 2026-06-11: KC-039 — drift alert + model-pin badge complete; all KC-032–040 done; v0.2.0 AI Assets Pillar feature-complete

@@ -4,6 +4,33 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.3.0] — 2026-08-04
+
+Tier 2 — AI Assets hardening + discovery integration (KC-030, KC-041–046). All features live-verified on Colima (API + Playwright) the same day.
+
+### Features
+
+#### AI Assets hardening
+- Eval cases are API- and UI-manageable: `GET /assets/{id}/versions/{num}/cases`; `POST /assets/{id}/versions` accepts `eval_cases[]` committed atomically with the version (409 when content dedups to an existing version — cases stay immutable per version); 422 validation for blank fields, unknown strategies, and non-compiling regex patterns
+- Asset detail: eval case table per version + owner-only "New version" composer that prefills content and cases from the selected version
+- Harness fork comparison: `GET /harnesses/{id}/eval` run listing (owner-only); compose page shows latest fork vs. parent pass rates, delta, and a per-case PASS/FAIL join when both runs used the same eval suite version
+- Eval model selector defaults to a generation model (embedding models excluded from the default pick)
+- 18 unit tests for eval grading (`_normalize` + `_grade`, all four strategies)
+
+#### Discovery integration
+- Asset board curation: `POST /boards/{id}/assets` projects an asset version onto a board as a `prompt_asset` CollectionItem (lane + curator note, ingestion into the board's KB); re-adding an already-projected version reuses the existing Source; "Add to board" modal on asset detail
+- Async board summary (KC-030): `POST /boards/{id}/generate-summary` returns 202 and enqueues `board.summary.jobs`; new `summary_status` column (Migration 008); board page polls every 4 s and resumes polling after reload; 409 while a run is in flight, 422 on empty boards
+- `GET /boards/{id}` now returns the owner's own non-public boards when authenticated (fixes a pre-existing private-board 404)
+
+### Infrastructure
+- Server BFF routes use explicit `ofetch` — Nitro's typed-router `$fetch` overload hit TS "excessive stack depth" once the route count grew
+
+### Test Coverage
+- 104 backend tests (pytest) — +25 over v0.2.0
+- 0 TypeScript errors (vue-tsc)
+
+---
+
 ## [0.2.0] — 2026-08-04
 
 AI Assets Pillar — the fourth platform layer: prompt/asset versioning, harness composition, and local eval runs for practitioner teams building with AI. All tickets KC-032–040. Live-verified end-to-end on Colima (API + browser) on 2026-08-04.
