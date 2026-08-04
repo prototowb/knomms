@@ -22,6 +22,9 @@ class KnowledgeBase(Base):
     owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    visibility: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="private"
+    )  # private | team | public
     # Namespace used for pgvector RLS isolation — format: kb:{id}
     vector_namespace: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     embedding_model_id: Mapped[str] = mapped_column(String(64), nullable=False, default="nomic-embed-text-v1.5")

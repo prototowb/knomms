@@ -1,12 +1,15 @@
-"""KnowledgeBase service — M1 scope: get-or-create the default KB for a user."""
+"""KnowledgeBase service — CRUD, ownership, and readable-access lookups."""
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
+
+VISIBILITIES = frozenset({"private", "team", "public"})
 
 
 class KnowledgeBaseService:
@@ -37,13 +40,16 @@ class KnowledgeBaseService:
         await self.db.flush()
         return kb
 
-    async def create(self, user: User, title: str) -> KnowledgeBase:
+    async def create(self, user: User, title: str, visibility: str = "private") -> KnowledgeBase:
         """Always create a new KB with a fresh, isolated vector_namespace."""
+        if visibility not in VISIBILITIES:
+            visibility = "private"
         kb_id = str(uuid.uuid4())
         kb = KnowledgeBase(
             id=kb_id,
             owner_user_id=user.id,
             title=title,
+            visibility=visibility,
             vector_namespace=f"kb:{kb_id}",
             index_status="building",
         )
@@ -55,15 +61,48 @@ class KnowledgeBaseService:
         result = await self.db.execute(
             select(KnowledgeBase)
             .where(KnowledgeBase.owner_user_id == user.id)
+            .options(selectinload(KnowledgeBase.owner))
             .order_by(KnowledgeBase.created_at.desc())
         )
         return list(result.scalars().all())
 
     async def get_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
+        """Owner-only lookup — the guard for every WRITE path (ingest, project,
+        create learning path). Do not relax; reads go through get_readable_by_id."""
         result = await self.db.execute(
-            select(KnowledgeBase).where(
+            select(KnowledgeBase)
+            .where(
                 KnowledgeBase.id == kb_id,
                 KnowledgeBase.owner_user_id == user.id,  # ownership check
             )
+            .options(selectinload(KnowledgeBase.owner))
         )
         return result.scalar_one_or_none()
+
+    async def get_readable_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
+        """Read lookup: the owner, or any registered user when visibility is
+        team/public (OQ-3: team = all users on this instance)."""
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(
+                KnowledgeBase.id == kb_id,
+                or_(
+                    KnowledgeBase.owner_user_id == user.id,
+                    KnowledgeBase.visibility.in_(("team", "public")),
+                ),
+            )
+            .options(selectinload(KnowledgeBase.owner))
+        )
+        return result.scalar_one_or_none()
+
+    async def list_public(self, limit: int = 50, offset: int = 0) -> list[KnowledgeBase]:
+        """Public KBs for explore — no auth required."""
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(KnowledgeBase.visibility == "public")
+            .options(selectinload(KnowledgeBase.owner))
+            .order_by(KnowledgeBase.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())

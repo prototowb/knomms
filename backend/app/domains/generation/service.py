@@ -35,10 +35,9 @@ class GenerationService:
         query: str,
         user: User,
     ) -> AsyncIterator[str]:
-        # Authorize: ownership check (not JWT namespaces — those aren't populated
-        # for KBs created post-login in M1)
+        # Authorize: readable KB (owner, or team/public for any registered user)
         kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.get_by_id(kb_id, user)
+        kb = await kb_svc.get_readable_by_id(kb_id, user)
         if kb is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 
