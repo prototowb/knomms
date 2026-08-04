@@ -119,7 +119,35 @@ async def get_learning_path(
     out.learned_concept_ids = sorted(
         await svc.learned_concept_ids(user, [c.id for c in path.concepts])
     )
+    _shape_assessment_items(out, is_owner=path.user_id == user.id, user_id=user.id)
     return out
+
+
+def _shape_assessment_items(out: LearningPathOut, *, is_owner: bool, user_id: str) -> None:
+    """Build MC choices and strip answer keys from learner responses (KC-055).
+
+    Choices = correct answer + distractors, shuffled deterministically per
+    (item, user) so a refresh keeps the order; ids are post-shuffle indexes so
+    nothing in the payload identifies the correct option. Grading stays
+    server-side and text-based, so choice clicks submit the choice text.
+    """
+    import hashlib
+    import random
+
+    from app.schemas.learning import ChoiceOut
+
+    for concept in out.concepts:
+        for item in concept.assessment_items:
+            if item.correct_answer and item.distractors:
+                texts = [item.correct_answer] + [d.text for d in item.distractors]
+                seed = int(hashlib.md5(f"{item.id}:{user_id}".encode()).hexdigest(), 16)
+                random.Random(seed).shuffle(texts)
+                item.choices = [ChoiceOut(id=f"c{i}", text=t) for i, t in enumerate(texts)]
+            if not is_owner:
+                # Learners must not receive the answer key or the distractor
+                # list (either identifies the correct choice by elimination).
+                item.correct_answer = None
+                item.distractors = []
 
 
 @router.patch(
