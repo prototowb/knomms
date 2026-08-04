@@ -13,11 +13,31 @@ class CreateAssetRequest(BaseModel):
     visibility: str = "private"
 
 
+class EvalCaseIn(BaseModel):
+    input: str
+    expected_output: str
+    grading_strategy: str = "exact_match"
+    grading_config: dict | None = None
+
+
+class EvalCaseOut(BaseModel):
+    id: str
+    asset_version_id: str
+    input: str
+    expected_output: str
+    grading_strategy: str
+    grading_config: dict | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class AddVersionRequest(BaseModel):
     content: str
     rationale: str = ""
     tags: list[str] = []
     model_pin: str | None = None
+    eval_cases: list[EvalCaseIn] = []
 
 
 class AssetVersionOut(BaseModel):
