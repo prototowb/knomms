@@ -85,6 +85,13 @@ class AddSourceRequest(BaseModel):
     lane: str = ""
 
 
+class AddAssetRequest(BaseModel):
+    asset_id: str
+    version_num: int
+    note: str = ""
+    lane: str = ""
+
+
 class CuratorProfileOut(BaseModel):
     handle: str
     display_name: str
