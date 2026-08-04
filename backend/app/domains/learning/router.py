@@ -9,11 +9,13 @@ from app.models.user import User
 from app.schemas.learning import (
     AttemptRequest,
     AttemptResult,
+    ConceptNoteOut,
     CreateLearningPathRequest,
     LearningPathOut,
     LearningPathSummary,
     PathConceptOut,
     UpdateConceptRequest,
+    UpsertNoteRequest,
 )
 
 router = APIRouter(tags=["learning"])
@@ -125,6 +127,39 @@ async def update_concept(
         instructor_annotation=req.instructor_annotation,
     )
     return PathConceptOut.model_validate(concept)
+
+
+@router.get(
+    "/learning-paths/{path_id}/concepts/{concept_id}/note",
+    response_model=ConceptNoteOut | None,
+    summary="Get the current user's private note on a concept (null if none)",
+)
+async def get_concept_note(
+    path_id: str,
+    concept_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ConceptNoteOut | None:
+    svc = LearningService(db)
+    note = await svc.get_note(path_id, concept_id, user)
+    return ConceptNoteOut.model_validate(note) if note else None
+
+
+@router.put(
+    "/learning-paths/{path_id}/concepts/{concept_id}/note",
+    response_model=ConceptNoteOut,
+    summary="Create or replace the current user's private note on a concept",
+)
+async def upsert_concept_note(
+    path_id: str,
+    concept_id: str,
+    req: UpsertNoteRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ConceptNoteOut:
+    svc = LearningService(db)
+    note = await svc.upsert_note(path_id, concept_id, user, req.body)
+    return ConceptNoteOut.model_validate(note)
 
 
 @router.post(
