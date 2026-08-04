@@ -4,6 +4,22 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.5.1] — 2026-08-04
+
+Sharing follow-ups (KC-058–059) — the two concrete leftovers from v0.5.0's known-limitations list, live-verified on Colima with a second user account.
+
+### Features
+- Board-dedicated KBs now inherit their board's visibility (KC-058): all three KB-creation sites stamp the board's visibility, and `PATCH /boards/{id}` visibility changes propagate to the linked KB in both directions (public→readers gain KB/source/search access; private→404 again)
+
+### Fixes
+- `POST /v1/sources` without a trailing slash no longer 307-redirects through the proxy chain (KC-059) — the route is registered at both path forms, matching the KB router convention
+- Untracked 13 committed `__pycache__` artifacts that produced spurious diffs on every test run
+
+### Test Coverage
+- 104 backend tests (pytest) · 0 TypeScript errors (vue-tsc)
+
+---
+
 ## [0.5.0] — 2026-08-04
 
 Sharing layer (KC-053–057) — knowledge bases become shareable and everything downstream unblocks. Live-verified on Colima with a second user account (cross-user reads, write denials, learner shapes).
