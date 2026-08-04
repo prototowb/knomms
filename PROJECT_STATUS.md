@@ -59,11 +59,11 @@ next_ticket: "KC-047"
 
 ### Sprint order (implement in sequence)
 
-- **KC-041** backend: unit tests for `worker/eval._normalize` + `_grade` — all 4 strategies, regex config/pattern fallback, unknown strategy → False (gap found during v0.2.0 release verification)
-- **KC-042** backend: EvalCase API — `GET /assets/{id}/versions/{num}/cases`; extend `POST /assets/{id}/versions` with optional `eval_cases[]` created atomically with the version (preserves OQ-4 immutability — no update/delete endpoints)
-- **KC-043** frontend: eval case viewer + new-version-with-cases composer on asset detail; compose-page 0-case note links there
-- **KC-044** frontend: model selector prefers a generation model over embedding models as default selection (`nomic-embed-text` gotcha)
-- **KC-045** fork-compare diff view — eval pass rates side-by-side vs. parent harness
+- ~~**KC-041**~~ ✅ backend: 18 unit tests for `worker/eval._normalize` + `_grade` — all 4 strategies, regex config/pattern fallback, unknown strategy → False; live-verified (2026-08-04)
+- ~~**KC-042**~~ ✅ backend: EvalCase API — `GET /assets/{id}/versions/{num}/cases`; `POST /assets/{id}/versions` accepts `eval_cases[]` created atomically; 409 on dedup-with-cases; 422 validation (blank fields, unknown strategy, bad regex); live-verified (2026-08-04)
+- ~~**KC-043**~~ ✅ frontend: eval case table per version + owner-only new-version composer (prefills content+cases from selected version); compose-page 0-case note links to the asset; live-verified via Playwright (2026-08-04)
+- ~~**KC-044**~~ ✅ frontend: eval model default skips embedding models (`/embed/i` filter); live-verified (2026-08-04)
+- ~~**KC-045**~~ ✅ fork-compare — `GET /harnesses/{id}/eval` run listing (owner-only); compose page Fork comparison section: pass-rate tiles, delta, per-case join when suite versions match; live-verified (2026-08-04)
 - **KC-046** asset board curation — projected `prompt_asset` Sources as CollectionItems on boards
 - **KC-030** async board summary — worker-based, boards now have multiple sources
 
@@ -183,6 +183,7 @@ next_ticket: "KC-047"
 
 ## Recent Updates
 
+- 2026-08-04: KC-041–045 complete and live-verified (104 backend tests; API + Playwright) — eval grading tests, EvalCase API, case viewer/composer UI, generation-model default, fork-compare view; KC-046 + KC-030 remain in v0.3.0
 - 2026-08-04: v0.2.0 released — KC-035/038/039 live-verified on Colima (API + Playwright browser run); stale mid-sprint Docker images rebuilt; CHANGELOG updated; PR to main + tag v0.2.0
 - 2026-06-11: KC-039 — drift alert + model-pin badge complete; all KC-032–040 done; v0.2.0 AI Assets Pillar feature-complete
 - 2026-06-10: KC-038 — harness composer + eval UI complete; Harnesses nav + explore tab; next: KC-039 (drift alert + model-pin badge)

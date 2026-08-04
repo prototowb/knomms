@@ -168,15 +168,13 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-v0.2.0 is **released** (2026-08-04) — AI Assets Pillar shipped and live-verified. Next sprint is **Tier 2**:
+v0.2.0 released 2026-08-04; v0.3.0 Tier 2 sprint started the same day. **KC-041–045 are complete and live-verified** (104 backend tests, 0 TS errors, Playwright browser runs; see PROJECT_STATUS §Active). Remaining in v0.3.0:
 
-- Harness fork-compare diff view (eval scores side-by-side vs. parent)
-- Asset board curation (projected Sources as CollectionItems on boards)
-- KC-030: Async board summary (boards now have multiple sources)
-- `EvalCase` CRUD API (currently SQL-seeded only) + UI editor on the asset version page
-- Unit tests for `worker/eval._grade` (currently untested; `test_grading.py` covers the learning module's normaliser, not eval grading)
-- Compose-page model selector: prefer a generation model over `nomic-embed-text` as the default selection
-- Backlog ideas: progress tracking, explore improvements, user annotations, KB search
+- **KC-046** asset board curation — projected `prompt_asset` Sources as CollectionItems on boards
+- **KC-030** async board summary — worker-based via Redis Streams (boards now have multiple sources)
+- Backlog ideas after that: progress tracking, explore improvements, user annotations, KB search
+
+New API surface this sprint: `GET /assets/{id}/versions/{num}/cases`, `POST /assets/{id}/versions` with `eval_cases[]` (atomic, 409 on dedup-with-cases), `GET /harnesses/{id}/eval` (run list, owner-only), `EvalRunOut.eval_suite_version_id`. Eval cases are UI-editable now — the SQL-seeding limitation is gone.
 
 ### Sprint complete — v0.2.0 AI Assets Pillar released
 
