@@ -4,6 +4,44 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.2.0] — 2026-08-04
+
+AI Assets Pillar — the fourth platform layer: prompt/asset versioning, harness composition, and local eval runs for practitioner teams building with AI. All tickets KC-032–040. Live-verified end-to-end on Colima (API + browser) on 2026-08-04.
+
+### Features
+
+#### Layer 4 — AI Assets
+- Asset library — versioned AI assets (`system_prompt`, `eval_suite`, `few_shot_set`, `chain_spec`, `tool_spec`) with SHA-256 content dedup, auto-incremented version numbers, rationale annotations, tags, and model pins (`/api/v1/assets`)
+- Harness composition — role-based slots binding asset versions into a runnable configuration; constrained role vocabulary; add/swap version per role (`/api/v1/harnesses`)
+- Harness fork — mirrors the board fork mechanic: copies slot rows, increments `fork_count`, records `fork_lineage`
+- Local eval runs — `eval.jobs` Redis stream; worker grades `EvalCase` records via `exact_match` / `contains` / `regex` / `llm_judge` strategies; per-case latency + pass/fail persisted to `EvalRun.metrics`; run snapshots `eval_suite_version_id` for reproducibility
+- Eval guardrails — 422 if the requested model is not local to Ollama (with available-model list), 503 if Ollama is unreachable; zero-external-cost invariant holds (no cloud fallback)
+- Live eval progress — SSE stream (`/eval/{run_id}/events`) with per-case events; events replay for 1 h after completion
+- Asset projection — project an asset version into a knowledge base as a `prompt_asset` Source via the ingestion pipeline
+- Asset full-text search — PostgreSQL tsvector + GIN indexes, visibility-scoped (`GET /assets?q=`)
+- Drift alert — `GET /deprecated-models` serves a curated slug list; yellow drift banner on asset detail and harness compose when any pinned model matches an entry exactly or by family; `ModelPinBadge` component (family + tag chips)
+- Frontend — `/assets` library (filters, FTS search, create), `/assets/[id]` detail (version timeline, LCS diff view, deprecate action), `/harnesses` list + `/harnesses/[id]/compose` (slot manager, Ollama model selector, live eval panel with per-case table, fork dialog); Harnesses tab on `/explore`; AI Assets + Harnesses nav links
+
+#### Platform
+- Migration 006 — 7 new tables (assets, asset_versions, harnesses, harness_assets, eval_cases, eval_runs, asset_source_projections); `prompt_asset` Source type
+- Migration 007 — GIN indexes for asset FTS
+- BFF routes for assets, harnesses, models, and deprecated-models (Nuxt server routes → FastAPI)
+
+### Test Coverage
+
+- 79 backend tests (pytest) — +10 over v0.1.0 (asset service, harness service, projection)
+- 0 TypeScript errors (vue-tsc)
+
+### Known Limitations
+
+- `EvalCase` records have no CRUD API — eval cases are seeded directly in Postgres per asset version (immutable per version by design; new cases require a new version)
+- Drift detection is client-side only; the deprecated-model list is a curated JSON file baked into the API image
+- Eval runs are Ollama-local only; cloud model adapter deferred to Tier 3
+- `team` visibility means all registered users on the instance (no `organisations` table yet)
+- The compose-page model selector defaults to the first Ollama model, which can be the embedding model (`nomic-embed-text`) — select a generation model explicitly
+
+---
+
 ## [0.1.0] — 2026-06-02
 
 First release. Three-layer platform fully operational on a self-hosted, zero-external-cost Docker Compose stack.

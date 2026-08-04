@@ -29,13 +29,13 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.2.0 sprint: AI Assets Pillar"
+project_phase: "Active development — v0.2.0 released; Tier 2 sprint next"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.2.0 — AI Assets Pillar"
-last_release: "v0.1.0 (2026-06-02)"
+current_sprint: "v0.2.0 — AI Assets Pillar (complete)"
+last_release: "v0.2.0 (2026-08-04)"
 ticket_prefix: "KC"
 next_ticket: "KC-033"
 ```
@@ -171,6 +171,7 @@ next_ticket: "KC-033"
 
 ## Recent Updates
 
+- 2026-08-04: v0.2.0 released — KC-035/038/039 live-verified on Colima (API + Playwright browser run); stale mid-sprint Docker images rebuilt; CHANGELOG updated; PR to main + tag v0.2.0
 - 2026-06-11: KC-039 — drift alert + model-pin badge complete; all KC-032–040 done; v0.2.0 AI Assets Pillar feature-complete
 - 2026-06-10: KC-038 — harness composer + eval UI complete; Harnesses nav + explore tab; next: KC-039 (drift alert + model-pin badge)
 - 2026-06-09: KC-037 — asset library UI complete; migration 007 applied; BFF routes + list + detail + diff view; next: KC-038 (harness composer + eval UI)

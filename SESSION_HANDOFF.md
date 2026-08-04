@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-11  
-**State:** v0.2.0 feature-complete — all KC-032–040 done; v0.2.0 ready for release  
-**Branch:** `development` ahead of `main`; `main` at v0.1.0  
+**Session date:** 2026-08-04  
+**State:** v0.2.0 released — all KC-032–040 done and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.2.0  
 **Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** KC-033–037, KC-040 verified on Colima. Migration 007 applied.  
+**Live verification:** ALL of KC-032–040 verified on Colima (API + browser/Playwright, 2026-08-04). Migration 007 applied.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+> ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
 
 ---
 
@@ -19,8 +21,9 @@ docker compose up -d
 # 2. Run models if not loaded
 docker compose run --rm ollama-init
 
-# 3. Verify
-curl http://localhost/api/health          # {"status":"ok"}
+# 3. Verify (note: there is no /api/health BFF route — FastAPI /health is internal;
+# check via Swagger or an authenticated endpoint instead)
+curl -s http://localhost/api/models        # {"models":[...]} proves nginx→Nuxt→FastAPI→Ollama chain
 cd backend && python3 -m pytest tests/ -q  # 59 passed
 cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 
@@ -89,12 +92,12 @@ docker compose build api
 | Layer 2 (Learning) | MC grading normalisation | ✓ | NFC + lower + collapse whitespace + trim punctuation; distractor feedback uses same normaliser (KC-029) |
 | Layer 4 (AI Assets) | AssetService CRUD | ✓ | KC-033 — POST/GET/list/deprecate at /api/v1/assets |
 | Layer 4 (AI Assets) | HarnessService CRUD | ✓ | KC-034 — create/fork/get/list/add-slot/swap-slot at /api/v1/harnesses |
-| Layer 4 (AI Assets) | Eval worker | ⚠ code complete | KC-035 — eval.jobs stream; grades EvalCase records; SSE progress; 422 on missing model |
+| Layer 4 (AI Assets) | Eval worker | ✓ | KC-035 — verified 2026-08-04: 0-case run completes (0/0), 4-case run 3/4 with all 3 non-judge strategies graded correctly, SSE events stream incrementally, 422 on missing model (+list), 503 with Ollama down, `failed` status when no `eval_suite` slot, `eval_suite_version_id` snapshot correct |
 | Layer 4 (AI Assets) | Asset projection | ✓ | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
 | Layer 4 (AI Assets) | Asset FTS | ✓ | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 applied |
 | Layer 4 (AI Assets) | Asset library UI | ✓ | KC-037 — /assets list + /assets/[id] detail + diff view; BFF routes; nav link |
-| Layer 4 (AI Assets) | Harness composer + eval | ⚠ code complete | KC-038 — /harnesses list+compose; slot manager; eval SSE; fork dialog; Harnesses nav + explore tab |
-| Layer 4 (AI Assets) | Drift alert + model-pin badge | ⚠ code complete | KC-039 — ModelPinBadge component; deprecated_models.json; GET /deprecated-models; drift banner on asset detail + harness compose |
+| Layer 4 (AI Assets) | Harness composer + eval | ✓ | KC-038 — verified 2026-08-04 via Playwright: list+create, empty state, constrained role dropdown (5 roles), add/swap slot (role locked in swap), model selector, live progress + per-case table (75% warning tile), fork dialog preserves slots + identical fork eval pass rate + fork_count increment |
+| Layer 4 (AI Assets) | Drift alert + model-pin badge | ✓ | KC-039 — verified 2026-08-04 via Playwright: family match (`llama2:7b`) and exact-entry match (`mistral:7b-instruct-v0.2`) both banner on asset detail + compose; clean pin (`mistral:7b-instruct`) does not; deprecated version *status* does not trigger the drift banner (separate concept) |
 
 ---
 
@@ -165,11 +168,19 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-v0.1.0 is shipped. v0.2.0 sprint is **AI Assets Pillar** — a fourth pillar for practitioner teams building with AI. Full ticket details in `PROJECT_STATUS.md §Active`.
+v0.2.0 is **released** (2026-08-04) — AI Assets Pillar shipped and live-verified. Next sprint is **Tier 2**:
 
-### Sprint complete — v0.2.0 AI Assets Pillar feature-complete
+- Harness fork-compare diff view (eval scores side-by-side vs. parent)
+- Asset board curation (projected Sources as CollectionItems on boards)
+- KC-030: Async board summary (boards now have multiple sources)
+- `EvalCase` CRUD API (currently SQL-seeded only) + UI editor on the asset version page
+- Unit tests for `worker/eval._grade` (currently untested; `test_grading.py` covers the learning module's normaliser, not eval grading)
+- Compose-page model selector: prefer a generation model over `nomic-embed-text` as the default selection
+- Backlog ideas: progress tracking, explore improvements, user annotations, KB search
 
-All KC-032–040 are done. v0.2.0 is ready for release.
+### Sprint complete — v0.2.0 AI Assets Pillar released
+
+All KC-032–040 are done and live-verified. `main` tagged v0.2.0.
 
 ```
 ✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → ✅KC-038 → ✅KC-039 → ✅KC-040
