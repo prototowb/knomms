@@ -16,6 +16,12 @@ router = APIRouter(prefix="/kbs", tags=["knowledge-bases"])
 
 class CreateKBRequest(BaseModel):
     title: str
+    visibility: str = "private"
+
+
+class UpdateKBRequest(BaseModel):
+    title: str | None = None
+    visibility: str | None = None
 
 
 @router.get("", response_model=list[KnowledgeBaseOut])
@@ -35,9 +41,36 @@ async def get_kb(
     user: User = Depends(get_current_user),
 ) -> KnowledgeBaseOut:
     svc = KnowledgeBaseService(db)
+    kb = await svc.get_readable_by_id(kb_id, user)
+    if kb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+    return KnowledgeBaseOut.model_validate(kb)
+
+
+@router.patch("/{kb_id}", response_model=KnowledgeBaseOut, summary="Update KB metadata (owner only)")
+async def update_kb(
+    kb_id: str,
+    req: UpdateKBRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> KnowledgeBaseOut:
+    from app.domains.knowledge_base.service import VISIBILITIES
+
+    svc = KnowledgeBaseService(db)
     kb = await svc.get_by_id(kb_id, user)
     if kb is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+    if req.title is not None:
+        kb.title = req.title
+    if req.visibility is not None:
+        if req.visibility not in VISIBILITIES:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"visibility must be one of: {sorted(VISIBILITIES)}",
+            )
+        kb.visibility = req.visibility
+    await db.commit()
+    kb = await svc.get_by_id(kb_id, user)
     return KnowledgeBaseOut.model_validate(kb)
 
 
@@ -49,12 +82,14 @@ async def list_kb_sources(
     user: User = Depends(get_current_user),
 ) -> list[SourceStatusOut]:
     svc = KnowledgeBaseService(db)
-    kb = await svc.get_by_id(kb_id, user)
+    kb = await svc.get_readable_by_id(kb_id, user)
     if kb is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+    # KB visibility is the access boundary — Source.visibility is dormant by
+    # design; the old owner clause hid every source from team/public readers.
     result = await db.execute(
         select(Source)
-        .where(Source.kb_id == kb_id, Source.owner_user_id == user.id)
+        .where(Source.kb_id == kb_id)
         .order_by(Source.created_at.desc())
         .limit(limit)
     )
@@ -75,7 +110,7 @@ async def search_kb(
     user: User = Depends(get_current_user),
 ) -> list[ChunkSearchResult]:
     svc = KnowledgeBaseService(db)
-    kb = await svc.get_by_id(kb_id, user)
+    kb = await svc.get_readable_by_id(kb_id, user)
     if kb is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 
@@ -137,7 +172,9 @@ async def create_kb(
     user: User = Depends(get_current_user),
 ) -> KnowledgeBaseOut:
     svc = KnowledgeBaseService(db)
-    kb = await svc.create(user, req.title)
+    kb = await svc.create(user, req.title, visibility=req.visibility)
     await db.commit()
-    await db.refresh(kb)
+    # Re-fetch with owner eager-loaded — model_validate would otherwise lazy-load
+    # the relationship, which raises on an async session.
+    kb = await svc.get_by_id(kb.id, user)
     return KnowledgeBaseOut.model_validate(kb)
