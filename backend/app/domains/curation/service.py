@@ -196,8 +196,10 @@ class BoardService:
 
         # Every board has its own isolated KB so its sources can be queried
         # independently — the same invariant enforced for fork_board.
+        # The KB mirrors the board's visibility (KC-058): a public board is
+        # useless if readers can't query its dedicated KB.
         kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.create(user, title=f"Board: {title}")
+        kb = await kb_svc.create(user, title=f"Board: {title}", visibility=visibility)
         from app.models.knowledge_base import knowledge_base_collection
         await self.db.execute(
             knowledge_base_collection.insert().values(kb_id=kb.id, collection_id=board.id)
@@ -220,12 +222,21 @@ class BoardService:
 
         if kb is None:
             kb_svc = KnowledgeBaseService(self.db)
-            kb = await kb_svc.create(user, title=f"Board: {board.title}")
+            kb = await kb_svc.create(
+                user, title=f"Board: {board.title}", visibility=board.visibility
+            )
             from app.models.knowledge_base import knowledge_base_collection as kbc
             await self.db.execute(
                 kbc.insert().values(kb_id=kb.id, collection_id=board.id)
             )
         return kb
+
+    async def sync_board_kb_visibility(self, board: Collection, user: User) -> None:
+        """Mirror the board's visibility onto its dedicated KB (KC-058) —
+        a public board is useless if readers can't query its KB. Does not
+        commit; the caller owns the transaction."""
+        kb = await self._resolve_board_kb(board, user)
+        kb.visibility = board.visibility
 
     async def add_source_to_board(
         self,
@@ -503,7 +514,7 @@ class BoardService:
         # across all forks, making cross-fork queries bleed — each fork must
         # have its own namespace so retrieval isolation holds.
         kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.create(user, title=new_title)
+        kb = await kb_svc.create(user, title=new_title, visibility=visibility)
 
         # Link the fork Collection to its KB via the join table
         from app.models.knowledge_base import knowledge_base_collection

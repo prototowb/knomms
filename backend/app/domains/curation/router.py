@@ -253,6 +253,7 @@ async def update_board(
         if req.visibility not in ("private", "team", "public"):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid visibility")
         board.visibility = req.visibility
+        await svc.sync_board_kb_visibility(board, user)
     if req.layout_config is not None:
         board.layout_config = req.layout_config
     await db.commit()
