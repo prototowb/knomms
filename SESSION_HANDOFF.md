@@ -7,6 +7,19 @@
 **Live verification:** everything through KC-057 verified on Colima (API + browser/Playwright, incl. two-user sharing checks, 2026-08-04). Migration head: 012.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
 
+## Session 2026-08-04 — summary
+
+Four releases in one day, each fully live-verified before tagging:
+
+| Release | Sprint | Tickets | Highlights |
+|---|---|---|---|
+| v0.2.0 | AI Assets Pillar | KC-032–040 | Released after live-verifying the 3 code-complete tickets; root-caused stale mid-sprint images |
+| v0.3.0 | Tier 2 hardening | KC-030, KC-041–046 | EvalCase API + UI, fork-compare, board curation, async board summary; 1 bug found+fixed in verification |
+| v0.4.0 | Learner layer + KB search | KC-047–052 | Private notes, learner progress, semantic+keyword KB search, explore assets tab |
+| v0.5.0 | Sharing layer | KC-053–057 | KB visibility, shared paths, MC choices + answer-key leak fix, metadata PATCH, explore KBs tab; verified with a second user |
+
+Migrations 008→012 applied. Backend tests 79→104. Two pre-existing security/correctness issues fixed along the way (private-board owner 404, assessment answer-key leak). Gotchas learned are recorded in §What Comes Next.
+
 > ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
 
 ---
@@ -24,7 +37,7 @@ docker compose run --rm ollama-init
 # 3. Verify (note: there is no /api/health BFF route — FastAPI /health is internal;
 # check via Swagger or an authenticated endpoint instead)
 curl -s http://localhost/api/models        # {"models":[...]} proves nginx→Nuxt→FastAPI→Ollama chain
-cd backend && python3 -m pytest tests/ -q  # 59 passed
+cd backend && python3 -m pytest tests/ -q  # 104 passed
 cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 
 # 4. Log in
