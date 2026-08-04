@@ -319,6 +319,7 @@ class BoardService:
         kb = await self._resolve_board_kb(board, user)
         # Capture scalars before any rollback — expired ORM attributes cannot be
         # lazily refreshed on an async session.
+        user_id = user.id
         kb_id, vector_namespace = kb.id, kb.vector_namespace
         version_id, version_content = version.id, version.content
         asset_title, asset_description = asset.title, asset.description
@@ -350,8 +351,14 @@ class BoardService:
         except IntegrityError:
             # Version already projected into this board's KB — reuse that Source
             # instead of erroring; the user's intent is "put this on my board".
+            # Re-select the board directly (by captured user_id, not the expired
+            # `user` instance) — every ORM object in the session expired on rollback.
             await self.db.rollback()
-            board = await self.get_board_for_owner(board_id, user)
+            board = (await self.db.execute(
+                select(Collection)
+                .where(Collection.id == board_id, Collection.owner_user_id == user_id)
+                .options(selectinload(Collection.items))
+            )).scalar_one()
             existing = (await self.db.execute(
                 select(AssetSourceProjection).where(
                     AssetSourceProjection.asset_version_id == version_id,
@@ -364,7 +371,7 @@ class BoardService:
         item = CollectionItem(
             collection_id=board.id,
             source_id=source_id,
-            added_by=user.id,
+            added_by=user_id,
             note=note,
             lane=lane,
             position=len(board.items),
@@ -377,7 +384,7 @@ class BoardService:
             await redis.setex(f"upload:{source_id}", 3600, version_content.encode("utf-8"))
             await redis.xadd(STREAM_KEY, {
                 "source_id": source_id,
-                "user_id": user.id,
+                "user_id": user_id,
                 "kb_id": kb_id,
                 "vector_namespace": vector_namespace,
                 "upload": "1",
