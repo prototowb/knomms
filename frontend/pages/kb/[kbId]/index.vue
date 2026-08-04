@@ -60,6 +60,7 @@ interface ChunkSearchResult {
 }
 
 const kbSearchQuery = ref('')
+const kbSearchMode = ref<'semantic' | 'keyword'>('semantic')
 const kbSearchResults = ref<ChunkSearchResult[]>([])
 const kbSearching = ref(false)
 const kbSearched = ref(false)
@@ -73,7 +74,7 @@ async function runKbSearch() {
   try {
     kbSearchResults.value = await $fetch<ChunkSearchResult[]>(`/api/kb/${kbId}/search`, {
       headers: { Authorization: `Bearer ${auth.token}` },
-      query: { q, limit: 10 },
+      query: { q, mode: kbSearchMode.value, limit: 10 },
     })
     kbSearched.value = true
   } catch {
@@ -284,10 +285,18 @@ onUnmounted(stopPolling)
           <input
             v-model="kbSearchQuery"
             type="text"
-            placeholder="Search this KB's sources semantically…"
+            :placeholder="kbSearchMode === 'semantic' ? 'Search this KB\'s sources by meaning…' : 'Search this KB\'s sources by keyword…'"
             :disabled="kbSearching"
             class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
           />
+          <select
+            v-model="kbSearchMode"
+            :disabled="kbSearching"
+            class="border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary bg-surface focus:outline-none focus:border-accent disabled:opacity-50"
+          >
+            <option value="semantic">Semantic</option>
+            <option value="keyword">Keyword</option>
+          </select>
           <button
             type="submit"
             :disabled="kbSearching || kbSearchQuery.trim().length < 2"
