@@ -111,7 +111,7 @@ async def _fetch_content(source: Source, is_upload: bool) -> bytes:
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=5.0),
-            headers={"User-Agent": "Mozilla/5.0 (compatible; KnowledgeCommons/1.0; +https://github.com/knowledge-commons)"},
+            headers={"User-Agent": "Mozilla/5.0 (compatible; KnowledgeComms/1.0; +https://github.com/knomms)"},
         ) as client:
             resp = await client.get(source.raw_url)
             resp.raise_for_status()

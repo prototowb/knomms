@@ -26,7 +26,7 @@ interface CuratorProfileOut {
 const { data: profile, error } = await useFetch<CuratorProfileOut>(`/api/u/${handle}`)
 
 useSeoMeta({
-  title: () => profile.value ? `${profile.value.display_name} (@${profile.value.handle}) — Knowledge Commons` : 'Curator',
+  title: () => profile.value ? `${profile.value.display_name} (@${profile.value.handle}) — Knowledge Comms` : 'Curator',
   description: () => profile.value ? `${profile.value.board_count} public boards by @${profile.value.handle}` : '',
 })
 </script>

@@ -7,3 +7,4 @@ from app.models import chunk as _  # noqa: F401
 from app.models import knowledge_base as _  # noqa: F401
 from app.models import collection as _  # noqa: F401
 from app.models import learning as _  # noqa: F401
+from app.models import asset as _  # noqa: F401

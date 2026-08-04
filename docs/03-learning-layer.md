@@ -1,4 +1,4 @@
-# Knowledge Commons — Layer 2: Structured Learning Layer
+# Knowledge Comms — Layer 2: Structured Learning Layer
 
 ## Product + Technical Specification v0.1
 

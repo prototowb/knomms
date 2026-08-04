@@ -1,7 +1,7 @@
 <template>
   <Html lang="en">
     <Head>
-      <Title>Knowledge Commons</Title>
+      <Title>Knowledge Comms</Title>
       <Meta name="description" content="A self-hosted knowledge platform for AI-powered learning and discovery." />
     </Head>
     <Body>

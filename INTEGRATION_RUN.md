@@ -162,7 +162,7 @@ curl http://localhost:11434/api/tags   # from inside the Docker network
 
 ### MinIO bucket access denied
 
-MinIO initializes with the credentials from `.env`. If you see auth errors, confirm `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` in `.env` match what `docker-compose.yml` passes to the `minio` service. The API creates the bucket (`knowledge-commons-media`) at startup — check `docker compose logs api | grep -i minio`.
+MinIO initializes with the credentials from `.env`. If you see auth errors, confirm `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` in `.env` match what `docker-compose.yml` passes to the `minio` service. The API creates the bucket (`knomms-media`) at startup — check `docker compose logs api | grep -i minio`.
 
 ### Frontend returns 502
 

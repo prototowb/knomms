@@ -16,7 +16,7 @@ class Source(Base):
 
     type: Mapped[str] = mapped_column(
         String(20), nullable=False
-    )  # web_page | pdf | video | audio | image | plain_text | code_file | epub
+    )  # web_page | pdf | video | audio | image | plain_text | code_file | epub | prompt_asset
     raw_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     storage_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -1,7 +1,7 @@
 <!-- proto-gear:agent-context begin -->
 <!-- proto-gear | role: agent-context | regenerate: pg sync-context -->
 
-# Agent Context — knowledge-commons
+# Agent Context — knomms
 
 > Auto-generated index every agent should read on session start.
 > Regenerate with `pg sync-context`. **Do not hand-edit** between the BEGIN/END markers — your changes will be overwritten.
@@ -86,7 +86,8 @@ When the user's prose contains these keywords, load the matching capability befo
 
 ## 🚨 Critical Rules
 
-- NEVER commit directly to `main` or `development` — always branch from `development`
+- NEVER push directly to `main` — always via PR from `development`; committing and pushing directly to `development` is allowed
+- Always branch from `development` for feature work — never start a feature branch from `main`
 - Run `pg status` before starting work to see active tickets and current sprint
 - Use `pg ticket create "title" --type feature` to register new work
 - Use `pg ticket update ID --status IN_PROGRESS` when starting a ticket
@@ -108,7 +109,7 @@ When the user's prose contains these keywords, load the matching capability befo
 
 ## 🌐 Project
 
-- **Project**: knowledge-commons
+- **Project**: knomms
 - **Tech / type**: Self-hosted web application
 - **Proto Gear version**: n/a
 - **Last release**: n/a

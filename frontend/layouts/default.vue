@@ -15,7 +15,7 @@ function logout() {
     <aside class="w-56 flex-shrink-0 border-r border-border bg-surface flex flex-col">
       <div class="px-5 py-4 border-b border-border">
         <NuxtLink to="/" class="font-semibold text-sm tracking-tight text-text-primary hover:text-accent transition-colors">
-          Knowledge Commons
+          Knowledge Comms
         </NuxtLink>
       </div>
 
@@ -51,6 +51,28 @@ function logout() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
           </svg>
           Explore
+        </NuxtLink>
+
+        <NuxtLink
+          to="/assets"
+          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+          active-class="bg-surface-secondary text-text-primary font-medium"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          AI Assets
+        </NuxtLink>
+
+        <NuxtLink
+          to="/harnesses"
+          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+          active-class="bg-surface-secondary text-text-primary font-medium"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+          </svg>
+          Harnesses
         </NuxtLink>
       </nav>
 

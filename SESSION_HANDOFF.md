@@ -1,10 +1,13 @@
-# Session Handoff — Knowledge Commons
+# Session Handoff — Knowledge Comms
 
-**Session date:** 2026-06-02  
-**State:** KC-029 merged to development — MC grading normalised; KC-031 release PR open (development → main, v0.1.0)  
-**Branch:** `development` 3 commits ahead of `main` — PR open on GitHub  
-**Tests:** 69/69 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Session date:** 2026-08-04  
+**State:** v0.2.0 released — all KC-032–040 done and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.2.0  
+**Tests:** 79/79 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** ALL of KC-032–040 verified on Colima (API + browser/Playwright, 2026-08-04). Migration 007 applied.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+> ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
 
 ---
 
@@ -18,8 +21,9 @@ docker compose up -d
 # 2. Run models if not loaded
 docker compose run --rm ollama-init
 
-# 3. Verify
-curl http://localhost/api/health          # {"status":"ok"}
+# 3. Verify (note: there is no /api/health BFF route — FastAPI /health is internal;
+# check via Swagger or an authenticated endpoint instead)
+curl -s http://localhost/api/models        # {"models":[...]} proves nginx→Nuxt→FastAPI→Ollama chain
 cd backend && python3 -m pytest tests/ -q  # 59 passed
 cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 
@@ -56,8 +60,8 @@ export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
 
 ```bash
 # CORRECT — bypasses stale cache
-docker build --no-cache -t knowledge-commons-api:latest ./backend
-docker build --no-cache -t knowledge-commons-frontend:latest ./frontend
+docker build --no-cache -t knomms-api:latest ./backend
+docker build --no-cache -t knomms-frontend:latest ./frontend
 docker compose up --force-recreate -d api frontend
 
 # WRONG — may ship stale code silently
@@ -86,6 +90,14 @@ docker compose build api
 | Layer 3 (Discovery) | Similar boards | ✓ | `GET /boards/{id}/similar` — pure pgvector cosine distance on stored centroid; grid on board detail page |
 | Layer 2 (Learning) | MC answer submit | ✓ | Radio-button choices; endpoint returns correct/incorrect + correct answer text; verified via API |
 | Layer 2 (Learning) | MC grading normalisation | ✓ | NFC + lower + collapse whitespace + trim punctuation; distractor feedback uses same normaliser (KC-029) |
+| Layer 4 (AI Assets) | AssetService CRUD | ✓ | KC-033 — POST/GET/list/deprecate at /api/v1/assets |
+| Layer 4 (AI Assets) | HarnessService CRUD | ✓ | KC-034 — create/fork/get/list/add-slot/swap-slot at /api/v1/harnesses |
+| Layer 4 (AI Assets) | Eval worker | ✓ | KC-035 — verified 2026-08-04: 0-case run completes (0/0), 4-case run 3/4 with all 3 non-judge strategies graded correctly, SSE events stream incrementally, 422 on missing model (+list), 503 with Ollama down, `failed` status when no `eval_suite` slot, `eval_suite_version_id` snapshot correct |
+| Layer 4 (AI Assets) | Asset projection | ✓ | KC-036 — POST /assets/{id}/versions/{num}/project → prompt_asset Source → ingestion.jobs |
+| Layer 4 (AI Assets) | Asset FTS | ✓ | KC-040 — GET /assets?q= with tsvector GIN; Migration 007 applied |
+| Layer 4 (AI Assets) | Asset library UI | ✓ | KC-037 — /assets list + /assets/[id] detail + diff view; BFF routes; nav link |
+| Layer 4 (AI Assets) | Harness composer + eval | ✓ | KC-038 — verified 2026-08-04 via Playwright: list+create, empty state, constrained role dropdown (5 roles), add/swap slot (role locked in swap), model selector, live progress + per-case table (75% warning tile), fork dialog preserves slots + identical fork eval pass rate + fork_count increment |
+| Layer 4 (AI Assets) | Drift alert + model-pin badge | ✓ | KC-039 — verified 2026-08-04 via Playwright: family match (`llama2:7b`) and exact-entry match (`mistral:7b-instruct-v0.2`) both banner on asset detail + compose; clean pin (`mistral:7b-instruct`) does not; deprecated version *status* does not trigger the drift banner (separate concept) |
 
 ---
 
@@ -156,15 +168,89 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## What Comes Next
 
-KC-031 release PR is open (development → main). After merge:
-```bash
-git tag v0.1.0 main
-git push origin v0.1.0
+v0.2.0 is **released** (2026-08-04) — AI Assets Pillar shipped and live-verified. Next sprint is **Tier 2**:
+
+- Harness fork-compare diff view (eval scores side-by-side vs. parent)
+- Asset board curation (projected Sources as CollectionItems on boards)
+- KC-030: Async board summary (boards now have multiple sources)
+- `EvalCase` CRUD API (currently SQL-seeded only) + UI editor on the asset version page
+- Unit tests for `worker/eval._grade` (currently untested; `test_grading.py` covers the learning module's normaliser, not eval grading)
+- Compose-page model selector: prefer a generation model over `nomic-embed-text` as the default selection
+- Backlog ideas: progress tracking, explore improvements, user annotations, KB search
+
+### Sprint complete — v0.2.0 AI Assets Pillar released
+
+All KC-032–040 are done and live-verified. `main` tagged v0.2.0.
+
+```
+✅KC-032 → ✅KC-033 → ✅KC-034 → ✅KC-035 → ✅KC-036 → ✅KC-037 → ✅KC-038 → ✅KC-039 → ✅KC-040
+schema       asset      harness    eval        project    asset    harness  drift      search
+             svc        svc        worker      svc        UI       UI       alert
 ```
 
-**Remaining backlog:**
-- KC-030: Async board summary — defer until boards have multiple sources
-- Future: free-text MC input (normalised grading already supports it)
+### KC-038 notes (for reference)
+
+**Known limitation:** Eval cases (`EvalCase` rows) have no API endpoint to create them. The `eval_suite` asset version must have cases seeded directly in the database for eval to grade anything. The eval worker runs successfully with 0 cases (returns `{total:0, passed:0, pass_rate:0.0}`). The compose page shows a note about this when eval returns 0 cases.
+
+**Role strings are load-bearing:** `eval_suite` and `system_prompt` roles are hardcoded in `worker/eval.py:98,121`. The UI uses a constrained dropdown — no free-text role input.
+
+**Models BFF:** `GET /api/models` → proxies to `http://ollama:11434/api/tags`. Returns `{models: string[]}`. Returns empty array if Ollama is unreachable (soft failure).
+
+**Version meta enrichment:** On compose page mount, all accessible assets are fetched in parallel (summaries + full details) to build a `versionId → {assetTitle, versionNum, modelPin, status}` map for slot display.
+
+**Eval SSE pattern:** Uses `fetch()` + `ReadableStream` (not `EventSource`) so the Bearer token can be sent. Same pattern as `useStreamingQuery`.
+
+### KC-037 notes (for reference)
+
+Auth lesson: all asset/harness endpoints require auth. Pages use `middleware: 'auth'` + client-side `$fetch` with `Bearer ${auth.token}` (NOT SSR useFetch — the token is client-only from Pinia/localStorage).
+
+BFF routes added:
+- `server/api/assets/index.get.ts` / `index.post.ts` — list/create
+- `server/api/assets/[...path].ts` — catch-all for all sub-paths (via `proxyRequest`)
+- Same for `server/api/harnesses/`
+
+Syntax highlighting: `@shikijs/vue` was NOT in package.json — the handoff was wrong. Plain `<pre>` with monospace styling used instead. To add Shiki later: install it and wrap in `<ClientOnly>` to avoid SSR config pain, then rebuild frontend.
+
+### KC-038 frontend entry point
+
+KC-038: `/harnesses/[id]/compose` for adding/swapping asset versions by role; eval submission panel (Ollama model selector, run button, SSE progress); eval result view (aggregate score, per-case pass/fail + latency table); fork dialog reusing the board fork component pattern.
+
+Existing BFF routes already created for harnesses:
+- `server/api/harnesses/index.get.ts` — list
+- `server/api/harnesses/index.post.ts` — create
+- `server/api/harnesses/[...path].ts` — catch-all (fork, add-slot, swap-slot, eval submit, eval status, SSE stream)
+
+SSE eval events route: `GET /api/v1/harnesses/{id}/eval/{run_id}/events` — the SSE stream uses `text/event-stream`. The catch-all BFF `proxyRequest` already handles this; frontend uses `EventSource` or `ReadableStream` on the client.
+
+For the Ollama model selector: call `GET http://localhost/api/v1/harnesses/...` to get the harness, then for available models call direct to `http://ollama:11434/api/tags` via a BFF route (or use a dedicated `server/api/models/index.get.ts` proxy).
+
+```bash
+# See available Ollama models:
+docker compose exec ollama ollama list
+```
+
+### Key architectural decisions for this sprint
+
+**New Redis stream:** `eval.jobs` — add to `_STREAMS` dict in `worker/__main__.py` alongside existing `ingestion.jobs` and `curriculum.jobs`. Handler lives in `worker/eval.py`.
+
+**New Source type:** `prompt_asset` — add to `Source.type` enum in Migration 006 (string column, no Postgres enum, same pattern as existing types). Projection service uses this type.
+
+**Harness fork mirrors board fork exactly.** Reuse the `fork_board()` pattern: copy join-table rows, increment parent `fork_count`, populate `fork_lineage` array. Do not abstract — stay explicit.
+
+**Eval runs are Ollama-local only.** If `model_pin` on an AssetVersion is not available in Ollama (`ollama list`), `POST /harnesses/{id}/eval` returns 422 with a message listing available models. No silent cloud fallback.
+
+**Team visibility = all users on this instance.** No `organisations` table yet. `GET /api/v1/assets?visibility=team` returns assets visible to any registered user. Document as instance-scoped sharing in the API response.
+
+**EvalCase is immutable per AssetVersion.** To add test cases to an eval suite, commit a new AssetVersion. The new version gets a new `version_num`; the old version's cases are untouched.
+
+**Explore page: tab, not new route.** Add a "Harnesses" tab to the existing `/explore` page alongside KBs and Boards. No new top-level nav item.
+
+### Deferred (do not start this sprint)
+
+- KC-030: Async board summary (defer until multi-source boards exist)
+- Free-text MC input (normalised grading already supports it — UI work only when prioritised)
+- Harness fork-compare diff view (Tier 2, after KC-040)
+- Cloud model eval adapter (Tier 3)
 
 ---
 
@@ -172,7 +258,8 @@ git push origin v0.1.0
 
 | Invariant | Where | Why |
 |---|---|---|
-| `docker build --no-cache -t knowledge-commons-api:latest ./backend` AND `-t knowledge-commons-worker:latest ./backend` | build scripts | api and worker are different image names; Colima cache bug silently ships stale code |
+| `docker build --no-cache -t knomms-api:latest ./backend` AND `-t knomms-worker:latest ./backend` | build scripts | api and worker are different image names; Colima cache bug silently ships stale code |
+| After rebuilding api/frontend, run `docker compose restart nginx` (not `nginx -s reload`) | nginx restart | Colima volume sync lag means `-s reload` reads a truncated file; full restart avoids it |
 | Each KB has its own isolated `vector_namespace` | KB creation, fork | Enables per-KB retrieval without namespace bleed |
 | `VISIBILITY_S=300` safe for single worker only — raise before scaling | `__main__.py` | Two workers = stale reclaim duplicates a 20-min curriculum job |
 | Fork creates new Source records (new IDs) | `fork_board()` | Dedup keyed on (content_hash, source_id); same source_id = no new chunks |

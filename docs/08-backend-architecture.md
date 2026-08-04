@@ -1,4 +1,4 @@
-# Backend Architecture — Knowledge Commons
+# Backend Architecture — Knowledge Comms
 
 **Stack:** Python 3.12 + FastAPI + SQLAlchemy 2.0 (async) + pgvector + LangGraph  
 **Version:** 0.1
@@ -129,7 +129,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Knowledge Commons API",
+        title="Knowledge Comms API",
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url=None,
@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     minio_endpoint: str = "http://minio:9000"
     minio_access_key: str
     minio_secret_key: str
-    minio_bucket: str = "knowledge-commons-media"
+    minio_bucket: str = "knomms-media"
 
     # ollama
     ollama_base_url: str = "http://ollama:11434"
@@ -808,7 +808,7 @@ async def test_hybrid_retrieve_respects_namespace(client, db, seed_sources):
 ```toml
 # pyproject.toml
 [project]
-name = "knowledge-commons-api"
+name = "knomms-api"
 requires-python = ">=3.12"
 dependencies = [
     # web framework
