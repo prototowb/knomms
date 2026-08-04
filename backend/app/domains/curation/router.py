@@ -8,6 +8,7 @@ from app.models.user import User
 from pydantic import BaseModel as _BaseModel
 
 from app.schemas.curation import (
+    AddAssetRequest,
     AddSourceRequest,
     BoardItemOut,
     BoardOut,
@@ -156,6 +157,23 @@ async def add_source(
 ) -> BoardItemOut:
     svc = BoardService(db)
     item = await svc.add_source_to_board(board_id, user, req.source_url, req.note, req.lane)
+    return BoardItemOut.model_validate(item)
+
+
+@router.post(
+    "/boards/{board_id}/assets",
+    response_model=BoardItemOut,
+    status_code=201,
+    summary="Project an asset version onto a board as a prompt_asset source",
+)
+async def add_asset(
+    board_id: str,
+    req: AddAssetRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BoardItemOut:
+    svc = BoardService(db)
+    item = await svc.add_asset_to_board(board_id, user, req.asset_id, req.version_num, req.note, req.lane)
     return BoardItemOut.model_validate(item)
 
 

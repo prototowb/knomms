@@ -105,6 +105,7 @@ const sourceTypeIcon: Record<string, string> = {
   audio: '🎵',
   plain_text: '📝',
   epub: '📚',
+  prompt_asset: '🧩',
 }
 
 // Similar boards

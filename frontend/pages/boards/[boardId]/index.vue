@@ -198,7 +198,7 @@ const statusColor: Record<string, string> = {
   chunked: 'text-accent', failed: 'text-red-500',
 }
 const typeIcon: Record<string, string> = {
-  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚',
+  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', prompt_asset: '🧩',
 }
 
 onMounted(fetchBoard)

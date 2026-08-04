@@ -106,6 +106,70 @@ watch(selectedVersionNum, (num) => {
   if (num !== null && asset.value?.asset_type === 'eval_suite') fetchCases(num)
 })
 
+// ── Add to board (KC-046) ────────────────────────────────────────────────────
+
+interface BoardSummary {
+  id: string
+  title: string
+  item_count?: number
+}
+
+const showAddToBoard = ref(false)
+const myBoards = ref<BoardSummary[]>([])
+const boardsLoading = ref(false)
+const abBoardId = ref('')
+const abLane = ref('')
+const abNote = ref('')
+const abSaving = ref(false)
+const abError = ref<string | null>(null)
+const abSuccess = ref<string | null>(null)
+
+async function openAddToBoard() {
+  abError.value = null
+  abSuccess.value = null
+  abLane.value = ''
+  abNote.value = ''
+  showAddToBoard.value = true
+  if (myBoards.value.length === 0) {
+    boardsLoading.value = true
+    try {
+      myBoards.value = await $fetch<BoardSummary[]>('/api/my/boards', {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      })
+      if (myBoards.value.length > 0) abBoardId.value = myBoards.value[0].id
+    } catch {
+      abError.value = 'Could not load your boards'
+    } finally {
+      boardsLoading.value = false
+    }
+  }
+}
+
+async function submitAddToBoard() {
+  if (abSaving.value || !abBoardId.value || !selectedVersion.value) return
+  abSaving.value = true
+  abError.value = null
+  try {
+    await $fetch(`/api/boards/${abBoardId.value}/assets`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: {
+        asset_id: assetId,
+        version_num: selectedVersion.value.version_num,
+        note: abNote.value,
+        lane: abLane.value,
+      },
+    })
+    const board = myBoards.value.find(b => b.id === abBoardId.value)
+    abSuccess.value = `v${selectedVersion.value.version_num} added to “${board?.title ?? 'board'}”`
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    abError.value = typeof detail === 'string' ? detail : 'Failed to add to board'
+  } finally {
+    abSaving.value = false
+  }
+}
+
 // ── New version composer (KC-043) ────────────────────────────────────────────
 
 interface CaseDraft {
@@ -494,6 +558,13 @@ onMounted(async () => {
               <div class="flex items-center gap-2">
                 <ClientOnly>
                   <button
+                    v-if="isOwner"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-surface-secondary transition-colors"
+                    @click="openAddToBoard"
+                  >
+                    Add to board
+                  </button>
+                  <button
                     v-if="isOwner && selectedVersion.status !== 'deprecated'"
                     :disabled="deprecating === selectedVersion.version_num"
                     class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary disabled:opacity-50 transition-colors"
@@ -584,6 +655,77 @@ onMounted(async () => {
             </div>
           </template>
         </main>
+      </div>
+
+      <!-- Add to board modal (KC-046) -->
+      <div
+        v-if="showAddToBoard"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+        @click.self="showAddToBoard = false"
+      >
+        <div class="bg-surface rounded-2xl shadow-xl p-6 w-full max-w-md">
+          <h2 class="text-base font-semibold text-text-primary mb-1">Add to board</h2>
+          <p class="text-xs text-text-muted mb-4">
+            Projects v{{ selectedVersion?.version_num }} into the board's knowledge base as a prompt asset source.
+          </p>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-text-secondary mb-1">Board</label>
+              <p v-if="boardsLoading" class="text-xs text-text-muted">Loading boards…</p>
+              <select
+                v-else-if="myBoards.length > 0"
+                v-model="abBoardId"
+                class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface focus:outline-none focus:border-accent"
+              >
+                <option v-for="b in myBoards" :key="b.id" :value="b.id">{{ b.title }}</option>
+              </select>
+              <p v-else class="text-xs text-text-muted">
+                No boards yet.
+                <NuxtLink to="/boards" class="text-accent hover:underline">Create one</NuxtLink> first.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-text-secondary mb-1">Lane (optional)</label>
+              <input
+                v-model="abLane"
+                type="text"
+                placeholder="e.g. Prompts"
+                class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-text-secondary mb-1">Curator note (optional)</label>
+              <input
+                v-model="abNote"
+                type="text"
+                placeholder="Why this prompt belongs on the board"
+                class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+
+          <p v-if="abError" class="text-xs text-warning mt-3">{{ abError }}</p>
+          <p v-if="abSuccess" class="text-xs text-grounded mt-3">{{ abSuccess }}</p>
+
+          <div class="flex gap-3 justify-end mt-5">
+            <button
+              class="px-4 py-2 rounded-lg text-sm text-text-muted hover:bg-surface-secondary transition-colors"
+              @click="showAddToBoard = false"
+            >
+              {{ abSuccess ? 'Close' : 'Cancel' }}
+            </button>
+            <button
+              :disabled="abSaving || !abBoardId || myBoards.length === 0"
+              class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+              @click="submitAddToBoard"
+            >
+              {{ abSaving ? 'Adding…' : 'Add to board' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- New version modal (KC-043) -->
