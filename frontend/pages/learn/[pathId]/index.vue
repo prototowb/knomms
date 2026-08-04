@@ -59,6 +59,7 @@ interface LearningPath {
   version: number
   concepts: PathConcept[]
   learned_concept_ids: string[]
+  owner: { id: string; handle: string; display_name: string } | null
 }
 
 interface AttemptResult {
@@ -127,6 +128,10 @@ watch(
 )
 
 // ── Learner progress (KC-048) ───────────────────────────────────────────────
+
+const isOwner = computed(() =>
+  auth.isLoggedIn && path.value?.owner?.id === auth.user?.id
+)
 
 const learnedIds = ref<Set<string>>(new Set())
 const learnedSaving = ref<Record<string, boolean>>({})
@@ -299,7 +304,7 @@ onUnmounted(_clearPoll)
             Published
           </span>
           <button
-            v-if="path.status === 'draft'"
+            v-if="isOwner && path.status === 'draft'"
             class="text-xs px-3 py-1.5 rounded-lg bg-grounded text-white hover:bg-green-700 transition-colors"
             @click="publishPath"
           >
@@ -373,14 +378,14 @@ onUnmounted(_clearPoll)
                     {{ learnedIds.has(concept.id) ? '✓ Learned' : 'Mark learned' }}
                   </button>
                   <button
-                    v-if="concept.status !== 'accepted'"
+                    v-if="isOwner && concept.status !== 'accepted'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-grounded text-grounded hover:bg-grounded/10 transition-colors"
                     @click="updateConceptStatus(concept, 'accepted')"
                   >
                     Accept
                   </button>
                   <button
-                    v-if="concept.status !== 'pruned'"
+                    v-if="isOwner && concept.status !== 'pruned'"
                     class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:bg-surface-secondary transition-colors"
                     @click="updateConceptStatus(concept, 'pruned')"
                   >

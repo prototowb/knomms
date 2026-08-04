@@ -40,6 +40,7 @@ class LearningPath(Base):
         cascade="all, delete-orphan",
         order_by="PathConcept.position",
     )
+    owner: Mapped["User"] = relationship("User")  # type: ignore[name-defined]  # noqa: F821
 
 
 class PathConcept(Base):
