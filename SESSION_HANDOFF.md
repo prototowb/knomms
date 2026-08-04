@@ -172,7 +172,6 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 Candidates for the next sprint (backlog ideas, not yet ticketed):
 - Progress tracking, explore improvements, user annotations, KB search
-- Free-text MC input (grading already supports it — UI work only)
 - Migration head is now **008** (`summary_status` on collections)
 
 New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
