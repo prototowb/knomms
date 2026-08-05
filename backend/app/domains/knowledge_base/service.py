@@ -80,15 +80,17 @@ class KnowledgeBaseService:
         return result.scalar_one_or_none()
 
     async def get_readable_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
-        """Read lookup: the owner, or any registered user when visibility is
-        team/public (OQ-3: team = all users on this instance)."""
+        """Read lookup: the owner, anyone for public, same-org users for team
+        (docs/09-organisations.md OQ-7, supersedes OQ-3)."""
+        from app.domains.organisations.predicates import team_or_public_clause
+
         result = await self.db.execute(
             select(KnowledgeBase)
             .where(
                 KnowledgeBase.id == kb_id,
                 or_(
                     KnowledgeBase.owner_user_id == user.id,
-                    KnowledgeBase.visibility.in_(("team", "public")),
+                    team_or_public_clause(KnowledgeBase, user),
                 ),
             )
             .options(selectinload(KnowledgeBase.owner))

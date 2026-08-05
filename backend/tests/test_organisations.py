@@ -1,6 +1,10 @@
-"""Unit tests for organisation domain guards — pure logic, no DB."""
+"""Unit tests for organisation domain guards and predicates — pure logic, no DB."""
 
+from types import SimpleNamespace
+
+from app.domains.organisations.predicates import team_or_public_clause
 from app.domains.organisations.service import ORG_ROLES, demote_blocked, leave_blocked
+from app.models.knowledge_base import KnowledgeBase
 
 
 # ── leave_blocked ─────────────────────────────────────────────────────────────
@@ -44,3 +48,38 @@ def test_demoting_member_is_noop_guard():
 
 def test_org_roles_exactly_admin_and_member():
     assert ORG_ROLES == {"admin", "member"}
+
+
+# ── team_or_public_clause ─────────────────────────────────────────────────────
+# The helper reads only user.org_id, so a stub suffices; assertions are on the
+# compiled SQL shape (postgres dialect not needed for these constructs).
+
+
+def _sql(user) -> str:
+    clause = team_or_public_clause(KnowledgeBase, user)
+    return str(clause.compile(compile_kwargs={"literal_binds": True}))
+
+
+def test_orgless_reader_gets_public_only():
+    sql = _sql(SimpleNamespace(org_id=None))
+    assert "'public'" in sql
+    assert "team" not in sql
+    assert "users" not in sql  # no org subquery for org-less readers
+
+
+def test_org_reader_gets_public_or_same_org_team():
+    sql = _sql(SimpleNamespace(org_id="org-123"))
+    assert "'public'" in sql
+    assert "'team'" in sql
+    assert "'org-123'" in sql
+    # team access goes through owner-in-my-org, not a visibility check alone
+    assert "owner_user_id IN" in sql and "users.org_id" in sql
+
+
+def test_team_never_leaks_without_org_match():
+    # The team arm must be AND-ed with the same-org subquery — a bare
+    # visibility = 'team' disjunct would reopen the OQ-3 hole
+    sql = _sql(SimpleNamespace(org_id="org-123"))
+    team_pos = sql.index("'team'")
+    and_tail = sql[team_pos:]
+    assert "AND" in and_tail and "users.org_id" in and_tail

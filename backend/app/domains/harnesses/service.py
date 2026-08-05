@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.redis import get_redis
 from app.domains.curation.types import build_fork_lineage
+from app.domains.organisations.predicates import team_or_public_clause
 from app.models.asset import AssetVersion, EvalRun, Harness, HarnessAsset
 from app.models.user import User
 
@@ -32,7 +33,7 @@ class HarnessService:
                 Harness.id == harness_id,
                 or_(
                     Harness.owner_user_id == user.id,
-                    Harness.visibility.in_(("team", "public")),
+                    team_or_public_clause(Harness, user),
                 ),
             )
             .options(
@@ -52,7 +53,7 @@ class HarnessService:
     ) -> list[Harness]:
         base_predicate = or_(
             Harness.owner_user_id == user.id,
-            Harness.visibility.in_(("team", "public")),
+            team_or_public_clause(Harness, user),
         )
 
         if visibility_filter == "private":
@@ -144,7 +145,7 @@ class HarnessService:
                     Harness.id == harness_id,
                     or_(
                         Harness.owner_user_id == user.id,
-                        Harness.visibility.in_(("team", "public")),
+                        team_or_public_clause(Harness, user),
                     ),
                 )
                 .options(selectinload(Harness.assets))

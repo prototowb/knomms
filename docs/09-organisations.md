@@ -105,10 +105,10 @@ Rewire the access-check relaxations — every `visibility.in_(("team","public"))
 - `harnesses/service.py:35,55,147` — get-readable, list, fork-source checks
 - `assets/service.py:82,105` — get-readable, list
 
-And the user-facing `?visibility=team` filter branches (`assets/service.py:116`,
-`harnesses/service.py:63`): `team` filter now means *team items from my org*
-(add the same-org owner predicate); org-less callers get an empty result, not
-an error.
+And the user-facing `?visibility=team` filter branches (`assets/service.py`,
+`harnesses/service.py`): these narrow the base access predicate, so `team` now
+means *team items I can read* — my own plus my org's. Org-less callers still
+see their own team-marked items (they own them), just nobody else's.
 
 `list_public()` (explore) and all board reads: untouched.
 
