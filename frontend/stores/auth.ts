@@ -6,6 +6,8 @@ interface User {
   handle: string
   email: string
   display_name: string
+  org_id: string | null
+  org_role: 'admin' | 'member' | null
 }
 
 interface AuthResponse {
