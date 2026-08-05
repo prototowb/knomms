@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.5.0 — Sharing layer (complete)"
-last_release: "v0.5.0 (2026-08-04)"
+current_sprint: "v0.5.1 — Sharing follow-ups (complete)"
+last_release: "v0.5.1 (2026-08-04)"
 ticket_prefix: "KC"
-next_ticket: "KC-058"
+next_ticket: "KC-060"
 ```
 
 ## Architecture Summary
@@ -53,6 +53,13 @@ next_ticket: "KC-058"
 
 ---
 
+## ✅ v0.5.1: Sharing follow-ups (KC-058–059) — released 2026-08-04
+
+*The two concrete leftovers from the v0.5.0 sharing sprint. The third idea (`organisations` table) stays Tier 3 — it re-opens OQ-3 and needs design first.*
+
+- ~~**KC-058**~~ ✅ board-dedicated KB inherits board visibility — `create_board`/`fork_board`/`_resolve_board_kb` stamp the board's visibility on the KB they create; `PATCH /boards/{id}` visibility propagates via `BoardService.sync_board_kb_visibility`; live-verified both directions with a second user (public→200 on KB+sources, re-private→404) (2026-08-04)
+- ~~**KC-059**~~ ✅ `POST /v1/sources` trailing-slash 307 — route now registered at both `""` and `"/"` (KB router convention), so neither form redirects through the nginx→Nuxt proxy chain; live-verified (422 on both forms, no 307). BFF was never affected — it calls the slashed path (2026-08-04)
+
 ## ✅ v0.5.0: Sharing layer (KC-053–057) — released 2026-08-04
 
 *v0.4.0 shipped 2026-08-04. This sprint makes KBs shareable and everything that unblocks: shared learning paths with multi-learner progress, MC answer choices, metadata editing, and the deferred explore KBs tab. Design decisions: KB visibility uses the existing private|team|public enum (OQ-3: team = all instance users); the KB is the access boundary — `Source.visibility` stays dormant (documented, do not "fix"); reads relax, writes stay owner-only.*
@@ -67,7 +74,7 @@ next_ticket: "KC-058"
 
 ### Known non-goals (documented, deliberate)
 
-- Board-dedicated KBs stay private even when the board is public (`_resolve_board_kb` creates default-private KBs) — one-liner ticket later if wanted
+- ~~Board-dedicated KBs stay private even when the board is public~~ → shipped as KC-058 (v0.5.1)
 - `Source.visibility` remains dormant; KB is the boundary
 - Team members cannot author learning paths on shared KBs (create stays owner-only)
 
@@ -218,6 +225,8 @@ next_ticket: "KC-058"
 ---
 
 ## Recent Updates
+
+- 2026-08-04: v0.5.1 released — sharing follow-ups (board-KB visibility sync, sources trailing-slash 307 fix); live-verified with a second user; `__pycache__` artifacts untracked
 
 - 2026-08-04: v0.5.0 released — Sharing layer (KB visibility, shared learning paths, MC choices + answer-key leak fix, metadata PATCH, explore KBs tab); verified with a second user account; Migration 012
 

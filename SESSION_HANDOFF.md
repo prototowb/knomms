@@ -1,11 +1,27 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-04  
-**State:** v0.5.0 released — four releases today (v0.2.0–v0.5.0); KC-032–057 + KC-030 all shipped and live-verified  
-**Branch:** `development` merged to `main` via PR; `main` at v0.5.0  
+**State:** v0.5.1 released — five releases today (v0.2.0–v0.5.1); KC-032–059 + KC-030 all shipped and live-verified  
+**Branch:** `development` merged to `main` via PR; `main` at v0.5.1  
 **Tests:** 104/104 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** everything through KC-057 verified on Colima (API + browser/Playwright, incl. two-user sharing checks, 2026-08-04). Migration head: 012.  
+**Live verification:** everything through KC-059 verified on Colima (API + browser/Playwright, incl. two-user sharing checks, 2026-08-04). Migration head: 012 (unchanged in v0.5.1 — no schema work).  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+> **Local test/typecheck note (2026-08-04):** no repo venv — backend tests run with pyenv's `python3.13 -m pytest tests/ -q` (system `python3` lacks the deps). `pg ticket create` silently writes nothing (prints ✓KC-001, no file change) — manage tickets by editing PROJECT_STATUS.md directly, as every prior session did.
+
+## Session 2026-08-04 — summary
+
+Four releases in one day, each fully live-verified before tagging:
+
+| Release | Sprint | Tickets | Highlights |
+|---|---|---|---|
+| v0.2.0 | AI Assets Pillar | KC-032–040 | Released after live-verifying the 3 code-complete tickets; root-caused stale mid-sprint images |
+| v0.3.0 | Tier 2 hardening | KC-030, KC-041–046 | EvalCase API + UI, fork-compare, board curation, async board summary; 1 bug found+fixed in verification |
+| v0.4.0 | Learner layer + KB search | KC-047–052 | Private notes, learner progress, semantic+keyword KB search, explore assets tab |
+| v0.5.0 | Sharing layer | KC-053–057 | KB visibility, shared paths, MC choices + answer-key leak fix, metadata PATCH, explore KBs tab; verified with a second user |
+| v0.5.1 | Sharing follow-ups | KC-058–059 | Board-KB visibility sync (both directions, incl. PATCH propagation), sources trailing-slash 307 fix; `__pycache__` untracked |
+
+Migrations 008→012 applied. Backend tests 79→104. Two pre-existing security/correctness issues fixed along the way (private-board owner 404, assessment answer-key leak). Gotchas learned are recorded in §What Comes Next.
 
 > ⚠ **Stale-image lesson (2026-08-04):** the stack had been running images built mid-sprint — `/v1/deprecated-models` 404'd and the models BFF served HTML until api/worker/frontend were rebuilt with `docker build --no-cache` per §Architectural Invariants. After any release, rebuild all three images before verifying.
 
@@ -24,7 +40,7 @@ docker compose run --rm ollama-init
 # 3. Verify (note: there is no /api/health BFF route — FastAPI /health is internal;
 # check via Swagger or an authenticated endpoint instead)
 curl -s http://localhost/api/models        # {"models":[...]} proves nginx→Nuxt→FastAPI→Ollama chain
-cd backend && python3 -m pytest tests/ -q  # 59 passed
+cd backend && python3 -m pytest tests/ -q  # 104 passed
 cd frontend && npx vue-tsc --noEmit -p tsconfig.json  # clean
 
 # 4. Log in
@@ -170,10 +186,8 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 **v0.4.0 released 2026-08-04** — the June backlog shipped: private concept notes, learner progress, KB semantic+keyword search, explore assets tab, learning-page auth guards (KC-047–052). Migration head is now **011**.
 
-All previously listed candidates shipped in v0.5.0. Remaining ideas (not ticketed):
-- Board-dedicated KBs stay private when the board goes public (`_resolve_board_kb` creates default-private KBs)
-- `POST /v1/sources` trailing-slash 307 through the proxy chain (pre-existing; BFF unaffected)
-- An `organisations` table to make team ≠ public meaningful (OQ-3 currently equates them for reads)
+All previously listed candidates shipped in v0.5.0; the two concrete leftovers shipped in v0.5.1 (KC-058 board-KB visibility sync, KC-059 sources trailing-slash fix). Remaining idea (not ticketed):
+- An `organisations` table to make team ≠ public meaningful (OQ-3 currently equates them for reads) — Tier 3, needs design first: it re-opens OQ-3 and touches every `visibility.in_(("team","public"))` read site
 
 New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
 
