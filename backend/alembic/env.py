@@ -8,6 +8,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all models so Alembic's autogenerate can see them
+from app.models.organisation import Organisation  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.source import Source  # noqa: F401
 from app.models.chunk import Chunk  # noqa: F401
