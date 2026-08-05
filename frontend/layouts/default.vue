@@ -78,7 +78,12 @@ function logout() {
 
       <!-- User section at bottom -->
       <div class="px-3 py-3 border-t border-border">
-        <div v-if="auth.user" class="flex items-center gap-2 px-3 py-2 rounded-md">
+        <NuxtLink
+          v-if="auth.user"
+          to="/org"
+          class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-secondary transition-colors"
+          title="Organisation settings"
+        >
           <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center text-xs font-semibold text-accent shrink-0">
             {{ auth.user.handle.charAt(0).toUpperCase() }}
           </div>
@@ -86,7 +91,7 @@ function logout() {
             <p class="text-xs font-medium text-text-primary truncate">{{ auth.user.display_name }}</p>
             <p class="text-xs text-text-muted truncate">@{{ auth.user.handle }}</p>
           </div>
-        </div>
+        </NuxtLink>
         <button
           class="w-full mt-1 flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors"
           @click="logout"
