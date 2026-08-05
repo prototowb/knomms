@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-08-04  
-**State:** v0.5.1 released — five releases today (v0.2.0–v0.5.1); KC-032–059 + KC-030 all shipped and live-verified  
-**Branch:** `development` merged to `main` via PR; `main` at v0.5.1  
-**Tests:** 104/104 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** everything through KC-059 verified on Colima (API + browser/Playwright, incl. two-user sharing checks, 2026-08-04). Migration head: 012 (unchanged in v0.5.1 — no schema work).  
+**Session date:** 2026-08-05  
+**State:** v0.6.0 released — Organisations shipped (KC-060–064); everything KC-032–064 live-verified  
+**Branch:** `development` ahead of `main` pending the v0.6.0 release PR  
+**Tests:** 115/115 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** everything through KC-064 verified on Colima (API-level three-user script for orgs, 2026-08-05). Migration head: **013**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.6.0 (2026-08-05):** `team` visibility now means *same organisation* (`docs/09-organisations.md`, supersedes OQ-3). Migration 013 backfilled both dev users into "Default organisation" (dev@localhost.dev is admin). Org management at `/org`; API at `/v1/orgs`. The shared `team_or_public_clause` (organisations/predicates.py) is now the only correct way to write a team/public read check — never hand-roll `visibility.in_(("team","public"))` again. Found+fixed during verification: all public board listings 500'd (MissingGreenlet) once a public board hit the 3-item quality floor — board-summary queries must eager-load `items` + `owner`.
 
 > **Local test/typecheck note (2026-08-04):** no repo venv — backend tests run with pyenv's `python3.13 -m pytest tests/ -q` (system `python3` lacks the deps). `pg ticket create` silently writes nothing (prints ✓KC-001, no file change) — manage tickets by editing PROJECT_STATUS.md directly, as every prior session did.
 

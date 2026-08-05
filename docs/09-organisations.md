@@ -1,6 +1,6 @@
 # Organisations — Design (supersedes OQ-3)
 
-> Status: **design accepted, not yet implemented** (proposed sprint v0.6.0, KC-060–064).
+> Status: **shipped in v0.6.0** (2026-08-05, KC-060–064). §9 verification executed in full, all green.
 > Scope: make `team` visibility mean *same organisation* instead of *all registered users on this instance*.
 
 ## 1. Problem
