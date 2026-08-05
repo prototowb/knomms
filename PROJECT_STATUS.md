@@ -53,9 +53,15 @@ next_ticket: "KC-065"
 
 ---
 
-## 📐 v0.6.0: Organisations (KC-060–064) — designed, not started
+## 🔄 v0.6.0: Organisations (KC-060–064) — in progress
 
-*Design accepted in `docs/09-organisations.md` (supersedes OQ-3): `team` visibility becomes same-organisation via `users.org_id` + a rotatable invite-code join flow; Default-org backfill preserves v0.5.x behaviour for existing users; no JWT changes. Ticket breakdown in the doc §10 — Migration 013 (KC-060), orgs domain (KC-061), read-predicate rewire of the 7 team read sites (KC-062), `/org` frontend (KC-063), three-user live verification + release (KC-064).*
+*Design accepted in `docs/09-organisations.md` (supersedes OQ-3): `team` visibility becomes same-organisation via `users.org_id` + a rotatable invite-code join flow; Default-org backfill preserves v0.5.x behaviour for existing users; no JWT changes.*
+
+- ~~**KC-060**~~ ✅ organisations schema — Migration 013 (organisations table + `users.org_id/org_role` + Default-org backfill, oldest user = admin); `Organisation` model registered in both manual import sites; applied live, downgrade round-trip verified; migration head now **013** (2026-08-05)
+- **KC-061** orgs domain — service + router at `/v1/orgs` (create/me/join/leave/rotate-invite/member PATCH+DELETE per doc §5), schemas, `UserOut` gains `org_id`+`org_role`; unit tests for service guards (last-admin, 409s)
+- **KC-062** team read predicate — shared `team_or_public_clause` helper; rewire the 7 access-check sites (KB `get_readable_by_id`, learning `_readable_kb_exists`, harnesses ×3, assets ×2) + 2 `?visibility=team` filter branches; unit tests
+- **KC-063** frontend — `/org` page (create/join/members/invite-code/admin controls) + BFF routes + dashboard link + team-badge tooltips
+- **KC-064** three-user live verification (doc §9), docs sync, release v0.6.0
 
 ## ✅ v0.5.1: Sharing follow-ups (KC-058–059) — released 2026-08-04
 
