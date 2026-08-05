@@ -186,8 +186,9 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 **v0.4.0 released 2026-08-04** — the June backlog shipped: private concept notes, learner progress, KB semantic+keyword search, explore assets tab, learning-page auth guards (KC-047–052). Migration head is now **011**.
 
-All previously listed candidates shipped in v0.5.0; the two concrete leftovers shipped in v0.5.1 (KC-058 board-KB visibility sync, KC-059 sources trailing-slash fix). Remaining idea (not ticketed):
-- An `organisations` table to make team ≠ public meaningful (OQ-3 currently equates them for reads) — Tier 3, needs design first: it re-opens OQ-3 and touches every `visibility.in_(("team","public"))` read site
+All previously listed candidates shipped in v0.5.0; the two concrete leftovers shipped in v0.5.1 (KC-058 board-KB visibility sync, KC-059 sources trailing-slash fix).
+
+**Organisations designed (2026-08-05):** `docs/09-organisations.md` supersedes OQ-3 — `team` = same org via nullable `users.org_id` + rotatable invite codes, Default-org backfill preserves existing behaviour, SQL-predicate enforcement (no JWT changes). Proposed sprint v0.6.0 = KC-060–064 (schema → domain → predicate rewire → `/org` page → three-user live verification). Not started.
 
 New API surface in v0.3.0: `GET/POST` eval cases via versions, `GET /harnesses/{id}/eval` (run list), `POST /boards/{id}/assets` (asset → board projection), async `POST /boards/{id}/generate-summary` (202 + `board.summary.jobs` stream + `summary_status` poll), owner-authenticated `GET /boards/{id}`.
 

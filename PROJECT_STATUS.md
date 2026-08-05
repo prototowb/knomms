@@ -37,7 +37,7 @@ initialization_date: "2026-06-01"
 current_sprint: "v0.5.1 — Sharing follow-ups (complete)"
 last_release: "v0.5.1 (2026-08-04)"
 ticket_prefix: "KC"
-next_ticket: "KC-060"
+next_ticket: "KC-065"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,10 @@ next_ticket: "KC-060"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 📐 v0.6.0: Organisations (KC-060–064) — designed, not started
+
+*Design accepted in `docs/09-organisations.md` (supersedes OQ-3): `team` visibility becomes same-organisation via `users.org_id` + a rotatable invite-code join flow; Default-org backfill preserves v0.5.x behaviour for existing users; no JWT changes. Ticket breakdown in the doc §10 — Migration 013 (KC-060), orgs domain (KC-061), read-predicate rewire of the 7 team read sites (KC-062), `/org` frontend (KC-063), three-user live verification + release (KC-064).*
 
 ## ✅ v0.5.1: Sharing follow-ups (KC-058–059) — released 2026-08-04
 
@@ -130,7 +134,7 @@ next_ticket: "KC-060"
 |---|---|---|---|
 | OQ-1 | Source type for projected assets | `prompt_asset` added to enum | Boards need to distinguish projected prompts from pasted text |
 | OQ-2 | Cloud-pinned model evals | Zero-external-cost strict; cloud adapter Tier 3 | Invariant is load-bearing for self-hosted value prop |
-| OQ-3 | Team visibility scope | `team` = all registered users on this instance | No `organisations` table yet; document as known limitation |
+| OQ-3 | Team visibility scope | `team` = all registered users on this instance | No `organisations` table yet; document as known limitation. **Superseded by the organisations design (`docs/09-organisations.md`, OQ-6–12) — team = same org once v0.6.0 ships** |
 | OQ-4 | EvalCase immutability | Adding cases requires a new AssetVersion commit | Aligns with versioning philosophy; eval suites are immutable per version |
 | OQ-5 | Explore page surface | Tab on `/explore` (KBs \| Boards \| Harnesses) | Unified discovery; avoids top-nav proliferation |
 

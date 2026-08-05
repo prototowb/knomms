@@ -20,6 +20,7 @@ links:
   - docs/06-roadmap.md
   - docs/07-frontend-architecture.md
   - docs/08-backend-architecture.md
+  - docs/09-organisations.md
 -->
 
 # PROJECT_SPECIFICATIONS.md — Knowledge Comms
