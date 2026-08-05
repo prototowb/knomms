@@ -77,7 +77,7 @@ class BoardService:
                 .where(CollectionItem.collection_id == Collection.id)
                 .scalar_subquery() >= _QUALITY_FLOOR_ITEMS,
             )
-            .options(selectinload(Collection.owner))
+            .options(selectinload(Collection.items), selectinload(Collection.owner))
         )
         if sort == "trending":
             stmt = stmt.order_by(Collection.fork_count.desc(), Collection.created_at.desc())
@@ -108,7 +108,7 @@ class BoardService:
                 Collection.visibility == "public",
                 Collection.board_embedding.is_not(None),
             )
-            .options(selectinload(Collection.owner))
+            .options(selectinload(Collection.items), selectinload(Collection.owner))
             .order_by("distance")
             .limit(limit)
         )
@@ -135,7 +135,7 @@ class BoardService:
                 Collection.visibility == "public",
                 Collection.board_embedding.is_not(None),
             )
-            .options(selectinload(Collection.owner))
+            .options(selectinload(Collection.items), selectinload(Collection.owner))
             .order_by("distance")
             .limit(limit)
         )
@@ -157,7 +157,7 @@ class BoardService:
                         Collection.owner_user_id == user.id,
                         Collection.visibility == "public",
                     )
-                    .options(selectinload(Collection.items))
+                    .options(selectinload(Collection.items), selectinload(Collection.owner))
                     .order_by(Collection.fork_count.desc(), Collection.created_at.desc())
                     .limit(20)
                 )
@@ -169,7 +169,7 @@ class BoardService:
         result = await self.db.execute(
             select(Collection)
             .where(Collection.owner_user_id == user.id)
-            .options(selectinload(Collection.items))
+            .options(selectinload(Collection.items), selectinload(Collection.owner))
             .order_by(Collection.updated_at.desc())
         )
         return list(result.scalars().all())
