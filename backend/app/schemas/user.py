@@ -22,6 +22,8 @@ class UserOut(BaseModel):
     email: str
     handle: str
     display_name: str
+    org_id: str | None = None
+    org_role: str | None = None
     created_at: datetime
 
 
