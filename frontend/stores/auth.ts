@@ -8,6 +8,7 @@ interface User {
   display_name: string
   org_id: string | null
   org_role: 'admin' | 'member' | null
+  org_name: string | null
 }
 
 interface AuthResponse {
