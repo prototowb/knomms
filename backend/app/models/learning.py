@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -138,6 +138,83 @@ class ConceptProgress(Base):
     learned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class AssessmentAttempt(Base):
+    """One graded answer submission (docs/13, OQ-37) — every attempt is a row.
+
+    path_id is denormalised (derivable via item → concept → path) so owner
+    analytics can scan a path's attempts without a double join. answer_text is
+    the submitted text (choice ids are per-user shuffle indexes and unstable);
+    matched_distractor_id is a soft ref carrying the misconception label.
+    """
+
+    __tablename__ = "assessment_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    item_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    path_id: Mapped[str] = mapped_column(
+        ForeignKey("learning_paths.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)
+    correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    matched_distractor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class DiscussionThread(Base):
+    """Passage-anchored discussion thread on a path concept (docs/13, OQ-40).
+
+    passage_chunk_id is a soft ref (chunks are re-indexed); passage_excerpt is
+    snapshotted at creation so the thread header survives re-indexing. Threads
+    without an anchor are allowed but the UI encourages anchoring (§5.2's
+    "no floating discussion" rule).
+    """
+
+    __tablename__ = "discussion_threads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    concept_id: Mapped[str] = mapped_column(
+        ForeignKey("path_concepts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    passage_chunk_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    passage_excerpt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    author: Mapped["User"] = relationship("User")  # type: ignore[name-defined]  # noqa: F821
+    posts: Mapped[list["DiscussionPost"]] = relationship(
+        "DiscussionPost",
+        back_populates="thread",
+        cascade="all, delete-orphan",
+        order_by="DiscussionPost.created_at, DiscussionPost.id",  # replies read top-down (OQ-42)
+    )
+
+
+class DiscussionPost(Base):
+    __tablename__ = "discussion_posts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("discussion_threads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    thread: Mapped["DiscussionThread"] = relationship("DiscussionThread", back_populates="posts")
+    author: Mapped["User"] = relationship("User")  # type: ignore[name-defined]  # noqa: F821
 
 
 class ConceptNote(Base):
