@@ -181,7 +181,7 @@ async def submit_eval(
     user: User = Depends(get_current_user),
 ) -> EvalRunOut:
     svc = HarnessService(db)
-    eval_run = await svc.submit_eval(harness_id, user, req.model)
+    eval_run = await svc.submit_eval(harness_id, user, req.model, provider=req.provider)
     return EvalRunOut.model_validate(eval_run)
 
 
