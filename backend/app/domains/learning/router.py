@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis import get_redis
 from app.deps.auth import get_current_user
 from app.deps.db import get_db
+from app.domains.learning.discussions import DiscussionService
 from app.domains.learning.service import LearningService
 from app.models.user import User
 from app.schemas.learning import (
@@ -11,10 +12,15 @@ from app.schemas.learning import (
     AttemptResult,
     ConceptNoteOut,
     CreateLearningPathRequest,
+    CreatePostRequest,
+    CreateThreadRequest,
     LearningPathOut,
     LearningPathSummary,
     PathAnalyticsOut,
     PathConceptOut,
+    PostOut,
+    ThreadOut,
+    ThreadSummaryOut,
     UpdateConceptRequest,
     UpsertNoteRequest,
 )
@@ -287,3 +293,110 @@ async def attempt_assessment(
     svc = LearningService(db)
     result = await svc.grade_attempt(path_id, concept_id, item_id, user, req.answer)
     return AttemptResult(**result)
+
+
+# ── Discussion threads (docs/13, KC-083) ─────────────────────────────────────
+
+
+def _thread_summary(thread, post_count: int) -> ThreadSummaryOut:
+    return ThreadSummaryOut(
+        id=thread.id,
+        concept_id=thread.concept_id,
+        title=thread.title,
+        body=thread.body,
+        passage_chunk_id=thread.passage_chunk_id,
+        passage_excerpt=thread.passage_excerpt,
+        author=thread.author,
+        post_count=post_count,
+        created_at=thread.created_at,
+    )
+
+
+@router.get(
+    "/learning-paths/{path_id}/concepts/{concept_id}/threads",
+    response_model=list[ThreadSummaryOut],
+    summary="List discussion threads on a concept (newest first)",
+)
+async def list_threads(
+    path_id: str,
+    concept_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ThreadSummaryOut]:
+    svc = DiscussionService(db)
+    rows = await svc.list_threads(path_id, concept_id, user, limit=limit, offset=offset)
+    return [_thread_summary(t, n) for t, n in rows]
+
+
+@router.post(
+    "/learning-paths/{path_id}/concepts/{concept_id}/threads",
+    response_model=ThreadOut,
+    status_code=201,
+    summary="Open a discussion thread on a concept (optionally anchored to one of its passages)",
+)
+async def create_thread(
+    path_id: str,
+    concept_id: str,
+    req: CreateThreadRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ThreadOut:
+    svc = DiscussionService(db)
+    thread = await svc.create_thread(
+        path_id, concept_id, user, req.title, req.body, req.passage_chunk_id
+    )
+    return ThreadOut(**_thread_summary(thread, 0).model_dump(), posts=[])
+
+
+@router.get(
+    "/learning-paths/{path_id}/threads/{thread_id}",
+    response_model=ThreadOut,
+    summary="Get a thread with its posts (oldest first)",
+)
+async def get_thread(
+    path_id: str,
+    thread_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ThreadOut:
+    svc = DiscussionService(db)
+    thread = await svc.get_thread(path_id, thread_id, user)
+    out = ThreadOut(**_thread_summary(thread, len(thread.posts)).model_dump())
+    out.posts = [PostOut.model_validate(p) for p in thread.posts]
+    return out
+
+
+@router.post(
+    "/learning-paths/{path_id}/threads/{thread_id}/posts",
+    response_model=PostOut,
+    status_code=201,
+    summary="Reply to a discussion thread",
+)
+async def create_post(
+    path_id: str,
+    thread_id: str,
+    req: CreatePostRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PostOut:
+    svc = DiscussionService(db)
+    post = await svc.create_post(path_id, thread_id, user, req.body)
+    return PostOut.model_validate(post)
+
+
+@router.delete(
+    "/learning-paths/{path_id}/threads/{thread_id}/posts/{post_id}",
+    status_code=204,
+    summary="Delete a post (author or path owner)",
+)
+async def delete_post(
+    path_id: str,
+    thread_id: str,
+    post_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    svc = DiscussionService(db)
+    await svc.delete_post(path_id, thread_id, post_id, user)

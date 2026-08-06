@@ -141,6 +141,44 @@ class PathAnalyticsOut(BaseModel):
     concepts: list[ConceptAnalyticsOut] = []
 
 
+class PostOut(BaseModel):
+    id: str
+    thread_id: str
+    body: str
+    author: PathOwnerOut | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadSummaryOut(BaseModel):
+    id: str
+    concept_id: str
+    title: str
+    body: str
+    passage_chunk_id: str | None = None
+    passage_excerpt: str = ""
+    author: PathOwnerOut | None = None
+    post_count: int = 0
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadOut(ThreadSummaryOut):
+    posts: list[PostOut] = []  # oldest-first (OQ-42)
+
+
+class CreateThreadRequest(BaseModel):
+    title: str
+    body: str = ""
+    passage_chunk_id: str | None = None
+
+
+class CreatePostRequest(BaseModel):
+    body: str
+
+
 class AttemptRequest(BaseModel):
     answer: str
 
