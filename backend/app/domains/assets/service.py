@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.redis import get_redis
-from app.domains.organisations.predicates import team_or_public_clause
+from app.domains.organisations.predicates import has_grant, readable_clause
 from app.models.asset import Asset, AssetSourceProjection, AssetVersion, EvalCase
 from app.models.source import Source
 from app.models.user import User
@@ -80,7 +80,7 @@ class AssetService:
                 Asset.id == asset_id,
                 or_(
                     Asset.owner_user_id == user.id,
-                    team_or_public_clause(Asset, user),
+                    readable_clause(Asset, "asset", user),
                 ),
             )
             .options(
@@ -100,12 +100,13 @@ class AssetService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Asset]:
-        # Base access control: own assets + public + same-org team assets.
-        # The ?visibility=team branch below narrows this, so org scoping
-        # applies there automatically.
+        # Base access control: own assets + public + same-org team assets +
+        # ACL-granted assets. The ?visibility=team branch below narrows this,
+        # so org scoping applies there automatically (and grants on private
+        # assets stay out of the team filter — they aren't team-visible).
         base_predicate = or_(
             Asset.owner_user_id == user.id,
-            team_or_public_clause(Asset, user),
+            readable_clause(Asset, "asset", user),
         )
 
         # Narrow by visibility filter without leaking others' private assets.
@@ -230,7 +231,10 @@ class AssetService:
         asset = await self.db.get(Asset, asset_id)
         if asset is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Asset not found")
-        if asset.owner_user_id != user.id:
+        # Committing versions is the asset's OQ-18 editor surface
+        if asset.owner_user_id != user.id and not await has_grant(
+            self.db, "asset", asset_id, user, permissions=("editor",)
+        ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the asset owner")
 
         if eval_cases:

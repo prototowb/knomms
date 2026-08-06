@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.redis import get_redis
 from app.domains.curation.types import build_fork_lineage
-from app.domains.organisations.predicates import team_or_public_clause
+from app.domains.organisations.predicates import has_grant, readable_clause
 from app.models.asset import AssetVersion, EvalRun, Harness, HarnessAsset
 from app.models.user import User
 
@@ -33,7 +33,7 @@ class HarnessService:
                 Harness.id == harness_id,
                 or_(
                     Harness.owner_user_id == user.id,
-                    team_or_public_clause(Harness, user),
+                    readable_clause(Harness, "harness", user),
                 ),
             )
             .options(
@@ -53,7 +53,7 @@ class HarnessService:
     ) -> list[Harness]:
         base_predicate = or_(
             Harness.owner_user_id == user.id,
-            team_or_public_clause(Harness, user),
+            readable_clause(Harness, "harness", user),
         )
 
         if visibility_filter == "private":
@@ -145,7 +145,7 @@ class HarnessService:
                     Harness.id == harness_id,
                     or_(
                         Harness.owner_user_id == user.id,
-                        team_or_public_clause(Harness, user),
+                        readable_clause(Harness, "harness", user),
                     ),
                 )
                 .options(selectinload(Harness.assets))
@@ -196,7 +196,10 @@ class HarnessService:
         harness = await self.db.get(Harness, harness_id)
         if harness is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
-        if harness.owner_user_id != user.id:
+        # Slots and evals are the harness's OQ-18 editor surface
+        if harness.owner_user_id != user.id and not await has_grant(
+            self.db, "harness", harness_id, user, permissions=("editor",)
+        ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the harness owner")
 
         # Verify the asset version exists
@@ -224,7 +227,10 @@ class HarnessService:
         harness = await self.db.get(Harness, harness_id)
         if harness is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
-        if harness.owner_user_id != user.id:
+        # Slots and evals are the harness's OQ-18 editor surface
+        if harness.owner_user_id != user.id and not await has_grant(
+            self.db, "harness", harness_id, user, permissions=("editor",)
+        ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the harness owner")
 
         # Validate model is available locally — zero-external-cost invariant
@@ -264,11 +270,17 @@ class HarnessService:
         return eval_run
 
     async def list_eval_runs(self, harness_id: str, user: User, limit: int = 20) -> list[EvalRun]:
-        """List a harness's eval runs, newest first. Owner-only, like get_eval_run —
-        returns None-equivalent (404 at the router) for non-owners to avoid leaking
-        run history through public/team harnesses."""
+        """List a harness's eval runs, newest first. Owner or editor grantee
+        (an editor can submit evals, so they must be able to see them) — still
+        404 for everyone else so run history doesn't leak through public/team
+        harnesses."""
         harness = await self.db.get(Harness, harness_id)
-        if harness is None or harness.owner_user_id != user.id:
+        if harness is None or (
+            harness.owner_user_id != user.id
+            and not await has_grant(
+                self.db, "harness", harness_id, user, permissions=("editor",)
+            )
+        ):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
 
         stmt = (
@@ -283,9 +295,14 @@ class HarnessService:
         eval_run = await self.db.get(EvalRun, run_id)
         if eval_run is None:
             return None
-        # Only the harness owner can see eval runs
+        # Harness owner or editor grantee (matches list_eval_runs)
         harness = await self.db.get(Harness, eval_run.harness_id)
-        if harness is None or harness.owner_user_id != user.id:
+        if harness is None or (
+            harness.owner_user_id != user.id
+            and not await has_grant(
+                self.db, "harness", harness.id, user, permissions=("editor",)
+            )
+        ):
             return None
         return eval_run
 
@@ -299,7 +316,10 @@ class HarnessService:
         harness = await self.db.get(Harness, harness_id)
         if harness is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
-        if harness.owner_user_id != user.id:
+        # Slots and evals are the harness's OQ-18 editor surface
+        if harness.owner_user_id != user.id and not await has_grant(
+            self.db, "harness", harness_id, user, permissions=("editor",)
+        ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not the harness owner")
 
         # Verify the new asset version exists

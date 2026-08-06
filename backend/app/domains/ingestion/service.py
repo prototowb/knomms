@@ -94,7 +94,9 @@ class IngestionService:
     async def _resolve_kb(self, kb_id: str | None, user: User):
         kb_svc = KnowledgeBaseService(self.db)
         if kb_id:
-            kb = await kb_svc.get_by_id(kb_id, user)
+            # Adding sources is the KB's OQ-18 editor surface — owner or editor
+            # grant (docs/10-teams-and-acls.md)
+            kb = await kb_svc.get_editable_by_id(kb_id, user)
             if kb is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
             return kb
