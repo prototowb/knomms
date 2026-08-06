@@ -45,7 +45,9 @@ class DiscussionService:
         self, path_id: str, concept_id: str, user: User, limit: int = 50, offset: int = 0
     ) -> list[tuple[DiscussionThread, int]]:
         """Threads on a concept, newest first, each with its post count."""
-        await self._learning._get_readable_concept_id(path_id, concept_id, user)
+        path = await self._learning._get_readable_concept(path_id, concept_id, user)
+        # Hard-mode gate (docs/14, OQ-48): thread bodies quote locked passages
+        await self._learning.ensure_not_locked(path, concept_id, user)
         post_count = (
             select(func.count(DiscussionPost.id))
             .where(DiscussionPost.thread_id == DiscussionThread.id)
@@ -78,6 +80,7 @@ class DiscussionService:
         concept = next((c for c in path.concepts if c.id == concept_id), None)
         if concept is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Concept not found")
+        await self._learning.ensure_not_locked(path, concept_id, user)
 
         if not title.strip():
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="title must not be empty")
@@ -108,6 +111,9 @@ class DiscussionService:
         thread = await self._reload_thread(thread_id)
         if thread is None or not any(c.id == thread.concept_id for c in path.concepts):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Thread not found")
+        # Gates thread reads and (via create_post's call here) replies; post
+        # deletion stays ungated (docs/14, OQ-50)
+        await self._learning.ensure_not_locked(path, thread.concept_id, user)
         return thread
 
     async def create_post(self, path_id: str, thread_id: str, user: User, body: str) -> DiscussionPost:

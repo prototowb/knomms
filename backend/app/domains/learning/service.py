@@ -165,19 +165,68 @@ class LearningService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def _get_readable_concept_id(self, path_id: str, concept_id: str, user: User) -> str:
+    async def _get_readable_concept(self, path_id: str, concept_id: str, user: User) -> LearningPath:
         """Authz helper for learner actions (attempt/note/learned): 404 unless
-        the concept belongs to a path the user can read."""
+        the concept belongs to a path the user can read. Returns the loaded
+        path so callers can run gate checks without a second fetch."""
         path = await self.get_readable_path(path_id, user)
         if path is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
         if not any(c.id == concept_id for c in path.concepts):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Concept not found")
-        return concept_id
+        return path
+
+    async def gate_states(self, path: LearningPath, user: User) -> dict[str, dict] | None:
+        """Per-concept mastery gate state for this learner (docs/14, OQ-49).
+
+        None when gating is off or the requester owns the path (OQ-47) —
+        callers treat None as "no gating". One DISTINCT query over the
+        learner's correct attempts; only runs when a gate mode is active.
+        """
+        from app.domains.learning.gates import compute_gates
+
+        if path.mastery_mode == "off" or path.user_id == user.id:
+            return None
+
+        active = [c for c in path.concepts if c.status != "pruned"]
+        correct_ids = set(
+            (
+                await self.db.execute(
+                    select(AssessmentAttempt.item_id)
+                    .where(
+                        AssessmentAttempt.path_id == path.id,
+                        AssessmentAttempt.user_id == user.id,
+                        AssessmentAttempt.correct.is_(True),
+                    )
+                    .distinct()
+                )
+            ).scalars().all()
+        )
+        learned = await self.learned_concept_ids(user, [c.id for c in active])
+        return compute_gates(
+            [{"id": c.id, "item_ids": [i.id for i in c.assessment_items]} for c in active],
+            correct_ids,
+            learned,
+            path.mastery_threshold,
+        )
+
+    async def ensure_not_locked(self, path: LearningPath, concept_id: str, user: User) -> None:
+        """422 when hard-mode gating locks this concept for this learner
+        (docs/14, OQ-48). Soft mode and the path owner are never blocked."""
+        if path.mastery_mode != "hard":
+            return
+        gates = await self.gate_states(path, user)
+        state = (gates or {}).get(concept_id)
+        if state is not None and state["locked"]:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Concept is locked by mastery gating",
+            )
 
     async def set_learned(self, path_id: str, concept_id: str, user: User, learned: bool) -> bool:
         """Idempotently mark/unmark a concept as learned for this user."""
-        await self._get_readable_concept_id(path_id, concept_id, user)
+        path = await self._get_readable_concept(path_id, concept_id, user)
+        await self.ensure_not_locked(path, concept_id, user)
         stmt = select(ConceptProgress).where(
             ConceptProgress.user_id == user.id, ConceptProgress.concept_id == concept_id
         )
@@ -201,7 +250,7 @@ class LearningService:
         return set((await self.db.execute(stmt)).scalars().all())
 
     async def get_note(self, path_id: str, concept_id: str, user: User) -> ConceptNote | None:
-        await self._get_readable_concept_id(path_id, concept_id, user)
+        await self._get_readable_concept(path_id, concept_id, user)
         stmt = select(ConceptNote).where(
             ConceptNote.user_id == user.id, ConceptNote.concept_id == concept_id
         )
@@ -373,7 +422,8 @@ class LearningService:
         # Validates concept ∈ path (OQ-38) — the previous readable-path check
         # alone let an item be graded (and would let attempts be recorded)
         # against any readable path's id.
-        await self._get_readable_concept_id(path_id, concept_id, user)
+        path = await self._get_readable_concept(path_id, concept_id, user)
+        await self.ensure_not_locked(path, concept_id, user)
 
         stmt = (
             select(AssessmentItem)
