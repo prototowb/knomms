@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.11.0 — Mastery gates (complete, released)"
+current_sprint: "v0.12.0 — Video transcript ingestion, part 1"
 last_release: "v0.11.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-092"
+next_ticket: "KC-096"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-092"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.12.0: Video transcript ingestion, part 1 (KC-092–095)
+
+*Design in `docs/15-video-ingestion.md` (OQ-53–62) — first slice of V2 roadmap #2. YouTube caption/transcript ingestion with `ts:HH:MM:SS` locators (the RawBlock contract already reserves them); local ASR stays in part 2. `youtube-transcript-api` via `asyncio.to_thread`; manual > auto captions, English first; ~400-char blocks; caption-less videos fail cleanly; oEmbed titles; timestamp deep links in search results and learn passages.*
+
+### Sprint order (implement in sequence — 092 unblocks 093; 093 unblocks 094)
+
+- **KC-092** backend: extractor — pure `parse_video_url` (watch/short/shorts/embed/live forms) + `build_transcript_blocks` (~400-char accumulation, `ts:` locators) + `VideoExtractor.fetch_and_extract` (transcript preference per OQ-57, ValueError on caption-less); `youtube-transcript-api` dep; unit tests
+- **KC-093** backend: wiring — `submit_url` stamps `type="video"` on match + best-effort oEmbed title (OQ-60); worker `video` extract dispatch skipping the page fetch (OQ-58)
+- **KC-094** frontend: video badge on source cards; `ts:` locators rendered as `watch?v=…&t=Ns` deep links in KB search results and learn source passages (OQ-61)
+- **KC-095** verification + release — doc §7 live checks (captioned video end-to-end incl. search deep link + curriculum grounding, caption-less failure, web regression); full pytest + vue-tsc; changelog; release v0.12.0
 
 ## ✅ v0.11.0: Mastery gates — cohort learning, part 2 (KC-087–091) — released 2026-08-06
 
