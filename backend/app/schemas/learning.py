@@ -30,6 +30,12 @@ class AssessmentItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConceptGateOut(BaseModel):
+    mastered: bool
+    correct_items: int
+    item_count: int
+
+
 class PathConceptOut(BaseModel):
     id: str
     position: int
@@ -40,6 +46,10 @@ class PathConceptOut(BaseModel):
     instructor_annotation: str | None = None
     status: str
     assessment_items: list[AssessmentItemOut] = []
+    # Mastery gating (docs/14) — gate is null when gating is off or the
+    # requester owns the path; locked concepts are redacted in hard mode
+    locked: bool = False
+    gate: ConceptGateOut | None = None
 
     model_config = {"from_attributes": True}
 
