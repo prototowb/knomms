@@ -189,6 +189,7 @@ async def search_kb(
             source_id=source_id,
             source_title=sources[source_id].title if source_id in sources else "(unknown source)",
             source_type=sources[source_id].type if source_id in sources else "unknown",
+            source_url=sources[source_id].raw_url if source_id in sources else None,
             locator=locator,
             text=text,
             score=score,
