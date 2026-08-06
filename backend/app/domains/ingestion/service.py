@@ -51,10 +51,15 @@ class IngestionService:
             ingestion_status="pending",
         )
         self.db.add(source)
-        await self.db.flush()
+        # Commit BEFORE enqueue — the worker must never see a job for an
+        # uncommitted Source row, or the source is stuck 'pending' forever
+        # (the KC-077 lesson; race caught live in KC-095)
+        kb_id_val, namespace = kb.id, kb.vector_namespace
+        await self.db.commit()
+        await self.db.refresh(source)
 
-        await self._dispatch(source.id, user.id, kb.id, kb.vector_namespace)
-        return source, kb.id
+        await self._dispatch(source.id, user.id, kb_id_val, namespace)
+        return source, kb_id_val
 
     async def submit_file(self, file: UploadFile, kb_id: str | None, user: User) -> tuple[Source, str]:
         """Submit an uploaded file for ingestion. Returns (source, kb_id)."""
@@ -97,8 +102,13 @@ class IngestionService:
         redis = await get_redis()
         await redis.setex(f"upload:{source_id}", 3600, content)
 
-        await self._dispatch(source.id, user.id, kb.id, kb.vector_namespace, upload=True)
-        return source, kb.id
+        # Commit BEFORE enqueue (same race as submit_url — KC-095)
+        kb_id_val, namespace = kb.id, kb.vector_namespace
+        await self.db.commit()
+        await self.db.refresh(source)
+
+        await self._dispatch(source.id, user.id, kb_id_val, namespace, upload=True)
+        return source, kb_id_val
 
     async def get_source(self, source_id: str, user: User) -> Source | None:
         return await self.db.get(Source, source_id)
