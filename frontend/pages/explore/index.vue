@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'public' })
 
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 interface CuratorOut {
   id: string
@@ -54,9 +54,13 @@ interface PublicKB {
 }
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 
 // Active tab
-const activeTab = ref<'boards' | 'harnesses' | 'assets' | 'kbs'>('boards')
+type Tab = 'boards' | 'harnesses' | 'assets' | 'kbs' | 'org'
+const TABS: Tab[] = ['boards', 'harnesses', 'assets', 'kbs', 'org']
+const activeTab = ref<Tab>('boards')
 
 // Boards tab
 const { data: trending, pending: trendingPending } = await useFetch<BoardSummary[]>(
@@ -158,12 +162,57 @@ async function loadKbs() {
   }
 }
 
-function switchTab(tab: 'boards' | 'harnesses' | 'assets' | 'kbs') {
+// My organisation tab (KC-068) — team-visible work shared within the org.
+// Client-fetched only: auth.token never exists during SSR of /explore.
+const orgKbs = ref<PublicKB[]>([])
+const orgAssets = ref<AssetSummary[]>([])
+const orgHarnesses = ref<HarnessSummary[]>([])
+const orgLoading = ref(false)
+const orgLoaded = ref(false)
+
+async function loadOrg() {
+  if (orgLoaded.value || orgLoading.value) return
+  if (!auth.token) {
+    orgLoaded.value = true
+    return
+  }
+  orgLoading.value = true
+  try {
+    const headers = { Authorization: `Bearer ${auth.token}` }
+    const [kbs, teamAssets, teamHarnesses] = await Promise.all([
+      $fetch<PublicKB[]>('/api/kbs/org', { headers }).catch(() => []),
+      $fetch<AssetSummary[]>('/api/assets', { query: { visibility: 'team' }, headers }).catch(() => []),
+      $fetch<HarnessSummary[]>('/api/harnesses', { query: { visibility: 'team' }, headers }).catch(() => []),
+    ])
+    orgKbs.value = kbs
+    orgAssets.value = teamAssets
+    orgHarnesses.value = teamHarnesses
+  } finally {
+    orgLoading.value = false
+    orgLoaded.value = true
+  }
+}
+
+const orgEmpty = computed(
+  () => orgKbs.value.length === 0 && orgAssets.value.length === 0 && orgHarnesses.value.length === 0
+)
+
+function switchTab(tab: Tab) {
   activeTab.value = tab
+  // Deep-linkable tabs; boards is the default and keeps a clean URL
+  router.replace({ query: { ...route.query, tab: tab === 'boards' ? undefined : tab } })
   if (tab === 'harnesses') loadHarnesses()
   if (tab === 'assets') loadAssets()
   if (tab === 'kbs') loadKbs()
+  if (tab === 'org') loadOrg()
 }
+
+onMounted(() => {
+  const t = route.query.tab
+  if (typeof t === 'string' && t !== 'boards' && (TABS as string[]).includes(t)) {
+    switchTab(t as Tab)
+  }
+})
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -218,6 +267,19 @@ function formatDate(iso: string) {
       >
         Knowledge Bases
       </button>
+      <!-- Org membership is client-only state — ClientOnly avoids a hydration mismatch -->
+      <ClientOnly>
+        <button
+          v-if="auth.isLoggedIn && auth.user?.org_id"
+          class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px"
+          :class="activeTab === 'org'
+            ? 'border-accent text-text-primary'
+            : 'border-transparent text-text-muted hover:text-text-secondary'"
+          @click="switchTab('org')"
+        >
+          My organisation
+        </button>
+      </ClientOnly>
     </div>
 
     <!-- Boards tab -->
@@ -447,6 +509,112 @@ function formatDate(iso: string) {
         <p class="text-sm">No public knowledge bases yet.</p>
         <p class="text-xs mt-1">Owners can make a KB public from its workspace visibility badge.</p>
       </div>
+    </template>
+
+    <!-- My organisation tab (KC-068) -->
+    <template v-if="activeTab === 'org'">
+      <p class="text-xs text-text-muted mb-6">
+        Team-visible work shared within
+        <span class="font-medium text-text-secondary">{{ auth.user?.org_name ?? 'your organisation' }}</span>.
+      </p>
+
+      <div v-if="orgLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div v-for="n in 6" :key="n" class="rounded-xl border border-border p-5 animate-pulse">
+          <div class="h-4 bg-surface-secondary rounded w-3/4 mb-3" />
+          <div class="h-3 bg-surface-secondary rounded w-2/3" />
+        </div>
+      </div>
+
+      <div v-else-if="orgEmpty" class="text-center py-16 text-text-muted">
+        <p class="text-sm">Nothing shared with your organisation yet.</p>
+        <p class="text-xs mt-1">Set a KB, asset, or harness to “Team” visibility and it will show up here.</p>
+      </div>
+
+      <template v-else>
+        <section v-if="orgKbs.length > 0" class="mb-10">
+          <h2 class="text-sm font-semibold text-text-primary mb-4">Knowledge Bases</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <NuxtLink
+              v-for="kb in orgKbs"
+              :key="kb.id"
+              :to="`/kb/${kb.id}`"
+              class="group block rounded-xl border border-border bg-surface p-5 hover:border-accent/40 hover:shadow-sm transition-all"
+            >
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2">
+                  {{ kb.title }}
+                </h3>
+                <span
+                  class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+                  :class="kb.index_status === 'ready' ? 'text-grounded bg-grounded/10' : 'text-warning bg-warning/10'"
+                >
+                  {{ kb.index_status }}
+                </span>
+              </div>
+              <div class="flex items-center gap-3 text-xs text-text-muted">
+                <span v-if="kb.owner">@{{ kb.owner.handle }}</span>
+                <span>· {{ formatDate(kb.created_at) }}</span>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+
+        <section v-if="orgAssets.length > 0" class="mb-10">
+          <h2 class="text-sm font-semibold text-text-primary mb-4">AI Assets</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <NuxtLink
+              v-for="a in orgAssets"
+              :key="a.id"
+              :to="`/assets/${a.id}`"
+              class="group block rounded-xl border border-border bg-surface p-5 hover:border-accent/40 hover:shadow-sm transition-all"
+            >
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2">
+                  {{ a.title }}
+                </h3>
+                <span class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium bg-border text-text-secondary">
+                  {{ assetTypeLabel[a.asset_type] ?? a.asset_type }}
+                </span>
+              </div>
+              <p v-if="a.description" class="text-xs text-text-secondary leading-5 line-clamp-3 mb-3">
+                {{ a.description }}
+              </p>
+              <div class="flex items-center gap-3 text-xs text-text-muted">
+                <span>{{ a.version_count }} version{{ a.version_count !== 1 ? 's' : '' }}</span>
+                <span v-if="a.owner">· @{{ a.owner.handle }}</span>
+                <span>· {{ formatDate(a.created_at) }}</span>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+
+        <section v-if="orgHarnesses.length > 0" class="mb-10">
+          <h2 class="text-sm font-semibold text-text-primary mb-4">Harnesses</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <NuxtLink
+              v-for="h in orgHarnesses"
+              :key="h.id"
+              :to="`/harnesses/${h.id}/compose`"
+              class="group block rounded-xl border border-border bg-surface p-5 hover:border-accent/40 hover:shadow-sm transition-all"
+            >
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="text-sm font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2">
+                  {{ h.title }}
+                </h3>
+                <span class="shrink-0 text-xs text-text-muted">{{ h.fork_count }} forks</span>
+              </div>
+              <p v-if="h.description" class="text-xs text-text-secondary leading-5 line-clamp-3 mb-3">
+                {{ h.description }}
+              </p>
+              <div class="flex items-center gap-3 text-xs text-text-muted">
+                <span>{{ h.asset_count }} slot{{ h.asset_count !== 1 ? 's' : '' }}</span>
+                <span v-if="h.owner">· @{{ h.owner.handle }}</span>
+                <span>· {{ formatDate(h.created_at) }}</span>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+      </template>
     </template>
   </div>
 </template>

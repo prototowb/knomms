@@ -50,6 +50,22 @@ async def list_public_kbs(
     return [PublicKBOut.model_validate(kb) for kb in kbs]
 
 
+@router.get(
+    "/org",
+    response_model=list[PublicKBOut],
+    summary="List your organisation's team-visible knowledge bases (explore surface)",
+)
+async def list_org_kbs(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[PublicKBOut]:
+    svc = KnowledgeBaseService(db)
+    kbs = await svc.list_org(user, limit=limit, offset=offset)
+    return [PublicKBOut.model_validate(kb) for kb in kbs]
+
+
 @router.get("/{kb_id}", response_model=KnowledgeBaseOut)
 async def get_kb(
     kb_id: str,

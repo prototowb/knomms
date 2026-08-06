@@ -40,5 +40,14 @@ async def refresh(
 
 
 @router.get("/me", response_model=UserOut)
-async def me(current_user: User = Depends(get_current_user)) -> UserOut:
-    return UserOut.model_validate(current_user)
+async def me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    out = UserOut.model_validate(current_user)
+    if current_user.org_id is not None:
+        from app.models.organisation import Organisation
+
+        org = await db.get(Organisation, current_user.org_id)
+        out.org_name = org.name if org else None
+    return out

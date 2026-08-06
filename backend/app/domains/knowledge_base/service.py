@@ -121,6 +121,27 @@ class KnowledgeBaseService:
         )
         return result.scalar_one_or_none()
 
+    async def list_org(self, user: User, limit: int = 50, offset: int = 0) -> list[KnowledgeBase]:
+        """Team-visible KBs owned by the user's org members — the explore
+        'My organisation' listing (docs/10 OQ-20). Granted-but-private KBs stay
+        out: grants are targeted shares, not org broadcasts."""
+        if user.org_id is None:
+            return []
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(
+                KnowledgeBase.visibility == "team",
+                KnowledgeBase.owner_user_id.in_(
+                    select(User.id).where(User.org_id == user.org_id)
+                ),
+            )
+            .options(selectinload(KnowledgeBase.owner))
+            .order_by(KnowledgeBase.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
     async def list_public(self, limit: int = 50, offset: int = 0) -> list[KnowledgeBase]:
         """Public KBs for explore — no auth required."""
         result = await self.db.execute(
