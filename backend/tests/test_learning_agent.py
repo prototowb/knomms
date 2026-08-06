@@ -123,6 +123,62 @@ def test_build_concept_groups_passage_fields():
     assert p.locator == "page:5"
 
 
+# ── build_concept_groups — KC-074 (source boundary + cap, realistic chunker output) ──
+#
+# Real chunker output NEVER contains "\n\n" (windows are rejoined with single
+# spaces — chunker.py _build_windows), so these tests use newline-free text.
+# Before KC-074 every such KB collapsed into exactly one concept group.
+
+
+def test_build_concept_groups_splits_on_source_boundary_without_headings():
+    chunks = [
+        _chunk("c1", "s1", "para:1", "Chapter 1 > Intro Caching stores hot data. It reduces latency."),
+        _chunk("c2", "s1", "para:2", "Eviction policies decide what to drop when the cache is full."),
+        _chunk("c3", "s2", "para:1", "Write-ahead logging ensures durability before commits are acknowledged."),
+    ]
+    groups = build_concept_groups(chunks)
+    assert len(groups) == 2
+    assert [p.chunk_id for p in groups[0]] == ["c1", "c2"]
+    assert [p.chunk_id for p in groups[1]] == ["c3"]
+
+
+def test_build_concept_groups_one_group_per_source_for_many_sources():
+    chunks = [
+        _chunk(f"c{i}", f"s{i}", "para:1", f"Facet document {i} body text with no headings.")
+        for i in range(5)
+    ]
+    groups = build_concept_groups(chunks)
+    assert len(groups) == 5
+
+
+def test_build_concept_groups_caps_group_size():
+    chunks = [
+        _chunk(f"c{i}", "s1", f"para:{i}", f"Plain passage number {i} without any heading.")
+        for i in range(10)
+    ]
+    groups = build_concept_groups(chunks)
+    assert [len(g) for g in groups] == [8, 2]
+
+
+def test_build_concept_groups_overlap_chunks_do_not_count_toward_cap():
+    chunks = []
+    for i in range(8):
+        chunks.append(_chunk(f"c{i}", "s1", f"para:{i}", f"Passage {i}."))
+        chunks.append(_chunk(f"o{i}", "s1", f"para:{i}", f"Overlap {i}.", is_overlap=True))
+    groups = build_concept_groups(chunks)
+    assert len(groups) == 1
+    assert len(groups[0]) == 8
+
+
+def test_build_concept_groups_source_boundary_splits_even_with_same_heading():
+    chunks = [
+        _chunk("c1", "s1", "p:1", "Intro\n\nSource one content."),
+        _chunk("c2", "s2", "p:1", "Intro\n\nSource two content."),
+    ]
+    groups = build_concept_groups(chunks)
+    assert len(groups) == 2
+
+
 # ── _parse_json_response ──────────────────────────────────────────────────────
 
 
