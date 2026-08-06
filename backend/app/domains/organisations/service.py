@@ -7,10 +7,11 @@ users.org_id/org_role, no join table. Services flush; routers commit.
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.organisation import Organisation
+from app.models.team import Team, TeamMembership
 from app.models.user import User
 
 ORG_ROLES = frozenset({"admin", "member"})
@@ -82,6 +83,7 @@ class OrganisationService:
                 status.HTTP_409_CONFLICT,
                 detail="You are the last admin — promote another member before leaving",
             )
+        await self._purge_team_memberships(user.id, org.id)
         user.org_id = None
         user.org_role = None
 
@@ -115,8 +117,19 @@ class OrganisationService:
                 status.HTTP_409_CONFLICT, detail="Use leave to remove yourself"
             )
         target = await self._get_member(org, target_id)
+        await self._purge_team_memberships(target.id, org.id)
         target.org_id = None
         target.org_role = None
+
+    async def _purge_team_memberships(self, user_id: str, org_id: str) -> None:
+        """Team membership cannot outlive org membership (docs/10 §4): a user
+        whose org_id goes NULL would otherwise keep team-grant access."""
+        await self.db.execute(
+            delete(TeamMembership).where(
+                TeamMembership.user_id == user_id,
+                TeamMembership.team_id.in_(select(Team.id).where(Team.org_id == org_id)),
+            )
+        )
 
     async def _require_admin(self, user: User) -> Organisation:
         org = await self.get_own_org(user)
