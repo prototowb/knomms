@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -16,12 +16,21 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Single optional org per user (docs/09-organisations.md OQ-6);
+    # org_role is 'admin' | 'member', NULL iff org_id is NULL
+    org_id: Mapped[str | None] = mapped_column(
+        ForeignKey("organisations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    org_role: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
+    organisation: Mapped["Organisation | None"] = relationship(  # type: ignore[name-defined]
+        "Organisation", back_populates="members", foreign_keys=[org_id]
+    )
     sources: Mapped[list["Source"]] = relationship("Source", back_populates="owner")  # type: ignore[name-defined]
     collections: Mapped[list["Collection"]] = relationship("Collection", back_populates="owner")  # type: ignore[name-defined]
     knowledge_bases: Mapped[list["KnowledgeBase"]] = relationship("KnowledgeBase", back_populates="owner")  # type: ignore[name-defined]

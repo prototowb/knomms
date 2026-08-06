@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.5.1 — Sharing follow-ups (complete)"
-last_release: "v0.5.1 (2026-08-04)"
+current_sprint: "v0.6.0 — Organisations (complete)"
+last_release: "v0.6.0 (2026-08-05)"
 ticket_prefix: "KC"
-next_ticket: "KC-060"
+next_ticket: "KC-065"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,16 @@ next_ticket: "KC-060"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## ✅ v0.6.0: Organisations (KC-060–064) — released 2026-08-05
+
+*Design accepted in `docs/09-organisations.md` (supersedes OQ-3): `team` visibility becomes same-organisation via `users.org_id` + a rotatable invite-code join flow; Default-org backfill preserves v0.5.x behaviour for existing users; no JWT changes.*
+
+- ~~**KC-060**~~ ✅ organisations schema — Migration 013 (organisations table + `users.org_id/org_role` + Default-org backfill, oldest user = admin); `Organisation` model registered in both manual import sites; applied live, downgrade round-trip verified; migration head now **013** (2026-08-05)
+- ~~**KC-061**~~ ✅ orgs domain — `/v1/orgs` create/me/join/leave/rotate-invite/member PATCH+DELETE; invite code admin-only in responses; `UserOut` gains `org_id`+`org_role`; 8 guard unit tests (112 total); all flows live-verified with a third user incl. 409/403/404/422 paths (2026-08-05)
+- ~~**KC-062**~~ ✅ team read predicate — `team_or_public_clause` in organisations/predicates.py rewires all 7 access-check sites (+ filter branches scope automatically via the base predicate); 3 SQL-shape unit tests (115 total); live-verified same-org 200 / org-less 404 / join-leave immediate on unchanged token (2026-08-05)
+- ~~**KC-063**~~ ✅ frontend — `/org` page (create/join forms when org-less; member list, leave, invite copy/rotate, promote/demote/remove for admins); BFF index.post + catch-all; sidebar user block links to `/org`; auth store User + team-badge tooltips on KB/asset/harness pages; vue-tsc clean; BFF chain verified live (2026-08-05)
+- ~~**KC-064**~~ ✅ three-user live verification — full doc §9 script green: org-less registration, team KB/asset/harness reads (same-org 200 / outsider 404), shared-path view/attempt/note/learned by a same-org learner, join→immediate access→leave→immediate loss on unchanged tokens, rotate invalidating the old code, public + logged-out regression; found+fixed pre-existing MissingGreenlet in all public board listings (2026-08-05)
 
 ## ✅ v0.5.1: Sharing follow-ups (KC-058–059) — released 2026-08-04
 
@@ -130,7 +140,7 @@ next_ticket: "KC-060"
 |---|---|---|---|
 | OQ-1 | Source type for projected assets | `prompt_asset` added to enum | Boards need to distinguish projected prompts from pasted text |
 | OQ-2 | Cloud-pinned model evals | Zero-external-cost strict; cloud adapter Tier 3 | Invariant is load-bearing for self-hosted value prop |
-| OQ-3 | Team visibility scope | `team` = all registered users on this instance | No `organisations` table yet; document as known limitation |
+| OQ-3 | Team visibility scope | `team` = all registered users on this instance | No `organisations` table yet; document as known limitation. **Superseded by the organisations design (`docs/09-organisations.md`, OQ-6–12) — team = same org once v0.6.0 ships** |
 | OQ-4 | EvalCase immutability | Adding cases requires a new AssetVersion commit | Aligns with versioning philosophy; eval suites are immutable per version |
 | OQ-5 | Explore page surface | Tab on `/explore` (KBs \| Boards \| Harnesses) | Unified discovery; avoids top-nav proliferation |
 
@@ -225,6 +235,8 @@ next_ticket: "KC-060"
 ---
 
 ## Recent Updates
+
+- 2026-08-05: v0.6.0 released — Organisations (Migration 013 + backfill, /v1/orgs + /org page, org-scoped team visibility across KBs/paths/assets/harnesses); three-user live verification; pre-existing public-board-listing MissingGreenlet fixed; 115 backend tests
 
 - 2026-08-04: v0.5.1 released — sharing follow-ups (board-KB visibility sync, sources trailing-slash 307 fix); live-verified with a second user; `__pycache__` artifacts untracked
 

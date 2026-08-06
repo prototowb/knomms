@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.redis import get_redis
+from app.domains.organisations.predicates import team_or_public_clause
 from app.models.asset import Asset, AssetSourceProjection, AssetVersion, EvalCase
 from app.models.source import Source
 from app.models.user import User
@@ -79,7 +80,7 @@ class AssetService:
                 Asset.id == asset_id,
                 or_(
                     Asset.owner_user_id == user.id,
-                    Asset.visibility.in_(("team", "public")),
+                    team_or_public_clause(Asset, user),
                 ),
             )
             .options(
@@ -99,10 +100,12 @@ class AssetService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Asset]:
-        # Base access control: own assets + team/public assets
+        # Base access control: own assets + public + same-org team assets.
+        # The ?visibility=team branch below narrows this, so org scoping
+        # applies there automatically.
         base_predicate = or_(
             Asset.owner_user_id == user.id,
-            Asset.visibility.in_(("team", "public")),
+            team_or_public_clause(Asset, user),
         )
 
         # Narrow by visibility filter without leaking others' private assets.

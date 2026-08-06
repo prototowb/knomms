@@ -471,6 +471,13 @@ const visibilityColor: Record<string, string> = {
   public: 'text-grounded bg-grounded/10',
 }
 
+function visibilityTitle(v: string): string | undefined {
+  const parts: string[] = []
+  if (v === 'team') parts.push('Team — visible to members of your organisation')
+  if (isOwner.value) parts.push('Click to change visibility')
+  return parts.join(' · ') || undefined
+}
+
 // ── Load ───────────────────────────────────────────────────────────────────
 
 async function loadPage() {
@@ -549,7 +556,7 @@ onMounted(loadPage)
                 <ClientOnly>
                   <button
                     :disabled="!isOwner || updatingVisibility"
-                    :title="isOwner ? 'Click to change visibility' : undefined"
+                    :title="visibilityTitle(harness.visibility)"
                     class="text-xs px-2 py-0.5 rounded-full font-medium transition-colors"
                     :class="[visibilityColor[harness.visibility], isOwner ? 'cursor-pointer hover:opacity-80' : 'cursor-default']"
                     @click="cycleVisibility"

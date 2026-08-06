@@ -4,6 +4,31 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.6.0] — 2026-08-05
+
+Organisations (KC-060–064) — `team` visibility finally means something: same organisation, not "everyone on the instance" (supersedes OQ-3; design in `docs/09-organisations.md`). Live-verified with a three-user script (two org members + an org-less outsider).
+
+### Features
+
+#### Organisations
+- `organisations` table + nullable `users.org_id`/`org_role` (Migration 013); single optional org per user — teams-within-orgs and ACLs stay Tier 4
+- Upgrade backfill: all pre-existing users land in a "Default organisation" (oldest user as admin) so nothing previously readable breaks; fresh installs skip it and new users register org-less
+- `/v1/orgs` API: create (caller becomes admin), join by rotatable invite code, leave (last-admin guard), member promote/demote/remove (last-admin + remove-self guards); invite code visible to admins only
+- `/org` page: create/join forms when org-less; member list, leave, invite copy/rotate and role controls for admins; sidebar user block links to it
+
+#### Team visibility semantics
+- Every team/public read check now goes through one shared predicate: public is open to all, team requires owner and reader to share a non-NULL org (org-less readers get public only). Applies to KBs (workspace, sources, search, Q&A, status poll), shared learning paths, assets, harnesses, and the `?visibility=team` list filters
+- Enforcement is per-request SQL — no JWT changes, so joining or leaving an org changes access immediately on an unchanged token
+- Boards keep their deliberate public/private-only surface; a team badge tooltip now explains org scope on KB/asset/harness pages
+
+### Fixes
+- Public board listings (trending, semantic search, similar boards, curator profile) 500'd with MissingGreenlet once any public board reached the 3-item quality floor — summary queries now eager-load `items` + `owner` (pre-existing, caught during release verification)
+
+### Test Coverage
+- 115 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 013
+
+---
+
 ## [0.5.1] — 2026-08-04
 
 Sharing follow-ups (KC-058–059) — the two concrete leftovers from v0.5.0's known-limitations list, live-verified on Colima with a second user account.

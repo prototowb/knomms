@@ -323,6 +323,8 @@ OAuth2 with PKCE for browser flows; client-credentials for service-to-service. S
 
 The `namespaces` claim is the enforcement primitive. It contains all `vector_namespace` values the principal is permitted to query — computed at token issuance by joining the user's private KBs, team-shared KBs (via ACL), and public KB enrollments.
 
+> **Reality note (v0.6.0, 2026-08-05):** organisations shipped as `users.org_id`/`org_role` with SQL-predicate enforcement per request (`app/domains/organisations/predicates.py`) — see `docs/09-organisations.md`. The JWT carries no org/team/plan claims and `namespaces` remains a single-element stub; the claim-based scheme above is the Tier 4 target (together with teams and per-resource ACLs), not current behaviour. The SQL approach was chosen deliberately: org membership changes take effect immediately without token reissue.
+
 Access tokens: 15-minute expiry. Refresh tokens: server-side in Redis, 30-day TTL, revocable. On logout: refresh token deleted, access token added to short-lived blocklist.
 
 ### Multi-Tenant Isolation at the Query Layer
