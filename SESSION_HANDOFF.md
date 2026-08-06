@@ -2,7 +2,7 @@
 
 **Session date:** 2026-08-05  
 **State:** v0.6.0 released — Organisations shipped (KC-060–064); everything KC-032–064 live-verified  
-**Branch:** `development` ahead of `main` pending the v0.6.0 release PR  
+**Branch:** `development` and `main` in sync; `main` tagged v0.6.0 (PR #10 merged 2026-08-06)  
 **Tests:** 115/115 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Live verification:** everything through KC-064 verified on Colima (API-level three-user script for orgs, 2026-08-05). Migration head: **013**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
