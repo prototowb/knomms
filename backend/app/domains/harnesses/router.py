@@ -9,6 +9,7 @@ from app.core.redis import get_redis
 from app.deps.auth import get_current_user
 from app.deps.db import get_db
 from app.domains.harnesses.service import HarnessService
+from app.domains.harnesses.study import HarnessStudyService
 from app.models.user import User
 from app.schemas.harness import (
     AddAssetVersionRequest,
@@ -18,6 +19,8 @@ from app.schemas.harness import (
     HarnessAssetOut,
     HarnessOut,
     HarnessSummary,
+    StudyKBProjectOut,
+    StudyKBStatusOut,
     SubmitEvalRequest,
     SwapAssetVersionRequest,
 )
@@ -34,6 +37,7 @@ def _harness_to_out(harness) -> HarnessOut:
         fork_count=harness.fork_count,
         forked_from_id=harness.forked_from_id,
         fork_lineage=harness.fork_lineage or [],
+        study_kb_id=harness.study_kb_id,
         created_at=harness.created_at,
         updated_at=harness.updated_at,
         owner=harness.owner if hasattr(harness, "owner") and harness.owner else None,
@@ -217,6 +221,36 @@ async def get_eval_run(
     if eval_run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Eval run not found")
     return EvalRunOut.model_validate(eval_run)
+
+
+@router.post(
+    "/harnesses/{harness_id}/study-kb",
+    response_model=StudyKBProjectOut,
+    summary="Create or refresh the harness's study KB (owner only; projects slots, eval suite, eval runs)",
+)
+async def project_study_kb(
+    harness_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StudyKBProjectOut:
+    svc = HarnessStudyService(db)
+    result = await svc.project(harness_id, user)
+    return StudyKBProjectOut(**result)
+
+
+@router.get(
+    "/harnesses/{harness_id}/study-kb",
+    response_model=StudyKBStatusOut,
+    summary="Per-doc ingestion status of the harness's study KB (owner only; 404 until first projection)",
+)
+async def get_study_kb_status(
+    harness_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StudyKBStatusOut:
+    svc = HarnessStudyService(db)
+    result = await svc.get_status(harness_id, user)
+    return StudyKBStatusOut(**result)
 
 
 @router.get(

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
 const harnessId = route.params.id as string
@@ -28,6 +28,7 @@ interface HarnessOut {
   fork_count: number
   forked_from_id: string | null
   fork_lineage: string[]
+  study_kb_id: string | null
   created_at: string
   updated_at: string
   owner: HarnessOwner | null
@@ -472,6 +473,89 @@ async function fetchFinalEvalRun(runId: string) {
   }
 }
 
+// ── Study KB (KC-078, docs/12) ──────────────────────────────────────────────
+
+interface StudyDoc {
+  doc_kind: string
+  ref_id: string
+  source_id: string
+  title: string
+  ingestion_status: string
+}
+
+const studyKbId = ref<string | null>(null)
+const studyDocs = ref<StudyDoc[]>([])
+const studyProjecting = ref(false)
+const studyError = ref<string | null>(null)
+let studyPollTimer: ReturnType<typeof setInterval> | null = null
+
+const studyIngesting = computed(() =>
+  studyDocs.value.some(d => d.ingestion_status !== 'embedded' && d.ingestion_status !== 'failed')
+)
+const studyReady = computed(() =>
+  studyDocs.value.length > 0 && studyDocs.value.every(d => d.ingestion_status === 'embedded')
+)
+const studyFailedCount = computed(() =>
+  studyDocs.value.filter(d => d.ingestion_status === 'failed').length
+)
+
+const studyDocKindLabel: Record<string, string> = {
+  slot: 'Slot',
+  eval_suite: 'Eval suite',
+  eval_run: 'Eval run',
+}
+
+async function loadStudyStatus() {
+  if (!studyKbId.value) return
+  try {
+    const res = await $fetch<{ kb_id: string; docs: StudyDoc[] }>(
+      `/api/harnesses/${harnessId}/study-kb`,
+      { headers: { Authorization: `Bearer ${auth.token}` } }
+    )
+    studyKbId.value = res.kb_id
+    studyDocs.value = res.docs
+    if (!studyIngesting.value) stopStudyPoll()
+  } catch {
+    // transient — keep polling (board-summary precedent)
+  }
+}
+
+function startStudyPoll() {
+  if (studyPollTimer) return
+  studyPollTimer = setInterval(loadStudyStatus, 4000)
+}
+
+function stopStudyPoll() {
+  if (studyPollTimer) {
+    clearInterval(studyPollTimer)
+    studyPollTimer = null
+  }
+}
+
+async function projectStudyKb() {
+  if (studyProjecting.value) return
+  studyProjecting.value = true
+  studyError.value = null
+  try {
+    const res = await $fetch<{ kb_id: string; projected: number; skipped: number }>(
+      `/api/harnesses/${harnessId}/study-kb`,
+      { method: 'POST', headers: { Authorization: `Bearer ${auth.token}` } }
+    )
+    studyKbId.value = res.kb_id
+    await loadStudyStatus()
+    if (studyIngesting.value) startStudyPoll()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : ''
+    studyError.value = msg.includes('Nothing to study')
+      ? 'Nothing to study yet — add asset slots or complete an eval run first.'
+      : 'Could not create the study KB.'
+  } finally {
+    studyProjecting.value = false
+  }
+}
+
+onUnmounted(stopStudyPoll)
+
 // ── Deprecated model helpers ───────────────────────────────────────────────
 
 function isDeprecated(pin: string | null | undefined, list: string[]): boolean {
@@ -567,6 +651,14 @@ async function loadPage() {
     deprecatedModels.value = deprecatedRes.deprecated
 
     loadForkComparison()
+
+    // Resume the study-KB view (and its poll, if docs are still ingesting)
+    if (h.study_kb_id) {
+      studyKbId.value = h.study_kb_id
+      loadStudyStatus().then(() => {
+        if (studyIngesting.value) startStudyPoll()
+      })
+    }
   } catch {
     pageError.value = 'Harness not found or you do not have access.'
   } finally {
@@ -965,6 +1057,77 @@ onMounted(loadPage)
               </template>
             </div>
           </div>
+
+          <!-- Study KB (KC-078, docs/12) -->
+          <ClientOnly>
+            <div v-if="isOwner" class="mt-6">
+              <h2 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Study KB</h2>
+
+              <div class="rounded-xl border border-border bg-surface p-5 space-y-4">
+                <p class="text-xs text-text-secondary leading-5">
+                  Project this harness's prompt slots, eval suite, and recent eval runs into a private
+                  knowledge base — a self-teaching corpus your team can query and turn into a learning path.
+                </p>
+
+                <div class="flex items-center gap-3 flex-wrap">
+                  <button
+                    :disabled="studyProjecting"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
+                    @click="projectStudyKb"
+                  >
+                    {{ studyProjecting ? 'Projecting…' : studyKbId ? 'Refresh study KB' : 'Create study KB' }}
+                  </button>
+                  <NuxtLink
+                    v-if="studyKbId && studyDocs.length > 0"
+                    :to="`/kb/${studyKbId}`"
+                    class="text-xs text-accent hover:underline"
+                  >
+                    Open study KB
+                  </NuxtLink>
+                  <NuxtLink
+                    v-if="studyReady"
+                    :to="`/kb/${studyKbId}/learn`"
+                    class="text-xs text-accent hover:underline font-medium"
+                  >
+                    Generate learning path →
+                  </NuxtLink>
+                  <span v-else-if="studyIngesting" class="text-xs text-text-muted">Ingesting…</span>
+                </div>
+
+                <p v-if="studyError" class="text-xs text-warning">{{ studyError }}</p>
+                <p v-if="studyFailedCount > 0" class="text-xs text-warning">
+                  {{ studyFailedCount }} document{{ studyFailedCount !== 1 ? 's' : '' }} failed to ingest —
+                  Refresh study KB re-queues failed documents.
+                </p>
+
+                <div v-if="studyDocs.length > 0" class="rounded-lg border border-border overflow-hidden">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b border-border bg-surface-secondary">
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">Document</th>
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">Kind</th>
+                        <th class="text-right px-3 py-2 text-text-muted font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="doc in studyDocs" :key="doc.source_id" class="border-b border-border last:border-0">
+                        <td class="px-3 py-2 text-text-primary">{{ doc.title }}</td>
+                        <td class="px-3 py-2 text-text-muted">{{ studyDocKindLabel[doc.doc_kind] ?? doc.doc_kind }}</td>
+                        <td class="px-3 py-2 text-right">
+                          <span
+                            class="font-medium"
+                            :class="doc.ingestion_status === 'embedded' ? 'text-grounded' : doc.ingestion_status === 'failed' ? 'text-red-500' : 'text-warning'"
+                          >
+                            {{ doc.ingestion_status }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </ClientOnly>
         </section>
       </div>
 

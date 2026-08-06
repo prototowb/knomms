@@ -54,6 +54,7 @@ class HarnessOut(BaseModel):
     fork_count: int
     forked_from_id: str | None = None
     fork_lineage: list[str] = []
+    study_kb_id: str | None = None
     created_at: datetime
     updated_at: datetime
     owner: HarnessOwnerOut | None = None
@@ -78,6 +79,25 @@ class HarnessSummary(BaseModel):
 class SubmitEvalRequest(BaseModel):
     model: str
     provider: str = "ollama"  # 'ollama' | 'anthropic' — validated in the service
+
+
+class StudyKBProjectOut(BaseModel):
+    kb_id: str
+    projected: int
+    skipped: int
+
+
+class StudyDocOut(BaseModel):
+    doc_kind: str  # slot | eval_suite | eval_run
+    ref_id: str
+    source_id: str
+    title: str
+    ingestion_status: str
+
+
+class StudyKBStatusOut(BaseModel):
+    kb_id: str
+    docs: list[StudyDocOut] = []
 
 
 class EvalRunOut(BaseModel):

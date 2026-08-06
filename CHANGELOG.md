@@ -4,6 +4,29 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.9.0] — 2026-08-06
+
+Harness study KBs (KC-074–079) — the AI Assets pillar and the Learning pillar finally talk to each other: one click projects a harness's prompt slots, eval suite, and recent eval-run reports into a dedicated private KB, and the existing curriculum flow turns that corpus into a learning path (design in `docs/12-harness-study-kb.md`, OQ-29–36). Ships with a foundational fix: **every learning path ever generated had exactly one concept** — the curriculum agent's heading heuristic was dead code, since chunker output never contains the `\n\n` it looked for.
+
+### Fixed
+
+- Curriculum concept grouping (KC-074): groups now split on source boundaries (plus retained heading boundaries and an 8-passage cap), so multi-source KBs produce multi-concept learning paths for the first time — "more sources = more concepts" is now actually true
+
+### Features
+
+#### Harness study KBs
+- `POST /v1/harnesses/{id}/study-kb` (owner only): create-or-refresh projection — one Source per facet (each slot's asset version with rationale and model pin, the eval suite's cases, the 10 most recent completed eval runs with per-case failures), so each facet becomes its own concept
+- Refresh is idempotent: re-running after a slot swap or new eval runs projects only what's missing; docs whose ingestion failed are re-queued
+- The study KB is always created **private** (a public harness's slots may carry content shared with the owner via grants — mirroring visibility would republish it); the owner can open it explicitly
+- Projected docs are dual-written to MinIO, so worker retries survive the Redis upload TTL; DB commits before jobs are enqueued
+- `GET /v1/harnesses/{id}/study-kb`: per-doc ingestion status; `HarnessOut` gains `study_kb_id`; `harnesses.study_kb_id` + `harness_study_docs` (Migration 016)
+- Compose page grows an owner-only **Study KB** panel: create/refresh, per-doc status table with 4s poll, links to the KB workspace and its learn page once everything is embedded
+
+### Test Coverage
+- 157 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 016
+
+---
+
 ## [0.8.0] — 2026-08-06
 
 Cloud eval adapter (KC-071–073) — the last Tier 4 candidate and the guarded exception OQ-2 always promised: eval runs (and only eval runs) can target Anthropic models, strictly opt-in (design in `docs/11-cloud-eval-adapter.md`, OQ-21–28). **Default behaviour is byte-identical to v0.7.0** — with no configuration, no cloud code path is reachable and no request leaves the host.

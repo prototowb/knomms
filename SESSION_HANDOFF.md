@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-06  
-**State:** v0.8.0 released — Tier 4 complete (teams/ACLs/org-explore in v0.7.0, cloud eval adapter in v0.8.0); everything KC-032–073 verified (cloud enabled-path pending an operator API key)  
-**Branch:** `development` and `main` in sync once the v0.8.0 PR merges  
-**Tests:** 137/137 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path checks green on Colima (2026-08-06). Migration head: **015**.  
+**State:** v0.9.0 released — harness study KBs + the curriculum multi-concept fix; everything KC-032–079 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** `development` and `main` in sync once the v0.9.0 PR merges  
+**Tests:** 157/157 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB checks green on Colima (2026-08-06). Migration head: **016**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.9.0 (2026-08-06):** harness study KBs (`docs/12-harness-study-kb.md`, OQ-29–36). `POST /v1/harnesses/{id}/study-kb` (owner-only, 404 non-leak) projects slots + eval suite + last 10 completed runs into a dedicated **always-private** KB (OQ-34 — mirroring harness visibility could republish grant-shared asset content), one Source per facet; refresh is idempotent via `harness_study_docs` UNIQUE(kb, kind, ref) and re-queues failed docs. **Foundational fix (KC-074):** the curriculum heading heuristic was dead code — chunk text never contains `\n\n` (windows rejoin with single spaces), so every path ever generated had exactly 1 concept; `build_concept_groups` now splits on source boundaries + an 8-passage cap. Gotchas: `HarnessStudyDoc` has no ORM relationship to `Source`, so the unit of work will NOT order the inserts — flush Sources before adding doc rows (found live: FK violation); projected docs dual-write to MinIO (`storage_key`) because a reclaimed worker job past the 3600s Redis TTL is otherwise permanently unrecoverable; DB commits BEFORE the xadd loop so the worker never sees a job for an uncommitted Source row.
 
 **v0.8.0 (2026-08-06):** cloud eval adapter (`docs/11-cloud-eval-adapter.md`, OQ-21–28). Default off — `CLOUD_EVAL_ENABLED=true` + `ANTHROPIC_API_KEY` in `.env` enables Anthropic as an eval target (eval only; ingestion/Q&A/curriculum stay Ollama-local unconditionally). Provider is a **column** on `eval_runs`, never a slug prefix (`ModelPinBadge` still splits on `:`). The compose model list now comes from `GET /v1/eval-models` (the old direct Ollama-tags BFF is gone); model list is fetched live from Anthropic's Models API — never hardcode model ids. Worker: one failed case no longer fails a run (per-case `error` in metrics/events); local transient failures retry 3×. **To live-verify the enabled path** (doc §8 step 2): set the two env vars, restart api+worker, run a ≤25-case suite on the cheapest listed model, confirm the consent dialog, token totals in metrics, and `provider='anthropic'` on the run.
 
@@ -176,7 +178,7 @@ Beyond the 6 static bugs (see previous handoff entries), the following were foun
 
 ## Known Limitations (not bugs, deliberate MVP scope)
 
-1. **Curriculum generates 1 concept per heading group.** With a single indexed source (e.g., one Wikipedia article), the chunker typically produces 1-2 heading groups → 1-2 concepts. More sources = more concepts.
+1. ~~**Curriculum generates 1 concept per heading group.**~~ This described intent, not behaviour — the heading heuristic could never fire on real chunker output, and every path had exactly 1 concept. Fixed in KC-074 (v0.9.0): groups split per source (+ 8-passage cap), so "more sources = more concepts" is now true.
 
 2. **Upload sources in fork re-ingest from MinIO.** URL sources re-fetch from the web. Upload sources fall back to MinIO (if not expired from Redis). Duplicate network traffic; shared ingestion cache is a V2 feature.
 
