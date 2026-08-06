@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.10.0 — Cohort learning, part 1 (in progress)"
-last_release: "v0.9.0 (2026-08-06)"
+current_sprint: "v0.11.0 — Mastery gates (cohort learning, part 2)"
+last_release: "v0.10.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-087"
+next_ticket: "KC-092"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,18 @@ next_ticket: "KC-087"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.11.0: Mastery gates — cohort learning, part 2 (KC-087–091)
+
+*Design in `docs/14-mastery-gates.md` (OQ-45–52), spec shape from `docs/03-learning-layer.md` §4.4 — the slice deferred from v0.10.0. Path-level `mastery_mode` (off|soft|hard, default off = byte-identical) + `mastery_threshold`; mastery per concept = distinct items answered correctly ≥ threshold (learned-mark fallback for item-less concepts); sequence gating (concept N locked until 1…N-1 mastered), owner exempt; hard mode redacts locked concepts and 422s attempt/learned/thread read+create. Plus the backlog's "N learners" badge (OQ-51).*
+
+### Sprint order (implement in sequence — 087 unblocks 088; 088 unblocks 089)
+
+- **KC-087** backend: Migration 018 — `learning_paths.mastery_mode` (default 'off') + `mastery_threshold` (default 0.8); ORM fields; owner-only `PATCH /v1/learning-paths/{id}` (mode/threshold validation, 422)
+- **KC-088** backend: gates — pure `compute_gates` in `learning/gates.py`; path GET ships `locked`/`gate` per concept for non-owner readers (mode ≠ off) with hard-mode redaction; `_ensure_not_locked` 422 guards on attempt, learned, thread list/create/read (deletes exempt, OQ-50); unit tests
+- **KC-089** frontend: owner gate controls (mode select + threshold) on the learn page; learner locked UI (nav lock glyphs, locked panel with unlock progress, soft-mode warning); vue-tsc clean
+- **KC-090** backend+frontend: `learner_count` on `LearningPathSummary` (distinct progress/attempt users per path) + "N learners" badge and gate-mode chip on path cards
+- **KC-091** verification + release — doc §8 live checks (two users: hard lock+redaction+422s, unlock by mastering, soft/off transitions, owner exemption, non-owner PATCH 404, learner_count); regression (default-off byte-identical, full pytest, vue-tsc); changelog; release v0.11.0
 
 ## ✅ v0.10.0: Cohort learning, part 1 (KC-080–086) — released 2026-08-06
 
