@@ -176,6 +176,7 @@ class HarnessStudyService:
 
         to_enqueue: list[tuple[str, str, str]] = []  # (source_id, storage_key, content)
 
+        created_doc_rows: list[HarnessStudyDoc] = []
         for key in plan["create"]:
             kind, ref_id = key
             title, content = docs[key]
@@ -192,7 +193,7 @@ class HarnessStudyService:
                     ingestion_status="pending",
                 )
             )
-            self.db.add(
+            created_doc_rows.append(
                 HarnessStudyDoc(
                     harness_id=harness_id,
                     kb_id=kb_id,
@@ -201,7 +202,14 @@ class HarnessStudyService:
                     source_id=source_id,
                 )
             )
-            to_enqueue.append((source_id, storage_key, docs[key][1]))
+            to_enqueue.append((source_id, storage_key, content))
+
+        # Sources must hit the DB before the doc rows that reference them —
+        # there is no ORM relationship between the two, so the unit of work
+        # will not order the inserts itself (project_version precedent).
+        if created_doc_rows:
+            await self.db.flush()
+            self.db.add_all(created_doc_rows)
 
         for key in plan["reenqueue"]:
             source = await self.db.get(Source, existing_source[key])
