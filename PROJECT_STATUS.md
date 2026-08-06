@@ -34,8 +34,8 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.11.0 — Mastery gates (cohort learning, part 2)"
-last_release: "v0.10.0 (2026-08-06)"
+current_sprint: "v0.11.0 — Mastery gates (complete, released)"
+last_release: "v0.11.0 (2026-08-06)"
 ticket_prefix: "KC"
 next_ticket: "KC-092"
 ```
@@ -53,17 +53,17 @@ next_ticket: "KC-092"
 
 ---
 
-## 🔄 v0.11.0: Mastery gates — cohort learning, part 2 (KC-087–091)
+## ✅ v0.11.0: Mastery gates — cohort learning, part 2 (KC-087–091) — released 2026-08-06
 
 *Design in `docs/14-mastery-gates.md` (OQ-45–52), spec shape from `docs/03-learning-layer.md` §4.4 — the slice deferred from v0.10.0. Path-level `mastery_mode` (off|soft|hard, default off = byte-identical) + `mastery_threshold`; mastery per concept = distinct items answered correctly ≥ threshold (learned-mark fallback for item-less concepts); sequence gating (concept N locked until 1…N-1 mastered), owner exempt; hard mode redacts locked concepts and 422s attempt/learned/thread read+create. Plus the backlog's "N learners" badge (OQ-51).*
 
 ### Sprint order (implement in sequence — 087 unblocks 088; 088 unblocks 089)
 
-- **KC-087** backend: Migration 018 — `learning_paths.mastery_mode` (default 'off') + `mastery_threshold` (default 0.8); ORM fields; owner-only `PATCH /v1/learning-paths/{id}` (mode/threshold validation, 422)
-- **KC-088** backend: gates — pure `compute_gates` in `learning/gates.py`; path GET ships `locked`/`gate` per concept for non-owner readers (mode ≠ off) with hard-mode redaction; `_ensure_not_locked` 422 guards on attempt, learned, thread list/create/read (deletes exempt, OQ-50); unit tests
-- **KC-089** frontend: owner gate controls (mode select + threshold) on the learn page; learner locked UI (nav lock glyphs, locked panel with unlock progress, soft-mode warning); vue-tsc clean
-- **KC-090** backend+frontend: `learner_count` on `LearningPathSummary` (distinct progress/attempt users per path) + "N learners" badge and gate-mode chip on path cards
-- **KC-091** verification + release — doc §8 live checks (two users: hard lock+redaction+422s, unlock by mastering, soft/off transitions, owner exemption, non-owner PATCH 404, learner_count); regression (default-off byte-identical, full pytest, vue-tsc); changelog; release v0.11.0
+- ~~**KC-087**~~ ✅ backend: Migration 018 — `learning_paths.mastery_mode` (default 'off') + `mastery_threshold` (default 0.8); ORM fields; owner-only `PATCH /v1/learning-paths/{id}` (mode/threshold validation, 422); applied live, head **018** (2026-08-06)
+- ~~**KC-088**~~ ✅ backend: gates — pure `compute_gates` in `learning/gates.py` (best-attempt mastery, learned fallback for item-less concepts); path GET ships `locked`/`gate` per concept for non-owner readers (mode ≠ off) with hard-mode redaction; `ensure_not_locked` 422 guards on attempt, learned, thread list/create/read (deletes exempt, OQ-50); 14 unit tests — 193 total (2026-08-06)
+- ~~**KC-089**~~ ✅ frontend: owner gate controls (mode select + threshold) in the learn top bar via new `index.patch.ts` BFF; learner locked UI (nav lock glyphs, locked panel with unlock hint, soft-mode warning banner, quiet refetch on mastery changes); vue-tsc clean (2026-08-06)
+- ~~**KC-090**~~ ✅ backend+frontend: `learner_count` + `mastery_mode` on `LearningPathSummary` (one grouped UNION over progress/attempts) + "N learners" text and gate-mode chip on KB learn cards (2026-08-06)
+- ~~**KC-091**~~ ✅ verification + release — 29-check two-user live script (`scripts/verify-v0110.py`) all green on Colima: PATCH validation/authz, owner exemption, locked-flag consistency, hard-mode redaction + all four 422 guards, unlock-by-mastering, unchanged attempt shape, soft warns-not-blocks, off byte-identical, learner_count; release v0.11.0 (2026-08-06)
 
 ## ✅ v0.10.0: Cohort learning, part 1 (KC-080–086) — released 2026-08-06
 
@@ -293,6 +293,8 @@ next_ticket: "KC-092"
 ---
 
 ## Recent Updates
+
+- 2026-08-06: v0.11.0 released — mastery gates (Migration 018: path-level off/soft/hard mode + threshold; best-attempt mastery from persisted attempts with learned fallback; sequence gating with owner exemption; hard-mode server-side redaction + 422 guards on attempt/learned/discussion; owner gate controls + locked learner UI; learner_count on path cards); default off is byte-identical; 29-check two-user live verification (`scripts/verify-v0110.py`); 193 backend tests
 
 - 2026-08-06: v0.10.0 released — cohort learning part 1 (Migration 017: persisted attempts + discussion threads/posts; owner-only path analytics with misconception aggregation; passage-anchored ConceptDiscussion + Learners panel); fixed pre-existing cross-path grading leak (KC-081) and the concept_count denominator (OQ-43); 24-check two-user live verification (`scripts/verify-v0100.py`); 179 backend tests
 

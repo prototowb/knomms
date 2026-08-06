@@ -4,6 +4,28 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.11.0] — 2026-08-06
+
+Mastery gates (KC-087–091) — cohort learning, part 2 (design in `docs/14-mastery-gates.md`, OQ-45–52; spec shape from `docs/03-learning-layer.md` §4.4). The instructor can now shape the learner flow: a path-level gate keeps learners on a concept until they demonstrate mastery of everything before it. **Default is `off` = byte-identical to v0.10.0** — no gate state is computed or shipped until the owner opts a path in.
+
+### Features
+
+#### Mastery gates
+- `learning_paths.mastery_mode` (`off`|`soft`|`hard`) + `mastery_threshold` (Migration 018), set via new owner-only `PATCH /v1/learning-paths/{id}`
+- Mastery per concept is best-attempt over its assessment items (fraction answered correctly at least once ≥ threshold, computed from v0.10.0's persisted attempts); concepts without items fall back to the learner's own learned mark. Wrong tries never subtract — a gate is always workable
+- Gating follows the non-pruned sequence: a concept is locked while any earlier concept is unmastered; the first concept is never locked; the path owner is always exempt
+- `soft` warns (lock state in the payload, banner in the UI, nothing blocked); `hard` **redacts** locked concepts server-side (explanation, passages, assessment items — title stays so the nav renders) and rejects attempts, learned marks, and discussion reads/writes on them with 422. Post deletion stays ungated
+- Gate state is computed fresh per request — mastering a concept unlocks the next one immediately, with no cached state to invalidate
+- Learn page: owner gate controls (mode + threshold) in the top bar; learners get nav lock glyphs, a locked panel with a concrete unlock hint ("answer N more items in …"), and a quiet refetch after correct answers so locks open without a reload
+
+#### Learner counts
+- `LearningPathSummary` gains `learner_count` (distinct users with progress or attempts — a count, never a roster) and `mastery_mode`; KB learn cards show "N learners" and a gate chip
+
+### Test Coverage
+- 193 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 018 · 29-check two-user live script (`scripts/verify-v0110.py`)
+
+---
+
 ## [0.10.0] — 2026-08-06
 
 Cohort learning, part 1 (KC-080–086) — the roadmap's highest-impact V2 priority begins: the instructor persona gets eyes and a voice on shared learning paths (design in `docs/13-cohort-learning.md`, OQ-37–44; feature shape from `docs/03-learning-layer.md` §5.2/§5.4). "Cohort" = whoever can read the path — no new entity, and org/grant changes apply instantly. Mastery gates stay in part 2.

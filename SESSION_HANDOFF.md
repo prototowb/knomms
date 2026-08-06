@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-06  
-**State:** v0.10.0 released — cohort learning part 1 (persisted attempts, owner analytics, passage-anchored discussion); everything KC-032–086 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** `development` and `main` in sync once the v0.10.0 PR merges  
-**Tests:** 179/179 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort checks green on Colima (2026-08-06). Migration head: **017**.  
+**State:** v0.11.0 released — mastery gates (cohort learning part 2); everything KC-032–091 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** `development` and `main` in sync once the v0.11.0 PR merges  
+**Tests:** 193/193 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort + v0.11.0 gates (29-check `scripts/verify-v0110.py`) green on Colima (2026-08-06). Migration head: **018**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.11.0 (2026-08-06):** mastery gates (`docs/14-mastery-gates.md`, OQ-45–52). Path-level `mastery_mode` (off|soft|hard, **default off = byte-identical**) + `mastery_threshold` via owner-only `PATCH /v1/learning-paths/{id}`. Mastery is **best-attempt** over persisted attempts (fraction of a concept's items ever answered correctly ≥ threshold; item-less concepts fall back to the learned mark); gating follows the non-pruned sequence and the owner is always exempt. Hard mode **redacts** locked concepts in the learner payload (title stays for the nav) and 422s attempt/learned/thread list+create+read on them — post/thread *deletion* stays ungated (OQ-50). Gate state is computed fresh per request (no cached locks; OQ-10/13 immediacy). Gotchas: `_get_readable_concept_id` was renamed `_get_readable_concept` and now returns the loaded path (callers all ignored the old return value — the path is needed for gate checks without a second fetch); `_apply_gates` must run *after* `_shape_assessment_items` in the path GET; the Colima VM ran out of disk mid-image-build this session — `docker image prune -f` reclaimed 8.5GB of dangling `--no-cache` rebuild layers (add to the rebuild routine).
 
 **v0.10.0 (2026-08-06):** cohort learning part 1 (`docs/13-cohort-learning.md`, OQ-37–44). MC attempts are now **persisted** (`assessment_attempts`, Migration 017) — they were graded statelessly before, so analytics start from this release (no backfill exists). "Cohort" = readers of the path — every discussion/analytics guard reuses `get_readable_path`/`_get_readable_concept_id`; never invent a new predicate. Owner analytics at `GET /v1/learning-paths/{id}/analytics` (owner-only 404 — learner rosters must not leak); discussion threads are passage-anchored with the excerpt **snapshotted at creation** (chunk ids are soft refs). Gotchas: `grade_attempt` had a cross-path scoping hole (fixed KC-081 — item was never checked against path_id; any persisted-attempt feature would have mis-attributed rows); Nuxt's typed `$fetch` rejects `method: 'DELETE'` on dynamic BFF routes — cast the URL to plain `string` (ConceptDiscussion.vue precedent).
 
