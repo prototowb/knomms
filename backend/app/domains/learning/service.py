@@ -260,6 +260,74 @@ class LearningService:
         await self.db.refresh(path)
         return path
 
+    async def path_analytics(self, path_id: str, user: User) -> dict:
+        """Owner-only cohort analytics (docs/13, OQ-39) — 404 for everyone else
+        so a path's learner roster never leaks through published paths."""
+        from app.domains.learning.analytics import build_analytics
+        from app.models.learning import AssessmentAttempt, Distractor
+
+        path = await self.get_path(path_id, user)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+
+        active = [c for c in path.concepts if c.status != "pruned"]
+        active_ids = [c.id for c in active]
+
+        progress_rows: list[dict] = []
+        if active_ids:
+            rows = (
+                await self.db.execute(
+                    select(ConceptProgress.user_id, ConceptProgress.concept_id, ConceptProgress.learned_at)
+                    .where(ConceptProgress.concept_id.in_(active_ids))
+                )
+            ).all()
+            progress_rows = [dict(r._mapping) for r in rows]
+
+        attempt_rows: list[dict] = []
+        if active_ids:
+            rows = (
+                await self.db.execute(
+                    select(
+                        AssessmentAttempt.user_id,
+                        AssessmentItem.concept_id,
+                        AssessmentAttempt.answer_text,
+                        AssessmentAttempt.correct,
+                        Distractor.misconception_label,
+                        AssessmentAttempt.created_at,
+                    )
+                    .join(AssessmentItem, AssessmentItem.id == AssessmentAttempt.item_id)
+                    .join(
+                        Distractor,
+                        Distractor.id == AssessmentAttempt.matched_distractor_id,
+                        isouter=True,
+                    )
+                    .where(
+                        AssessmentAttempt.path_id == path_id,
+                        AssessmentItem.concept_id.in_(active_ids),
+                    )
+                )
+            ).all()
+            attempt_rows = [dict(r._mapping) for r in rows]
+
+        user_ids = {r["user_id"] for r in progress_rows} | {a["user_id"] for a in attempt_rows}
+        users: dict[str, dict] = {}
+        if user_ids:
+            rows = (
+                await self.db.execute(
+                    select(User.id, User.handle, User.display_name).where(User.id.in_(user_ids))
+                )
+            ).all()
+            users = {r.id: dict(r._mapping) for r in rows}
+
+        result = build_analytics(
+            active_concepts=[{"id": c.id, "title": c.title, "position": c.position} for c in active],
+            progress_rows=progress_rows,
+            attempt_rows=attempt_rows,
+            users=users,
+        )
+        result["path_id"] = path_id
+        return result
+
     async def grade_attempt(
         self,
         path_id: str,

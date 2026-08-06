@@ -13,6 +13,7 @@ from app.schemas.learning import (
     CreateLearningPathRequest,
     LearningPathOut,
     LearningPathSummary,
+    PathAnalyticsOut,
     PathConceptOut,
     UpdateConceptRequest,
     UpsertNoteRequest,
@@ -91,7 +92,8 @@ async def list_learning_paths(
                 learning_goal=p.learning_goal,
                 status=p.status,
                 version=p.version,
-                concept_count=len(p.concepts or []),
+                # Non-pruned only — one truthful denominator with completion_pct (OQ-43)
+                concept_count=len(active),
                 learned_count=learned_count,
                 completion_pct=round(learned_count / len(active), 4) if active else 0.0,
                 created_at=p.created_at,
@@ -148,6 +150,21 @@ def _shape_assessment_items(out: LearningPathOut, *, is_owner: bool, user_id: st
                 # list (either identifies the correct choice by elimination).
                 item.correct_answer = None
                 item.distractors = []
+
+
+@router.get(
+    "/learning-paths/{path_id}/analytics",
+    response_model=PathAnalyticsOut,
+    summary="Owner-only cohort analytics: per-learner progress and per-concept attempt stats",
+)
+async def get_path_analytics(
+    path_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PathAnalyticsOut:
+    svc = LearningService(db)
+    result = await svc.path_analytics(path_id, user)
+    return PathAnalyticsOut(**result)
 
 
 @router.patch(
