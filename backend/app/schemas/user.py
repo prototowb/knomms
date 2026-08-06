@@ -24,6 +24,9 @@ class UserOut(BaseModel):
     display_name: str
     org_id: str | None = None
     org_role: str | None = None
+    # Resolved by the /me route (not a User column) — lets the frontend say
+    # "Team — visible to <org name>" (docs/09 §7 gap, closed in docs/10 §7)
+    org_name: str | None = None
     created_at: datetime
 
 

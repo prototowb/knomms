@@ -9,3 +9,5 @@ from app.models import knowledge_base as _  # noqa: F401
 from app.models import collection as _  # noqa: F401
 from app.models import learning as _  # noqa: F401
 from app.models import asset as _  # noqa: F401
+from app.models import team as _  # noqa: F401
+from app.models import acl as _  # noqa: F401

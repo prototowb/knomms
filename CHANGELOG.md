@@ -4,6 +4,35 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.7.0] — 2026-08-06
+
+Teams, ACLs & org discovery (KC-065–070) — sharing gets a scalpel: named teams inside an organisation, per-resource viewer/editor grants on KBs/assets/harnesses, and an explore tab for what your org has shared (design in `docs/10-teams-and-acls.md`, OQ-13–20). Live-verified with a 37-check three-user script. JWT namespace claims were assessed and **rejected** (OQ-13): SQL-predicate enforcement keeps join/leave/grant changes instant on unchanged tokens.
+
+### Features
+
+#### Teams within organisations
+- `teams` + `team_memberships` tables (Migration 014); any org member creates a team (auto-joining it), creator + org admins manage it; members must belong to the same org
+- `/v1/orgs/teams` API: create/list/get/rename/delete + member add/remove (self-removal allowed); deleting a team revokes its grants
+- Leaving or being removed from an org purges the user's team memberships — team-derived access cannot outlive org membership
+- `/org` page grows a Teams section: create, expand to member roster, add/remove members, delete
+
+#### Per-resource ACL grants
+- One polymorphic `acl_grants` table: viewer/editor grants to a user (by exact handle, cross-org allowed) or a team (own org only) on a KB, asset, or harness; editor implies viewer; POST upserts the permission
+- Reads: one shared `readable_clause` layers grants onto the v0.6.0 visibility predicate at all 7 read sites — KB grants flow transitively to sources, search, Q&A, and shared learning paths
+- Writes (the enumerated editor surface): KB add-source (URL + upload), asset version commits, harness slot add/swap + eval submission; eval-run reads relax to editors so they can watch runs they trigger. Visibility, metadata, deprecation, and grant management stay owner-only
+- Grants CRUD at `/v1/{kbs,assets,harnesses}/{id}/grants` (owner only); granted KBs appear in the grantee's dashboard list; granted assets/harnesses already surface via their list predicates
+- Share dialog on KB workspace, asset detail, and harness compose: grant list with permission switch + revoke, share-to-user or share-to-team
+
+#### Org-scoped explore
+- "My organisation" explore tab (org members only): team-visible KBs (`GET /v1/kbs/org`), assets, and harnesses shared within the org; private granted items deliberately excluded
+- Explore tabs are now deep-linkable (`/explore?tab=…`)
+- `/auth/me` gains `org_name`; team badges finally say "Team — visible to <org name>"
+
+### Test Coverage
+- 129 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 014
+
+---
+
 ## [0.6.0] — 2026-08-05
 
 Organisations (KC-060–064) — `team` visibility finally means something: same organisation, not "everyone on the instance" (supersedes OQ-3; design in `docs/09-organisations.md`). Live-verified with a three-user script (two org members + an org-less outsider).

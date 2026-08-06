@@ -58,9 +58,18 @@ class KnowledgeBaseService:
         return kb
 
     async def list_for_user(self, user: User) -> list[KnowledgeBase]:
+        """Own KBs plus KBs shared with the user via an ACL grant — the
+        grantee's way of finding what was shared (docs/10 §5)."""
+        from app.domains.organisations.predicates import grant_subquery
+
         result = await self.db.execute(
             select(KnowledgeBase)
-            .where(KnowledgeBase.owner_user_id == user.id)
+            .where(
+                or_(
+                    KnowledgeBase.owner_user_id == user.id,
+                    KnowledgeBase.id.in_(grant_subquery("kb", user)),
+                )
+            )
             .options(selectinload(KnowledgeBase.owner))
             .order_by(KnowledgeBase.created_at.desc())
         )
@@ -81,8 +90,8 @@ class KnowledgeBaseService:
 
     async def get_readable_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
         """Read lookup: the owner, anyone for public, same-org users for team
-        (docs/09-organisations.md OQ-7, supersedes OQ-3)."""
-        from app.domains.organisations.predicates import team_or_public_clause
+        (docs/09 OQ-7), or any ACL grantee (docs/10 OQ-16)."""
+        from app.domains.organisations.predicates import readable_clause
 
         result = await self.db.execute(
             select(KnowledgeBase)
@@ -90,12 +99,48 @@ class KnowledgeBaseService:
                 KnowledgeBase.id == kb_id,
                 or_(
                     KnowledgeBase.owner_user_id == user.id,
-                    team_or_public_clause(KnowledgeBase, user),
+                    readable_clause(KnowledgeBase, "kb", user),
                 ),
             )
             .options(selectinload(KnowledgeBase.owner))
         )
         return result.scalar_one_or_none()
+
+    async def get_editable_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
+        """Write guard for the OQ-18 surface only (add sources). Metadata,
+        visibility, and grant management stay on get_by_id (owner)."""
+        from app.domains.organisations.predicates import editable_clause
+
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(
+                KnowledgeBase.id == kb_id,
+                editable_clause(KnowledgeBase, "kb", user),
+            )
+            .options(selectinload(KnowledgeBase.owner))
+        )
+        return result.scalar_one_or_none()
+
+    async def list_org(self, user: User, limit: int = 50, offset: int = 0) -> list[KnowledgeBase]:
+        """Team-visible KBs owned by the user's org members — the explore
+        'My organisation' listing (docs/10 OQ-20). Granted-but-private KBs stay
+        out: grants are targeted shares, not org broadcasts."""
+        if user.org_id is None:
+            return []
+        result = await self.db.execute(
+            select(KnowledgeBase)
+            .where(
+                KnowledgeBase.visibility == "team",
+                KnowledgeBase.owner_user_id.in_(
+                    select(User.id).where(User.org_id == user.org_id)
+                ),
+            )
+            .options(selectinload(KnowledgeBase.owner))
+            .order_by(KnowledgeBase.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
 
     async def list_public(self, limit: int = 50, offset: int = 0) -> list[KnowledgeBase]:
         """Public KBs for explore — no auth required."""

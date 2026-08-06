@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-08-05  
-**State:** v0.6.0 released — Organisations shipped (KC-060–064); everything KC-032–064 live-verified  
-**Branch:** `development` ahead of `main` pending the v0.6.0 release PR  
-**Tests:** 115/115 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** everything through KC-064 verified on Colima (API-level three-user script for orgs, 2026-08-05). Migration head: **013**.  
+**Session date:** 2026-08-06  
+**State:** v0.7.0 released — Teams, ACLs & org discovery shipped (KC-065–070); everything KC-032–070 live-verified  
+**Branch:** `development` ahead of `main` pending release PR / in sync once v0.7.0 PR merges  
+**Tests:** 129/129 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** everything through KC-070 verified on Colima (37-check three-user script, `scripts/verify-v070.sh`, 2026-08-06). Migration head: **014**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.7.0 (2026-08-06):** teams + per-resource ACL grants + org explore (`docs/10-teams-and-acls.md`, OQ-13–20). The predicate family in `organisations/predicates.py` grew: `readable_clause(model, resource_type, user)` is now the only correct read relaxation (it layers `acl_grants` onto `team_or_public_clause`) and `editable_clause`/`has_grant(…, permissions=("editor",))` guard the enumerated editor write surface — never hand-roll grant subqueries. JWT claims were **rejected** (OQ-13), not deferred: enforcement stays per-request SQL so grant/membership changes are instant on unchanged tokens. Gotchas: `get_team` needs `populate_existing=True` (membership rows are inserted by FK, not relationship, so the loaded collection goes stale); the literal `/kbs/org` route must stay registered before `/kbs/{kb_id}`; the `kbs/` BFF dir has no catch-all — KB grants got hand-written ofetch routes. Next Tier 4 item queued: **v0.8.0 cloud eval adapter** (`docs/11-cloud-eval-adapter.md`, KC-071–073, not started).
 
 **v0.6.0 (2026-08-05):** `team` visibility now means *same organisation* (`docs/09-organisations.md`, supersedes OQ-3). Migration 013 backfilled both dev users into "Default organisation" (dev@localhost.dev is admin). Org management at `/org`; API at `/v1/orgs`. The shared `team_or_public_clause` (organisations/predicates.py) is now the only correct way to write a team/public read check — never hand-roll `visibility.in_(("team","public"))` again. Found+fixed during verification: all public board listings 500'd (MissingGreenlet) once a public board hit the 3-item quality floor — board-summary queries must eager-load `items` + `owner`.
 

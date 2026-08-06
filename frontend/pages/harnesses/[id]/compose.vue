@@ -473,10 +473,18 @@ const visibilityColor: Record<string, string> = {
 
 function visibilityTitle(v: string): string | undefined {
   const parts: string[] = []
-  if (v === 'team') parts.push('Team — visible to members of your organisation')
+  if (v === 'team') {
+    parts.push(
+      auth.user?.org_name
+        ? `Team — visible to ${auth.user.org_name}`
+        : 'Team — visible to members of your organisation'
+    )
+  }
   if (isOwner.value) parts.push('Click to change visibility')
   return parts.join(' · ') || undefined
 }
+
+const shareOpen = ref(false)
 
 // ── Load ───────────────────────────────────────────────────────────────────
 
@@ -562,6 +570,14 @@ onMounted(loadPage)
                     @click="cycleVisibility"
                   >
                     {{ harness.visibility }}
+                  </button>
+                  <button
+                    v-if="isOwner"
+                    class="text-xs px-2 py-0.5 rounded-full font-medium text-text-muted bg-border hover:text-text-primary transition-colors"
+                    title="Share this harness with specific users or teams"
+                    @click="shareOpen = true"
+                  >
+                    Share
                   </button>
                 </ClientOnly>
                 <span class="text-xs text-text-muted">{{ harness.assets.length }} slot{{ harness.assets.length !== 1 ? 's' : '' }}</span>
@@ -1008,5 +1024,13 @@ onMounted(loadPage)
         </div>
       </div>
     </template>
+
+    <ShareDialog
+      v-if="shareOpen && harness"
+      resource-type="harnesses"
+      :resource-id="harnessId"
+      :resource-title="harness.title"
+      @close="shareOpen = false"
+    />
   </div>
 </template>
