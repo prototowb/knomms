@@ -22,6 +22,7 @@ from app.schemas.learning import (
     ThreadOut,
     ThreadSummaryOut,
     UpdateConceptRequest,
+    UpdatePathRequest,
     UpsertNoteRequest,
 )
 
@@ -171,6 +172,32 @@ async def get_path_analytics(
     svc = LearningService(db)
     result = await svc.path_analytics(path_id, user)
     return PathAnalyticsOut(**result)
+
+
+@router.patch(
+    "/learning-paths/{path_id}",
+    response_model=LearningPathOut,
+    summary="Instructor: update path settings (mastery gating)",
+)
+async def update_learning_path(
+    path_id: str,
+    req: UpdatePathRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> LearningPathOut:
+    svc = LearningService(db)
+    path = await svc.update_path(
+        path_id,
+        user,
+        mastery_mode=req.mastery_mode,
+        mastery_threshold=req.mastery_threshold,
+    )
+    out = LearningPathOut.model_validate(path)
+    out.learned_concept_ids = sorted(
+        await svc.learned_concept_ids(user, [c.id for c in path.concepts])
+    )
+    _shape_assessment_items(out, is_owner=True, user_id=user.id)
+    return out
 
 
 @router.patch(

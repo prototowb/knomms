@@ -21,6 +21,9 @@ class LearningPath(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     time_budget_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Mastery gating (docs/14, OQ-45) — off | soft | hard; threshold in (0, 1]
+    mastery_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="off")
+    mastery_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.8)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

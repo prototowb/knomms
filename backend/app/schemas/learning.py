@@ -59,6 +59,8 @@ class LearningPathOut(BaseModel):
     status: str
     version: int
     time_budget_hours: float | None = None
+    mastery_mode: str = "off"
+    mastery_threshold: float = 0.8
     created_at: datetime
     updated_at: datetime
     concepts: list[PathConceptOut] = []
@@ -105,6 +107,11 @@ class CreateLearningPathRequest(BaseModel):
 class UpdateConceptRequest(BaseModel):
     status: str | None = None
     instructor_annotation: str | None = None
+
+
+class UpdatePathRequest(BaseModel):
+    mastery_mode: str | None = None
+    mastery_threshold: float | None = None
 
 
 class LearnerAnalyticsOut(BaseModel):

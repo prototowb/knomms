@@ -251,6 +251,40 @@ class LearningService:
         await self.db.refresh(concept)
         return concept
 
+    MASTERY_MODES = ("off", "soft", "hard")
+
+    async def update_path(
+        self,
+        path_id: str,
+        user: User,
+        *,
+        mastery_mode: str | None = None,
+        mastery_threshold: float | None = None,
+    ) -> LearningPath:
+        """Owner-only path settings PATCH (docs/14, OQ-45)."""
+        path = await self.get_path(path_id, user)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+
+        if mastery_mode is not None:
+            if mastery_mode not in self.MASTERY_MODES:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="mastery_mode must be one of: off, soft, hard",
+                )
+            path.mastery_mode = mastery_mode
+        if mastery_threshold is not None:
+            if not (0 < mastery_threshold <= 1):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="mastery_threshold must be in (0, 1]",
+                )
+            path.mastery_threshold = mastery_threshold
+
+        await self.db.commit()
+        await self.db.refresh(path)
+        return path
+
     async def publish_path(self, path_id: str, user: User) -> LearningPath:
         path = await self.get_path(path_id, user)
         if path is None:
