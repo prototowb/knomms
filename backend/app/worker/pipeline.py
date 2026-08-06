@@ -16,6 +16,7 @@ from app.core.redis import get_redis
 from app.domains.ingestion.blocks import RawBlock
 from app.domains.ingestion.chunker import chunk_blocks
 from app.domains.ingestion.extractors.pdf import PDFExtractor
+from app.domains.ingestion.extractors.video import VideoExtractor
 from app.domains.ingestion.extractors.web import WebExtractor
 from app.models.chunk import Chunk
 from app.models.source import Source
@@ -41,12 +42,16 @@ async def run_ingestion_pipeline(db: AsyncSession, job: dict) -> None:
         await _set_status(db, source, "processing", vector_namespace)
         await _publish_progress(source_id, "processing", 10)
 
-        # Stage 1: fetch raw content
-        raw_content = await _fetch_content(source, is_upload)
-        await _publish_progress(source_id, "processing", 25)
-
-        # Stage 2: extract → RawBlock[]
-        raw_blocks = await _extract(source, raw_content)
+        # Stages 1+2: fetch + extract → RawBlock[]. Video sources own their
+        # fetch (docs/15, OQ-58) — the transcript API needs the video id,
+        # not the watch-page HTML.
+        if source.type == "video":
+            await _publish_progress(source_id, "processing", 25)
+            raw_blocks = await VideoExtractor.fetch_and_extract(source.raw_url, source.id)
+        else:
+            raw_content = await _fetch_content(source, is_upload)
+            await _publish_progress(source_id, "processing", 25)
+            raw_blocks = await _extract(source, raw_content)
         await _publish_progress(source_id, "processing", 40)
 
         # Stage 3: chunk
