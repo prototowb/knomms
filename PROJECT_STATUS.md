@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.8.0 — Cloud eval adapter (complete)"
+current_sprint: "v0.9.0 — Harness study KBs (in progress)"
 last_release: "v0.8.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-074"
+next_ticket: "KC-080"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,19 @@ next_ticket: "KC-074"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.9.0: Harness study KBs — self-teaching curriculum (KC-074–079)
+
+*Design in `docs/12-harness-study-kb.md` (OQ-29–36): project a harness's slot contents, eval suite, and eval-run reports into a dedicated private KB so the existing curriculum flow can teach it. Prerequisite bug fix: the curriculum agent's heading heuristic is dead code (chunk text never contains `\n\n`), so every KB has always produced exactly one concept — KC-074 groups per source instead.*
+
+### Sprint order (implement in sequence — 074 is the concept-count prerequisite; 075 unblocks 076/077)
+
+- **KC-074** backend: curriculum grouping fix — `build_concept_groups` groups by source boundary + retained heading boundary + `MAX_GROUP_PASSAGES=8` cap; unit tests with realistic (newline-free) chunker output
+- **KC-075** backend: Migration 016 — `harnesses.study_kb_id` (SET NULL) + `harness_study_docs` (UNIQUE kb/kind/ref); models registered in both manual import sites
+- **KC-076** backend: study-doc composition — pure `compose_slot_doc`/`compose_eval_suite_doc`/`compose_eval_run_doc` in `harnesses/study_docs.py`; DB-free unit tests
+- **KC-077** backend: study-KB service + router — `POST /v1/harnesses/{id}/study-kb` (owner-only 404, create-or-refresh, MinIO dual-write, commit-before-enqueue, 422 when nothing to study) + `GET` doc-status endpoint; `HarnessOut.study_kb_id`; guard unit tests
+- **KC-078** frontend: Study KB panel on compose page — create/refresh button, 4s doc-status poll (board-summary idiom), links to KB workspace + learn page; catch-all BFF covers the routes; vue-tsc clean
+- **KC-079** verification + release — doc §8 plan (multi-concept path proves KC-074 + the feature together); changelog; release v0.9.0
 
 ## ✅ v0.7.0: Teams, ACLs & org discovery (KC-065–070) — released 2026-08-06
 
