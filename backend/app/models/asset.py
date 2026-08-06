@@ -102,6 +102,11 @@ class Harness(Base):
     fork_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     fork_lineage: Mapped[list[str]] = mapped_column(ARRAY(String(36)), nullable=False, default=list)
     forked_from_id: Mapped[str | None] = mapped_column(ForeignKey("harnesses.id"), nullable=True)
+    # Dedicated study KB (docs/12, OQ-30) — lazily created on first projection;
+    # SET NULL on KB delete so the next projection simply recreates it.
+    study_kb_id: Mapped[str | None] = mapped_column(
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -232,4 +237,34 @@ class AssetSourceProjection(Base):
 
     asset_version: Mapped["AssetVersion"] = relationship(
         "AssetVersion", back_populates="source_projections"
+    )
+
+
+class HarnessStudyDoc(Base):
+    """Bookkeeping for harness → study-KB projections (docs/12, OQ-33).
+
+    One row per projected facet document. ref_id is an asset_version_id for
+    doc_kind in ('slot', 'eval_suite') and an eval_run_id for 'eval_run';
+    the UNIQUE constraint is what makes POST /study-kb an idempotent refresh.
+    """
+
+    __tablename__ = "harness_study_docs"
+    __table_args__ = (
+        UniqueConstraint("kb_id", "doc_kind", "ref_id", name="uq_harness_study_docs_kb_kind_ref"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    harness_id: Mapped[str] = mapped_column(
+        ForeignKey("harnesses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kb_id: Mapped[str] = mapped_column(
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False
+    )
+    doc_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # slot | eval_suite | eval_run
+    ref_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
