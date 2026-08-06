@@ -87,6 +87,7 @@ async def list_learning_paths(
     paths = await svc.list_paths(kb_id, user)
     all_concept_ids = [c.id for p in paths for c in (p.concepts or [])]
     learned = await svc.learned_concept_ids(user, all_concept_ids)
+    learner_counts = await svc.learner_counts([p.id for p in paths])
     result = []
     for p in paths:
         # Learner-facing completion counts non-pruned concepts only
@@ -103,6 +104,8 @@ async def list_learning_paths(
                 concept_count=len(active),
                 learned_count=learned_count,
                 completion_pct=round(learned_count / len(active), 4) if active else 0.0,
+                learner_count=learner_counts.get(p.id, 0),
+                mastery_mode=p.mastery_mode,
                 created_at=p.created_at,
                 owner=p.owner,
             )

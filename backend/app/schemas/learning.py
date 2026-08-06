@@ -89,6 +89,9 @@ class LearningPathSummary(BaseModel):
     concept_count: int = 0
     learned_count: int = 0
     completion_pct: float = 0.0
+    # Distinct users with progress or attempts — a count, never a roster (OQ-51)
+    learner_count: int = 0
+    mastery_mode: str = "off"
     created_at: datetime
     owner: PathOwnerOut | None = None
 

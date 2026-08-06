@@ -4,7 +4,7 @@ import re
 import unicodedata
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -238,6 +238,30 @@ class LearningService:
             await self.db.delete(existing)
             await self.db.commit()
         return learned
+
+    async def learner_counts(self, path_ids: list[str]) -> dict[str, int]:
+        """Distinct users with progress or attempts per path (docs/14, OQ-51).
+
+        A bare count, not a roster — learner identities stay owner-only via
+        the analytics endpoint (OQ-39).
+        """
+        if not path_ids:
+            return {}
+        progress_pairs = (
+            select(PathConcept.path_id.label("pid"), ConceptProgress.user_id.label("uid"))
+            .join(PathConcept, PathConcept.id == ConceptProgress.concept_id)
+            .where(PathConcept.path_id.in_(path_ids))
+        )
+        attempt_pairs = select(
+            AssessmentAttempt.path_id.label("pid"), AssessmentAttempt.user_id.label("uid")
+        ).where(AssessmentAttempt.path_id.in_(path_ids))
+        pairs = progress_pairs.union(attempt_pairs).subquery()
+        rows = (
+            await self.db.execute(
+                select(pairs.c.pid, func.count(func.distinct(pairs.c.uid))).group_by(pairs.c.pid)
+            )
+        ).all()
+        return {r[0]: r[1] for r in rows}
 
     async def learned_concept_ids(self, user: User, concept_ids: list[str]) -> set[str]:
         """Which of the given concepts has this user marked as learned."""
