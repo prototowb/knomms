@@ -250,6 +250,61 @@ const acceptedCount = computed(() =>
 )
 const conceptCount = computed(() => path.value?.concepts.length ?? 0)
 
+// ── Owner analytics (KC-085, docs/13) ───────────────────────────────────────
+
+interface LearnerAnalytics {
+  user: { id: string; handle: string; display_name: string }
+  learned_count: number
+  completion_pct: number
+  attempt_count: number
+  correct_count: number
+  correct_rate: number
+  last_activity: string | null
+}
+
+interface ConceptAnalytics {
+  concept_id: string
+  title: string
+  position: number
+  learners_learned: number
+  attempt_count: number
+  correct_rate: number
+  top_wrong_answers: { answer_text: string; count: number; misconception_label: string | null }[]
+}
+
+interface PathAnalytics {
+  path_id: string
+  active_concept_count: number
+  learner_count: number
+  learners: LearnerAnalytics[]
+  concepts: ConceptAnalytics[]
+}
+
+const showAnalytics = ref(false)
+const analytics = ref<PathAnalytics | null>(null)
+const analyticsLoading = ref(false)
+const analyticsError = ref<string | null>(null)
+
+async function toggleAnalytics() {
+  showAnalytics.value = !showAnalytics.value
+  if (!showAnalytics.value || analyticsLoading.value) return
+  analyticsLoading.value = true
+  analyticsError.value = null
+  try {
+    analytics.value = await $fetch<PathAnalytics>(`/api/learning-paths/${pathId}/analytics`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+  } catch {
+    analyticsError.value = 'Could not load analytics.'
+  } finally {
+    analyticsLoading.value = false
+  }
+}
+
+function fmtDateTime(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+}
+
 function highlightCitations(text: string): string {
   // Match both [SOURCE:uuid] (ideal) and bare [uuid] (model sometimes omits prefix)
   return text
@@ -310,6 +365,14 @@ onUnmounted(_clearPoll)
             Published
           </span>
           <button
+            v-if="isOwner && path.status !== 'generating'"
+            class="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+            :class="showAnalytics ? 'border-accent text-accent bg-accent/5' : 'border-border text-text-secondary hover:bg-surface-secondary'"
+            @click="toggleAnalytics"
+          >
+            Learners
+          </button>
+          <button
             v-if="isOwner && path.status === 'draft'"
             class="text-xs px-3 py-1.5 rounded-lg bg-grounded text-white hover:bg-green-700 transition-colors"
             @click="publishPath"
@@ -362,6 +425,88 @@ onUnmounted(_clearPoll)
             </svg>
             <p class="text-sm font-medium text-text-primary">Generation failed</p>
             <p class="text-xs text-text-muted mt-1">The curriculum agent could not produce grounded concepts from this corpus. Try ingesting more sources.</p>
+          </div>
+
+          <!-- Owner analytics (KC-085) -->
+          <div v-else-if="showAnalytics && isOwner">
+            <div class="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <p class="text-xs text-text-muted mb-1">Cohort analytics</p>
+                <h2 class="text-xl font-semibold text-text-primary">Learners</h2>
+              </div>
+            </div>
+
+            <p v-if="analyticsLoading" class="text-sm text-text-muted">Loading analytics…</p>
+            <p v-else-if="analyticsError" class="text-sm text-warning">{{ analyticsError }}</p>
+
+            <template v-else-if="analytics">
+              <p v-if="analytics.learner_count === 0" class="text-sm text-text-muted">
+                No learner activity yet. Progress and answer attempts appear here once someone works through the path.
+              </p>
+
+              <template v-else>
+                <!-- Per-learner table -->
+                <div class="rounded-xl border border-border overflow-hidden mb-6">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="border-b border-border bg-surface-secondary">
+                        <th class="text-left px-3 py-2 text-text-muted font-medium">Learner</th>
+                        <th class="text-right px-3 py-2 text-text-muted font-medium">Progress</th>
+                        <th class="text-right px-3 py-2 text-text-muted font-medium">Attempts</th>
+                        <th class="text-right px-3 py-2 text-text-muted font-medium">Correct</th>
+                        <th class="text-right px-3 py-2 text-text-muted font-medium">Last activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="l in analytics.learners" :key="l.user.id" class="border-b border-border last:border-0">
+                        <td class="px-3 py-2 text-text-primary">
+                          @{{ l.user.handle }}
+                          <span v-if="l.user.id === auth.user?.id" class="text-text-muted">(you)</span>
+                        </td>
+                        <td class="px-3 py-2 text-right text-text-primary">
+                          {{ l.learned_count }}/{{ analytics.active_concept_count }}
+                          <span class="text-text-muted">({{ Math.round(l.completion_pct * 100) }}%)</span>
+                        </td>
+                        <td class="px-3 py-2 text-right text-text-secondary">{{ l.attempt_count }}</td>
+                        <td class="px-3 py-2 text-right">
+                          <span v-if="l.attempt_count > 0" :class="l.correct_rate >= 0.8 ? 'text-grounded' : l.correct_rate >= 0.5 ? 'text-warning' : 'text-red-500'">
+                            {{ Math.round(l.correct_rate * 100) }}%
+                          </span>
+                          <span v-else class="text-text-muted">—</span>
+                        </td>
+                        <td class="px-3 py-2 text-right text-text-muted">{{ fmtDateTime(l.last_activity) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Per-concept table -->
+                <h3 class="text-sm font-semibold text-text-primary mb-3">Concepts</h3>
+                <div class="space-y-2">
+                  <div v-for="c in analytics.concepts" :key="c.concept_id" class="rounded-xl border border-border p-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <p class="text-sm text-text-primary font-medium">{{ c.position + 1 }}. {{ c.title }}</p>
+                      <p class="text-xs text-text-muted shrink-0">
+                        {{ c.learners_learned }} learned · {{ c.attempt_count }} attempt{{ c.attempt_count !== 1 ? 's' : '' }}
+                        <template v-if="c.attempt_count > 0">
+                          ·
+                          <span :class="c.correct_rate >= 0.8 ? 'text-grounded' : c.correct_rate >= 0.5 ? 'text-warning' : 'text-red-500'">
+                            {{ Math.round(c.correct_rate * 100) }}% correct
+                          </span>
+                        </template>
+                      </p>
+                    </div>
+                    <div v-if="c.top_wrong_answers.length > 0" class="mt-2 space-y-1">
+                      <p class="text-xs font-semibold text-text-muted uppercase tracking-wider">Common wrong answers</p>
+                      <p v-for="w in c.top_wrong_answers" :key="w.answer_text" class="text-xs text-text-secondary">
+                        “{{ w.answer_text }}” × {{ w.count }}
+                        <span v-if="w.misconception_label" class="text-warning">— {{ w.misconception_label }}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </template>
           </div>
 
           <template v-else-if="path.concepts.length > 0">
@@ -534,6 +679,16 @@ onUnmounted(_clearPoll)
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <!-- Discussion (KC-084) -->
+              <div class="mt-6">
+                <ConceptDiscussion
+                  :path-id="pathId"
+                  :concept-id="concept.id"
+                  :source-passages="concept.source_passages"
+                  :is-path-owner="isOwner"
+                />
               </div>
 
               <!-- Navigation -->

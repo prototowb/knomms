@@ -12,6 +12,7 @@ from app.domains.knowledge_base.service import KnowledgeBaseService
 from app.models.chunk import Chunk
 from app.models.knowledge_base import KnowledgeBase
 from app.models.learning import (
+    AssessmentAttempt,
     AssessmentItem,
     ConceptNote,
     ConceptProgress,
@@ -28,6 +29,19 @@ def _normalize_answer(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"^[^\w]+|[^\w]+$", "", text)
     return text
+
+
+def _match_distractor(norm_answer: str, distractors) -> tuple[str | None, str | None]:
+    """Match a normalised wrong answer against an item's distractors.
+
+    Returns (distractor_id, misconception_label) for the first normalised
+    match, else (None, None). Pure — distractors only need .id/.text/
+    .misconception_label attributes.
+    """
+    for d in distractors:
+        if norm_answer == _normalize_answer(d.text):
+            return d.id, d.misconception_label
+    return None, None
 
 
 class LearningService:
@@ -246,6 +260,74 @@ class LearningService:
         await self.db.refresh(path)
         return path
 
+    async def path_analytics(self, path_id: str, user: User) -> dict:
+        """Owner-only cohort analytics (docs/13, OQ-39) — 404 for everyone else
+        so a path's learner roster never leaks through published paths."""
+        from app.domains.learning.analytics import build_analytics
+        from app.models.learning import AssessmentAttempt, Distractor
+
+        path = await self.get_path(path_id, user)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+
+        active = [c for c in path.concepts if c.status != "pruned"]
+        active_ids = [c.id for c in active]
+
+        progress_rows: list[dict] = []
+        if active_ids:
+            rows = (
+                await self.db.execute(
+                    select(ConceptProgress.user_id, ConceptProgress.concept_id, ConceptProgress.learned_at)
+                    .where(ConceptProgress.concept_id.in_(active_ids))
+                )
+            ).all()
+            progress_rows = [dict(r._mapping) for r in rows]
+
+        attempt_rows: list[dict] = []
+        if active_ids:
+            rows = (
+                await self.db.execute(
+                    select(
+                        AssessmentAttempt.user_id,
+                        AssessmentItem.concept_id,
+                        AssessmentAttempt.answer_text,
+                        AssessmentAttempt.correct,
+                        Distractor.misconception_label,
+                        AssessmentAttempt.created_at,
+                    )
+                    .join(AssessmentItem, AssessmentItem.id == AssessmentAttempt.item_id)
+                    .join(
+                        Distractor,
+                        Distractor.id == AssessmentAttempt.matched_distractor_id,
+                        isouter=True,
+                    )
+                    .where(
+                        AssessmentAttempt.path_id == path_id,
+                        AssessmentItem.concept_id.in_(active_ids),
+                    )
+                )
+            ).all()
+            attempt_rows = [dict(r._mapping) for r in rows]
+
+        user_ids = {r["user_id"] for r in progress_rows} | {a["user_id"] for a in attempt_rows}
+        users: dict[str, dict] = {}
+        if user_ids:
+            rows = (
+                await self.db.execute(
+                    select(User.id, User.handle, User.display_name).where(User.id.in_(user_ids))
+                )
+            ).all()
+            users = {r.id: dict(r._mapping) for r in rows}
+
+        result = build_analytics(
+            active_concepts=[{"id": c.id, "title": c.title, "position": c.position} for c in active],
+            progress_rows=progress_rows,
+            attempt_rows=attempt_rows,
+            users=users,
+        )
+        result["path_id"] = path_id
+        return result
+
     async def grade_attempt(
         self,
         path_id: str,
@@ -254,9 +336,10 @@ class LearningService:
         user: User,
         answer: str,
     ) -> dict:
-        path = await self.get_readable_path(path_id, user)
-        if path is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Learning path not found")
+        # Validates concept ∈ path (OQ-38) — the previous readable-path check
+        # alone let an item be graded (and would let attempts be recorded)
+        # against any readable path's id.
+        await self._get_readable_concept_id(path_id, concept_id, user)
 
         stmt = (
             select(AssessmentItem)
@@ -270,11 +353,22 @@ class LearningService:
         norm_answer = _normalize_answer(answer)
         correct = norm_answer == _normalize_answer(item.correct_answer)
         feedback: str | None = None
+        matched_distractor_id: str | None = None
         if not correct:
-            for d in item.distractors:
-                if norm_answer == _normalize_answer(d.text):
-                    feedback = d.misconception_label
-                    break
+            matched_distractor_id, feedback = _match_distractor(norm_answer, item.distractors)
+
+        # Every attempt is a row (OQ-37) — the response shape is unchanged.
+        self.db.add(
+            AssessmentAttempt(
+                item_id=item.id,
+                path_id=path_id,
+                user_id=user.id,
+                answer_text=answer,
+                correct=correct,
+                matched_distractor_id=matched_distractor_id,
+            )
+        )
+        await self.db.commit()
 
         return {
             "correct": correct,

@@ -107,6 +107,78 @@ class UpdateConceptRequest(BaseModel):
     instructor_annotation: str | None = None
 
 
+class LearnerAnalyticsOut(BaseModel):
+    user: PathOwnerOut
+    learned_count: int
+    completion_pct: float
+    attempt_count: int
+    correct_count: int
+    correct_rate: float
+    last_activity: datetime | None = None
+
+
+class WrongAnswerOut(BaseModel):
+    answer_text: str
+    count: int
+    misconception_label: str | None = None
+
+
+class ConceptAnalyticsOut(BaseModel):
+    concept_id: str
+    title: str
+    position: int
+    learners_learned: int
+    attempt_count: int
+    correct_rate: float
+    top_wrong_answers: list[WrongAnswerOut] = []
+
+
+class PathAnalyticsOut(BaseModel):
+    path_id: str
+    active_concept_count: int
+    learner_count: int
+    learners: list[LearnerAnalyticsOut] = []
+    concepts: list[ConceptAnalyticsOut] = []
+
+
+class PostOut(BaseModel):
+    id: str
+    thread_id: str
+    body: str
+    author: PathOwnerOut | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadSummaryOut(BaseModel):
+    id: str
+    concept_id: str
+    title: str
+    body: str
+    passage_chunk_id: str | None = None
+    passage_excerpt: str = ""
+    author: PathOwnerOut | None = None
+    post_count: int = 0
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ThreadOut(ThreadSummaryOut):
+    posts: list[PostOut] = []  # oldest-first (OQ-42)
+
+
+class CreateThreadRequest(BaseModel):
+    title: str
+    body: str = ""
+    passage_chunk_id: str | None = None
+
+
+class CreatePostRequest(BaseModel):
+    body: str
+
+
 class AttemptRequest(BaseModel):
     answer: str
 

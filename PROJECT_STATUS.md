@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.9.0 — Harness study KBs (in progress)"
-last_release: "v0.8.0 (2026-08-06)"
+current_sprint: "v0.10.0 — Cohort learning, part 1 (in progress)"
+last_release: "v0.9.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-080"
+next_ticket: "KC-087"
 ```
 
 ## Architecture Summary
@@ -53,7 +53,21 @@ next_ticket: "KC-080"
 
 ---
 
-## 🔄 v0.9.0: Harness study KBs — self-teaching curriculum (KC-074–079)
+## ✅ v0.10.0: Cohort learning, part 1 (KC-080–086) — released 2026-08-06
+
+*Design in `docs/13-cohort-learning.md` (OQ-37–44), feature shape from `docs/03-learning-layer.md` §5.2/§5.4 — the roadmap's #1 V2 priority, first slice: persisted answer attempts (they are graded statelessly today — analytics cannot be backfilled), owner-only comprehension analytics, and passage-anchored discussion threads. "Cohort" = readers of the path (no new entity; reuses `get_readable_path`). Mastery gates deferred to part 2. Ships a pre-existing bug fix: `grade_attempt` never validated the item belongs to the path.*
+
+### Sprint order (implement in sequence — 080 unblocks everything; 081 before 082)
+
+- ~~**KC-080**~~ ✅ backend: Migration 017 — `assessment_attempts` (item/path/user FKs, answer_text, correct, soft matched_distractor_id), `discussion_threads` (concept FK, soft passage anchor + excerpt snapshot), `discussion_posts`; ORM models; applied live, head **017** (2026-08-06)
+- ~~**KC-081**~~ ✅ backend: persist attempts + scoping fix — concept-in-path validation (OQ-38, pre-existing cross-path grade leak), `AssessmentAttempt` row per attempt reusing the distractor match via pure `_match_distractor`; response shape unchanged; 5 unit tests — 162 total (2026-08-06)
+- ~~**KC-082**~~ ✅ backend: analytics — owner-only `GET /v1/learning-paths/{id}/analytics` (per-learner progress/attempts/correct-rate/last-activity + per-concept learned/correct-rate/top misconceptions); `concept_count` → non-pruned (OQ-43); pure `build_analytics` + 10 tests — 171 total (2026-08-06)
+- ~~**KC-083**~~ ✅ backend: discussion API — thread/post create/list/get/delete guarded by the readable-path predicates (+ author-or-path-owner delete); passage anchor validated against the concept's source_passages, excerpt snapshotted; threads DESC, posts ASC (OQ-42); 8 guard tests — 179 total (2026-08-06)
+- ~~**KC-084**~~ ✅ frontend: `ConceptDiscussion.vue` on the learn page — thread list with excerpt headers, thread view, anchored new-thread form, replies, delete; 6 dedicated BFF handlers; vue-tsc clean (2026-08-06)
+- ~~**KC-085**~~ ✅ frontend: owner-only Learners panel on the learn page — per-learner + per-concept tables from the analytics endpoint (2026-08-06)
+- ~~**KC-086**~~ ✅ verification + release — 24-check two-user + outsider live script (`scripts/verify-v0100.py`) all green on Colima: answer-key hiding, wrong/correct attempts persisted + counted, cross-path item 404, anchored thread + excerpt snapshot, foreign anchor 422, reply visibility, delete rules (403/204), owner analytics with misconception aggregation, reader/outsider 404s; release v0.10.0 (2026-08-06)
+
+## ✅ v0.9.0: Harness study KBs — self-teaching curriculum (KC-074–079)
 
 *Design in `docs/12-harness-study-kb.md` (OQ-29–36): project a harness's slot contents, eval suite, and eval-run reports into a dedicated private KB so the existing curriculum flow can teach it. Prerequisite bug fix: the curriculum agent's heading heuristic is dead code (chunk text never contains `\n\n`), so every KB has always produced exactly one concept — KC-074 groups per source instead.*
 
@@ -267,6 +281,10 @@ next_ticket: "KC-080"
 ---
 
 ## Recent Updates
+
+- 2026-08-06: v0.10.0 released — cohort learning part 1 (Migration 017: persisted attempts + discussion threads/posts; owner-only path analytics with misconception aggregation; passage-anchored ConceptDiscussion + Learners panel); fixed pre-existing cross-path grading leak (KC-081) and the concept_count denominator (OQ-43); 24-check two-user live verification (`scripts/verify-v0100.py`); 179 backend tests
+
+- 2026-08-06: v0.9.0 released — harness study KBs (Migration 016, owner-only create-or-refresh projection of slots/eval suite/runs into a private KB, compose-page Study KB panel) + the curriculum multi-concept fix (KC-074: heading heuristic was dead code, every path had exactly 1 concept; now groups per source); live-verified incl. a 7-concept path from a 7-doc study KB; 157 backend tests
 
 - 2026-08-06: v0.8.0 released — cloud eval adapter (Migration 015 `eval_runs.provider`, opt-in Anthropic SDK adapter with live model list + refusal handling, guarded pre-flight incl. case cap, worker provider dispatch + per-case errors + token totals, grouped model selector + per-run consent dialog); disabled path live-verified byte-identical; 137 backend tests; Tier 4 complete
 
