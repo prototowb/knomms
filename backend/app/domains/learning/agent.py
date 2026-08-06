@@ -64,14 +64,28 @@ SOURCE PASSAGES:
 Produce the JSON concept entry now:"""
 
 
-def build_concept_groups(chunks: list[dict]) -> list[list[PassageDraft]]:
-    """Group non-overlap chunk dicts into concept groups using heading heuristics.
+MAX_GROUP_PASSAGES = 8
 
-    Consecutive chunks sharing the same heading prefix (detected by
-    _extract_heading) form one group. Chunks without a heading are grouped
-    with their predecessors until a new heading appears.
+
+def build_concept_groups(chunks: list[dict]) -> list[list[PassageDraft]]:
+    """Group non-overlap chunk dicts into concept groups.
+
+    A new group starts at (KC-074):
+    - a source boundary — each Source contributes its own concept(s). This is
+      the load-bearing rule: chunker output never contains "\\n\\n" (windows are
+      rejoined with single spaces), so the heading heuristic below can never
+      fire on real chunks, and without the source boundary every chunk in the
+      KB collapsed into one group;
+    - a heading change within a source (kept for extractors that emit
+      separable headings);
+    - the MAX_GROUP_PASSAGES cap, so a long source yields several bounded
+      concepts instead of one prompt containing every passage.
+
+    Callers must pass chunks ordered by (source_id, seq) — the worker's
+    SELECT already does.
     """
     groups: list[list[PassageDraft]] = []
+    current_source: str | None = None
     current_heading: str | None = None
     current_group: list[PassageDraft] = []
 
@@ -87,13 +101,19 @@ def build_concept_groups(chunks: list[dict]) -> list[list[PassageDraft]]:
             text=c["text"],
         )
 
-        if heading is not None and heading != current_heading:
+        starts_new_group = (
+            c["source_id"] != current_source
+            or (heading is not None and heading != current_heading)
+            or len(current_group) >= MAX_GROUP_PASSAGES
+        )
+        if starts_new_group:
             if current_group:
                 groups.append(current_group)
+            current_group = []
+            current_source = c["source_id"]
             current_heading = heading
-            current_group = [passage]
-        else:
-            current_group.append(passage)
+
+        current_group.append(passage)
 
     if current_group:
         groups.append(current_group)
