@@ -29,13 +29,13 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.6.0 released"
+project_phase: "Active development — v0.7.0 released"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.7.0 — Teams, ACLs & org discovery"
-last_release: "v0.6.0 (2026-08-05)"
+current_sprint: "v0.7.0 — Teams, ACLs & org discovery (complete)"
+last_release: "v0.7.0 (2026-08-06)"
 ticket_prefix: "KC"
 next_ticket: "KC-074"
 ```
@@ -53,16 +53,16 @@ next_ticket: "KC-074"
 
 ---
 
-## 🔄 v0.7.0: Teams, ACLs & org discovery (KC-065–070)
+## ✅ v0.7.0: Teams, ACLs & org discovery (KC-065–070) — released 2026-08-06
 
-*Design in `docs/10-teams-and-acls.md` (OQ-13–20): teams as ACL principals within an org (no new visibility value), one polymorphic `acl_grants` table (viewer/editor, KB/asset/harness — boards stay excluded per OQ-11), org-scoped explore tab, and JWT namespace claims **rejected** (OQ-13 reaffirms OQ-10 — SQL predicates keep join/leave/grant immediacy). Implement in sequence — 065 unblocks everything; 066 unblocks 067; 068/069 need 067.*
+*Design in `docs/10-teams-and-acls.md` (OQ-13–20): teams as ACL principals within an org (no new visibility value), one polymorphic `acl_grants` table (viewer/editor, KB/asset/harness — boards stay excluded per OQ-11), org-scoped explore tab, and JWT namespace claims **rejected** (OQ-13 reaffirms OQ-10 — SQL predicates keep join/leave/grant immediacy).*
 
-- **KC-065** Migration 014 — `teams`/`team_memberships`/`acl_grants` + models + registration + org-leave/remove team-membership cascade
-- **KC-066** Teams API — `/v1/orgs/teams` CRUD + membership; manage/same-org/duplicate guards + unit tests
-- **KC-067** ACL layer — `grant_subquery`/`readable_clause`/`editable_clause` in predicates.py; rewire 7 read sites; `get_editable_by_id` on OQ-18 write sites; grants CRUD routes; `list_for_user` granted-KB union; eval-run read relaxed to editors; unit tests
-- **KC-068** Org explore — `GET /v1/kbs/org` + `UserOut.org_name` + "My organisation" tab + `?tab=` URL sync + BFF
-- **KC-069** Frontend sharing — teams section on `/org`; `ShareDialog` on KB/asset/harness pages; org-name tooltips
-- **KC-070** Live verification (doc §9 three-user script), docs sync, release v0.7.0
+- ~~**KC-065**~~ ✅ Migration 014 — `teams`/`team_memberships`/`acl_grants` + models + registration + org-leave/remove team-membership cascade; applied live, head **014** (2026-08-06)
+- ~~**KC-066**~~ ✅ Teams API — `/v1/orgs/teams` CRUD + membership (creator auto-joins; creator/org-admin manage; same-org + duplicate-name guards); 4 guard unit tests (2026-08-06)
+- ~~**KC-067**~~ ✅ ACL layer — `grant_subquery`/`readable_clause`/`editable_clause`/`has_grant` in predicates.py; all 7 read sites rewired; OQ-18 editor surface (KB add-source, asset versions, harness slots/eval); grants CRUD (POST upserts); granted KBs in dashboard list; eval-run reads for editors; 10 SQL-shape/guard tests — 129 total (2026-08-06)
+- ~~**KC-068**~~ ✅ Org explore — `GET /v1/kbs/org` (PublicKBOut, no namespace leak) + `UserOut.org_name` + "My organisation" explore tab + `?tab=` deep links + `kbs/org` BFF (2026-08-06)
+- ~~**KC-069**~~ ✅ Frontend sharing — Teams section on `/org` (create/expand/add/remove/delete); `ShareDialog` component on KB/asset/harness pages (user-by-handle or team, viewer/editor, permission switch, revoke); org-name team tooltips (2026-08-06)
+- ~~**KC-070**~~ ✅ Live verification — 37-check three-user script (`scripts/verify-v070.sh`) all green: team guards, private-KB team grant reads (B 200 / C 404), cross-org user grant, editor writes on all three surfaces, revoke/team-removal/org-leave immediacy on unchanged tokens, org explore shape + auth, public regression; BFF chain verified (2026-08-06)
 
 ## 📋 v0.8.0: Cloud eval adapter (KC-071–073) — queued after v0.7.0
 
@@ -254,6 +254,8 @@ next_ticket: "KC-074"
 ---
 
 ## Recent Updates
+
+- 2026-08-06: v0.7.0 released — Teams (Migration 014, /v1/orgs/teams, org-leave cascade), per-resource ACL grants (viewer/editor on KB/asset/harness, 7 read sites + enumerated editor write surface, grants CRUD + ShareDialog), org-scoped explore ("My organisation" tab, /v1/kbs/org, org_name tooltips, ?tab= deep links); 37-check three-user live verification; 129 backend tests; JWT claims rejected as OQ-13
 
 - 2026-08-06: Tier 4 designed — `docs/10-teams-and-acls.md` (teams, per-resource ACLs, org explore; JWT claims rejected as OQ-13) and `docs/11-cloud-eval-adapter.md` (opt-in Anthropic eval adapter); sprints v0.7.0 (KC-065–070) and v0.8.0 (KC-071–073) defined
 
