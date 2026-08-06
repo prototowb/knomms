@@ -49,16 +49,43 @@ def _grade(actual: str, expected: str, strategy: str, config: dict | None) -> bo
     return False
 
 
-async def _grade_llm(actual: str, expected: str, model: str) -> bool:
-    """Use local Ollama to judge whether actual output satisfies expected."""
+async def _generate(provider: str, prompt: str, model: str) -> tuple[str, dict | None]:
+    """Provider dispatch (docs/11 OQ-23): returns (text, usage-or-None). The
+    cloud adapter retries transient errors via the SDK; the local path gets a
+    small retry of its own (OQ-27)."""
+    if provider == "anthropic":
+        from app.domains.generation import cloud
+
+        return await cloud.generate(prompt, model)
+
+    import asyncio
+
+    import httpx
+
     from app.domains.generation.ollama import generate
 
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            return await generate(prompt, model=model), None
+        except (httpx.TimeoutException, httpx.ConnectError) as exc:
+            last_exc = exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code < 500:
+                raise
+            last_exc = exc
+        await asyncio.sleep(2**attempt)
+    raise last_exc  # type: ignore[misc]
+
+
+async def _grade_llm(actual: str, expected: str, model: str, provider: str = "ollama") -> bool:
+    """LLM judge — uses the run's own provider+model (judge == subject, OQ-28)."""
     prompt = (
         f"Does the following response correctly answer the question?\n\n"
         f"Expected: {expected}\n\nActual: {actual}\n\n"
         f"Reply with a single word: YES or NO."
     )
-    result = await generate(prompt, model=model)
+    result, _ = await _generate(provider, prompt, model)
     return "yes" in result.lower()
 
 
@@ -129,9 +156,12 @@ async def run_eval_job(db: AsyncSession, job: dict) -> None:
         cases: list[EvalCase] = eval_suite_version.eval_cases
         total = len(cases)
         model = eval_run.model_pin
+        provider = eval_run.provider or "ollama"
 
         results = []
         passed_count = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         for i, case in enumerate(cases):
             start_ms = int(time.monotonic() * 1000)
@@ -142,26 +172,46 @@ async def run_eval_job(db: AsyncSession, job: dict) -> None:
             else:
                 prompt = case.input
 
-            from app.domains.generation.ollama import generate
-            actual_output = await generate(prompt, model=model)
+            # One failed case must not fail the run (OQ-27) — capture the
+            # error, count the case as failed, keep going
+            error: str | None = None
+            actual_output: str | None = None
+            usage: dict | None = None
+            passed = False
+            try:
+                actual_output, usage = await _generate(provider, prompt, model)
+                if case.grading_strategy == "llm_judge":
+                    passed = await _grade_llm(
+                        actual_output, case.expected_output, model, provider
+                    )
+                else:
+                    passed = _grade(
+                        actual_output, case.expected_output,
+                        case.grading_strategy, case.grading_config,
+                    )
+            except Exception as exc:
+                logger.warning("EvalRun %s case %d errored: %s", run_id, i + 1, exc)
+                error = str(exc)[:200]
 
             latency_ms = int(time.monotonic() * 1000) - start_ms
 
-            if case.grading_strategy == "llm_judge":
-                passed = await _grade_llm(actual_output, case.expected_output, model)
-            else:
-                passed = _grade(actual_output, case.expected_output, case.grading_strategy, case.grading_config)
-
             if passed:
                 passed_count += 1
+            if usage:
+                total_input_tokens += usage.get("input_tokens", 0)
+                total_output_tokens += usage.get("output_tokens", 0)
 
             result = {
                 "case_id": case.id,
                 "passed": passed,
-                "actual_output": actual_output[:500],  # truncate for storage
+                "actual_output": actual_output[:500] if actual_output else None,
                 "latency_ms": latency_ms,
                 "grading_strategy": case.grading_strategy,
             }
+            if error:
+                result["error"] = error
+            if usage:
+                result["usage"] = usage
             results.append(result)
 
             await _push_event(redis, run_id, {
@@ -170,11 +220,13 @@ async def run_eval_job(db: AsyncSession, job: dict) -> None:
                 "total": total,
                 "passed": passed,
                 "latency_ms": latency_ms,
+                **({"error": error} if error else {}),
             })
 
             logger.info(
                 "EvalRun %s case %d/%d: %s (latency=%dms)",
-                run_id, i + 1, total, "PASS" if passed else "FAIL", latency_ms,
+                run_id, i + 1, total,
+                "ERROR" if error else ("PASS" if passed else "FAIL"), latency_ms,
             )
 
         pass_rate = passed_count / total if total > 0 else 0.0
@@ -183,8 +235,15 @@ async def run_eval_job(db: AsyncSession, job: dict) -> None:
             "passed": passed_count,
             "failed": total - passed_count,
             "pass_rate": round(pass_rate, 4),
+            "provider": provider,
             "results": results,
         }
+        if provider == "anthropic":
+            # Visible actuals after the bounded spend (OQ-25)
+            metrics["usage"] = {
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+            }
 
         eval_run.metrics = metrics
         eval_run.status = "completed"

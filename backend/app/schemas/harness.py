@@ -77,12 +77,14 @@ class HarnessSummary(BaseModel):
 
 class SubmitEvalRequest(BaseModel):
     model: str
+    provider: str = "ollama"  # 'ollama' | 'anthropic' — validated in the service
 
 
 class EvalRunOut(BaseModel):
     id: str
     harness_id: str
     model_pin: str
+    provider: str = "ollama"
     status: str
     metrics: Any | None = None
     eval_suite_version_id: str | None = None

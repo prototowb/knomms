@@ -36,6 +36,9 @@ dependencies = [
     # http client (also used by Ollama client and web scraper)
     "httpx>=0.27",
 
+    # cloud eval adapter — official Anthropic SDK (docs/11-cloud-eval-adapter.md)
+    "anthropic>=0.100",
+
     # file upload form parsing (required by FastAPI for UploadFile endpoints)
     "python-multipart>=0.0.9",
 

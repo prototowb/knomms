@@ -62,18 +62,22 @@ interface EvalRunOut {
   id: string
   harness_id: string
   model_pin: string
+  provider?: string
   status: string
   metrics: {
     total: number
     passed: number
     failed: number
     pass_rate: number
+    provider?: string
+    usage?: { input_tokens: number; output_tokens: number }
     results: {
       case_id: string
       passed: boolean
-      actual_output: string
+      actual_output: string | null
       latency_ms: number
       grading_strategy: string
+      error?: string
     }[]
   } | null
   eval_suite_version_id?: string | null
@@ -212,8 +216,17 @@ async function forkHarness() {
 
 // ── Eval panel ─────────────────────────────────────────────────────────────
 
-const availableModels = ref<string[]>([])
-const selectedModel = ref('')
+// Grouped by provider (KC-072). Selection is encoded "provider::model" so one
+// <select> can span groups; models themselves may contain single colons.
+const providerGroups = ref<{ provider: string; models: string[] }[]>([])
+const modelSelection = ref('')
+const selectedProvider = computed(() => modelSelection.value.split('::')[0] ?? '')
+const selectedModel = computed(() => modelSelection.value.split('::').slice(1).join('::'))
+const totalModelCount = computed(() =>
+  providerGroups.value.reduce((n, g) => n + g.models.length, 0)
+)
+const providerLabel: Record<string, string> = { ollama: 'Local (Ollama)', anthropic: 'Cloud (Anthropic)' }
+const cloudConfirmOpen = ref(false)
 const evalSubmitting = ref(false)
 const evalError = ref<string | null>(null)
 const evalRunId = ref<string | null>(null)
@@ -314,7 +327,23 @@ const evalProgressPct = computed(() =>
     : 0
 )
 
-async function submitEval() {
+function submitEval() {
+  if (!hasEvalSuiteSlot.value || !selectedModel.value || evalSubmitting.value) return
+  // Cloud runs need a conscious per-submission consent — the eval payload
+  // (prompts + case inputs) leaves this host (docs/11 OQ-26)
+  if (selectedProvider.value === 'anthropic') {
+    cloudConfirmOpen.value = true
+    return
+  }
+  performEvalSubmit()
+}
+
+function confirmCloudRun() {
+  cloudConfirmOpen.value = false
+  performEvalSubmit()
+}
+
+async function performEvalSubmit() {
   if (!hasEvalSuiteSlot.value || !selectedModel.value || evalSubmitting.value) return
   evalSubmitting.value = true
   evalError.value = null
@@ -328,18 +357,27 @@ async function submitEval() {
     const run = await $fetch<EvalRunOut>(`/api/harnesses/${harnessId}/eval`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${auth.token}` },
-      body: { model: selectedModel.value },
+      body: { model: selectedModel.value, provider: selectedProvider.value || 'ollama' },
     })
     evalRunId.value = run.id
     evalStatus.value = run.status
     await streamEvalEvents(run.id)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to submit eval'
-    // Distinguish 422 (model not available) from 503 (Ollama unreachable)
-    if (msg.includes('503') || msg.includes('reach Ollama')) {
-      evalError.value = 'Ollama is not reachable. Make sure the Ollama service is running.'
+    const cloud = selectedProvider.value === 'anthropic'
+    // Distinguish 422 (validation) from 503 (provider unreachable)
+    if (msg.includes('capped at')) {
+      evalError.value = 'This eval suite exceeds the cloud case cap (CLOUD_EVAL_MAX_CASES). Run it locally, or raise the cap.'
+    } else if (msg.includes('not enabled')) {
+      evalError.value = 'Cloud eval is not enabled on this instance. Set CLOUD_EVAL_ENABLED and ANTHROPIC_API_KEY.'
+    } else if (msg.includes('503') || msg.includes('reach Ollama') || msg.includes('reach the cloud')) {
+      evalError.value = cloud
+        ? 'Could not reach the cloud provider. Check the API key and network.'
+        : 'Ollama is not reachable. Make sure the Ollama service is running.'
     } else if (msg.includes('422') || msg.includes('not available')) {
-      evalError.value = `Model not available locally. Choose a model from the list above.`
+      evalError.value = cloud
+        ? 'Model not available from the provider. Choose a model from the list above.'
+        : 'Model not available locally. Choose a model from the list above.'
     } else {
       evalError.value = msg
     }
@@ -393,6 +431,7 @@ async function streamEvalEvents(runId: string) {
               actual_output: '',
               latency_ms: evt.latency_ms,
               grading_strategy: '',
+              ...(evt.error ? { error: evt.error } : {}),
             })
           } else if (evt.type === 'complete') {
             evalStatus.value = 'completed'
@@ -500,7 +539,9 @@ async function loadPage() {
         '/api/assets',
         { headers: { Authorization: `Bearer ${auth.token}` } }
       ),
-      $fetch<{ models: string[] }>('/api/models'),
+      $fetch<{ providers: { provider: string; models: string[] }[] }>('/api/models', {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      }),
       $fetch<{ deprecated: string[] }>('/api/deprecated-models').catch(() => ({ deprecated: [] })),
     ])
 
@@ -516,12 +557,13 @@ async function loadPage() {
     )
     allAssets.value = assetDetails.filter(Boolean) as AssetOut[]
 
-    availableModels.value = modelsRes.models
-    // Default to a generation model — embedding models (e.g. nomic-embed-text)
-    // are valid Ollama tags but produce garbage through /api/generate.
-    const generationModels = modelsRes.models.filter(m => !/embed/i.test(m))
-    const preferred = generationModels[0] ?? modelsRes.models[0]
-    if (preferred) selectedModel.value = preferred
+    providerGroups.value = modelsRes.providers ?? []
+    // Default to a LOCAL generation model — embedding models (e.g.
+    // nomic-embed-text) are valid Ollama tags but produce garbage through
+    // /api/generate; cloud models are never a silent default.
+    const ollamaModels = providerGroups.value.find(g => g.provider === 'ollama')?.models ?? []
+    const preferred = ollamaModels.filter(m => !/embed/i.test(m))[0] ?? ollamaModels[0]
+    if (preferred) modelSelection.value = `ollama::${preferred}`
     deprecatedModels.value = deprecatedRes.deprecated
 
     loadForkComparison()
@@ -707,15 +749,24 @@ onMounted(loadPage)
           <div class="rounded-xl border border-border bg-surface p-5 space-y-4">
             <!-- Model selector -->
             <div>
-              <label class="block text-xs font-medium text-text-secondary mb-1.5">Ollama model</label>
+              <label class="block text-xs font-medium text-text-secondary mb-1.5">Model</label>
               <select
-                v-if="availableModels.length > 0"
-                v-model="selectedModel"
+                v-if="totalModelCount > 0"
+                v-model="modelSelection"
                 class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface focus:outline-none focus:border-accent"
               >
-                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+                <optgroup
+                  v-for="g in providerGroups.filter(g => g.models.length > 0)"
+                  :key="g.provider"
+                  :label="providerLabel[g.provider] ?? g.provider"
+                >
+                  <option v-for="m in g.models" :key="`${g.provider}::${m}`" :value="`${g.provider}::${m}`">{{ m }}</option>
+                </optgroup>
               </select>
-              <p v-else class="text-xs text-text-muted">No local Ollama models found. Run <code class="font-mono bg-border px-1 rounded">docker compose run --rm ollama-init</code> to pull models.</p>
+              <p v-else class="text-xs text-text-muted">No models found. Run <code class="font-mono bg-border px-1 rounded">docker compose run --rm ollama-init</code> to pull local models.</p>
+              <p v-if="selectedProvider === 'anthropic'" class="text-[11px] leading-4 text-warning mt-1.5">
+                Cloud model — this run will send harness slot contents and eval case inputs to Anthropic.
+              </p>
             </div>
 
             <!-- Run button -->
@@ -755,7 +806,15 @@ onMounted(loadPage)
             <!-- Results summary -->
             <div v-if="evalMetrics" class="space-y-3">
               <div class="rounded-lg bg-surface-secondary border border-border px-4 py-3">
-                <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Result</p>
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider">Result</p>
+                  <span
+                    v-if="evalMetrics.provider && evalMetrics.provider !== 'ollama'"
+                    class="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide bg-accent/10 text-accent"
+                  >
+                    {{ evalMetrics.provider }}
+                  </span>
+                </div>
                 <div class="flex items-end gap-3">
                   <span class="text-3xl font-semibold" :class="evalMetrics.pass_rate >= 0.8 ? 'text-grounded' : evalMetrics.pass_rate >= 0.5 ? 'text-warning' : 'text-red-500'">
                     {{ Math.round(evalMetrics.pass_rate * 100) }}%
@@ -764,6 +823,10 @@ onMounted(loadPage)
                     {{ evalMetrics.passed }} / {{ evalMetrics.total }} passed
                   </span>
                 </div>
+                <p v-if="evalMetrics.usage" class="text-xs text-text-muted mt-2">
+                  Token usage: {{ evalMetrics.usage.input_tokens.toLocaleString() }} in ·
+                  {{ evalMetrics.usage.output_tokens.toLocaleString() }} out
+                </p>
               </div>
 
               <!-- Per-case table -->
@@ -786,9 +849,10 @@ onMounted(loadPage)
                       <td class="px-3 py-2">
                         <span
                           class="font-medium"
-                          :class="r.passed ? 'text-grounded' : 'text-red-500'"
+                          :class="r.error ? 'text-warning' : r.passed ? 'text-grounded' : 'text-red-500'"
+                          :title="r.error"
                         >
-                          {{ r.passed ? 'PASS' : 'FAIL' }}
+                          {{ r.error ? 'ERROR' : r.passed ? 'PASS' : 'FAIL' }}
                         </span>
                       </td>
                       <td class="px-3 py-2 text-right text-text-muted">{{ r.latency_ms }}ms</td>
@@ -1032,5 +1096,38 @@ onMounted(loadPage)
       :resource-title="harness.title"
       @close="shareOpen = false"
     />
+
+    <!-- Cloud run consent (docs/11 OQ-26) — asked on every cloud submission -->
+    <div
+      v-if="cloudConfirmOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      @click.self="cloudConfirmOpen = false"
+    >
+      <div class="bg-surface rounded-2xl shadow-xl p-6 w-full max-w-md">
+        <h2 class="text-base font-semibold text-text-primary mb-2">Run eval on Anthropic?</h2>
+        <p class="text-sm text-text-secondary leading-6 mb-2">
+          This run will send your harness slot contents (system prompt) and every eval case
+          input to the Anthropic API under this instance's API key.
+        </p>
+        <p class="text-xs text-text-muted mb-5">
+          Model: <span class="font-mono text-text-secondary">{{ selectedModel }}</span> ·
+          billed per token; token usage is reported with the result.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button
+            class="px-3 py-2 rounded-lg text-sm font-medium border border-border text-text-primary hover:bg-surface-secondary transition-colors"
+            @click="cloudConfirmOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+            @click="confirmCloudRun"
+          >
+            Run on Anthropic
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

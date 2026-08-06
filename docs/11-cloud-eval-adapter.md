@@ -1,6 +1,8 @@
 # Cloud Eval Adapter — Design (Tier 4, part 2)
 
-> Status: **proposed** (2026-08-06). The fifth Tier 4 candidate, deferred at OQ-2
+> Status: **shipped in v0.8.0** (2026-08-06, KC-071–073). §8 disabled-path verification
+> executed live; enabled-path (step 2) requires an operator-supplied API key and is
+> documented as an operator runbook. The fifth Tier 4 candidate, deferred at OQ-2
 > ("zero-external-cost strict; cloud adapter Tier 3 — opt-in, with explicit cost +
 > privacy guardrails"). Proposed sprint: **v0.8.0 = KC-071–073**, after v0.7.0
 > (`docs/10-teams-and-acls.md`).

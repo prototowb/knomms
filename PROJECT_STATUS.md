@@ -29,13 +29,13 @@ docker compose up -d
 ## Current State
 
 ```yaml
-project_phase: "Active development — v0.7.0 released"
+project_phase: "Active development — v0.8.0 released"
 protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.7.0 — Teams, ACLs & org discovery (complete)"
-last_release: "v0.7.0 (2026-08-06)"
+current_sprint: "v0.8.0 — Cloud eval adapter (complete)"
+last_release: "v0.8.0 (2026-08-06)"
 ticket_prefix: "KC"
 next_ticket: "KC-074"
 ```
@@ -64,13 +64,13 @@ next_ticket: "KC-074"
 - ~~**KC-069**~~ ✅ Frontend sharing — Teams section on `/org` (create/expand/add/remove/delete); `ShareDialog` component on KB/asset/harness pages (user-by-handle or team, viewer/editor, permission switch, revoke); org-name team tooltips (2026-08-06)
 - ~~**KC-070**~~ ✅ Live verification — 37-check three-user script (`scripts/verify-v070.sh`) all green: team guards, private-KB team grant reads (B 200 / C 404), cross-org user grant, editor writes on all three surfaces, revoke/team-removal/org-leave immediacy on unchanged tokens, org explore shape + auth, public regression; BFF chain verified (2026-08-06)
 
-## 📋 v0.8.0: Cloud eval adapter (KC-071–073) — queued after v0.7.0
+## ✅ v0.8.0: Cloud eval adapter (KC-071–073) — released 2026-08-06
 
-*Design in `docs/11-cloud-eval-adapter.md` (OQ-21–28): Anthropic-only opt-in adapter behind `CLOUD_EVAL_ENABLED` + `ANTHROPIC_API_KEY` (default off = byte-identical behaviour, OQ-2 preserved); `eval_runs.provider` column (Migration 015) instead of slug-encoding; case cap + token reporting + per-submission privacy confirm; per-case error handling/retries for local runs too. Live verification step 2 needs an operator-supplied API key.*
+*Design in `docs/11-cloud-eval-adapter.md` (OQ-21–28): Anthropic-only opt-in adapter behind `CLOUD_EVAL_ENABLED` + `ANTHROPIC_API_KEY` (default off = byte-identical behaviour, OQ-2 preserved); `eval_runs.provider` column instead of slug-encoding; case cap + token reporting + per-submission privacy confirm; per-case error handling/retries for local runs too.*
 
-- **KC-071** Backend — Migration 015 + settings + Anthropic adapter + provider-aware pre-flight + worker dispatch/retries/usage + `/v1/eval-models`
-- **KC-072** Frontend — grouped model selector + provider submit + confirm dialog + provider-aware errors + token display
-- **KC-073** Live verification (doc §8), docs sync, release v0.8.0
+- ~~**KC-071**~~ ✅ Backend — Migration 015 (`eval_runs.provider`); settings (`CLOUD_EVAL_ENABLED` off by default, `ANTHROPIC_API_KEY`, `CLOUD_EVAL_MAX_CASES=25`, `CLOUD_EVAL_MAX_TOKENS=4096`); Anthropic SDK adapter with live Models API list + refusal handling; provider-aware `submit_eval` pre-flight (gate/model/cap 422s, 503 unreachable); worker provider dispatch, per-case error capture, local transient-error retry, token totals; `GET /v1/eval-models`; 8 unit tests — 137 total (2026-08-06)
+- ~~**KC-072**~~ ✅ Frontend — `/api/models` BFF → `/v1/eval-models`; Local/Cloud optgroup selector ("provider::model" encoding, local-only default); per-submission cloud consent dialog naming what leaves the host; provider-aware error mapping incl. case-cap and not-enabled; provider chip + token usage on results; ERROR state in the case table (2026-08-06)
+- ~~**KC-073**~~ ✅ Verification + release — disabled-path live checks green (eval-models shows only the Ollama group, forced `provider=anthropic` → 422 not-enabled, bogus provider → 422, migration 015 applied, local eval regression run completes through the new dispatch path); enabled-path (§8 step 2) requires an operator API key — runbook documented in the doc; release v0.8.0 (2026-08-06)
 
 ## ✅ v0.6.0: Organisations (KC-060–064) — released 2026-08-05
 
@@ -254,6 +254,8 @@ next_ticket: "KC-074"
 ---
 
 ## Recent Updates
+
+- 2026-08-06: v0.8.0 released — cloud eval adapter (Migration 015 `eval_runs.provider`, opt-in Anthropic SDK adapter with live model list + refusal handling, guarded pre-flight incl. case cap, worker provider dispatch + per-case errors + token totals, grouped model selector + per-run consent dialog); disabled path live-verified byte-identical; 137 backend tests; Tier 4 complete
 
 - 2026-08-06: v0.7.0 released — Teams (Migration 014, /v1/orgs/teams, org-leave cascade), per-resource ACL grants (viewer/editor on KB/asset/harness, 7 read sites + enumerated editor write surface, grants CRUD + ShareDialog), org-scoped explore ("My organisation" tab, /v1/kbs/org, org_name tooltips, ?tab= deep links); 37-check three-user live verification; 129 backend tests; JWT claims rejected as OQ-13
 

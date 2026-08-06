@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     # Set to 10 for GPU deployments where prefill is fast.
     retrieval_top_k: int = 3
 
+    # cloud eval adapter (docs/11-cloud-eval-adapter.md, OQ-21/25).
+    # Default OFF — with these unset no cloud code path is reachable and no
+    # request leaves the host (OQ-2 preserved). Eval runs only; everything
+    # else stays Ollama-local unconditionally.
+    cloud_eval_enabled: bool = False
+    anthropic_api_key: str | None = None
+    cloud_eval_max_cases: int = 25   # hard cap per cloud run — bounded worst-case spend
+    cloud_eval_max_tokens: int = 4096  # per-case output cap
+
     # auth
     secret_key: str = "insecure-dev-key-change-in-production"
     algorithm: str = "HS256"

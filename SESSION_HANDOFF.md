@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-06  
-**State:** v0.7.0 released — Teams, ACLs & org discovery shipped (KC-065–070); everything KC-032–070 live-verified  
-**Branch:** `development` ahead of `main` pending release PR / in sync once v0.7.0 PR merges  
-**Tests:** 129/129 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** everything through KC-070 verified on Colima (37-check three-user script, `scripts/verify-v070.sh`, 2026-08-06). Migration head: **014**.  
+**State:** v0.8.0 released — Tier 4 complete (teams/ACLs/org-explore in v0.7.0, cloud eval adapter in v0.8.0); everything KC-032–073 verified (cloud enabled-path pending an operator API key)  
+**Branch:** `development` and `main` in sync once the v0.8.0 PR merges  
+**Tests:** 137/137 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path checks green on Colima (2026-08-06). Migration head: **015**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.8.0 (2026-08-06):** cloud eval adapter (`docs/11-cloud-eval-adapter.md`, OQ-21–28). Default off — `CLOUD_EVAL_ENABLED=true` + `ANTHROPIC_API_KEY` in `.env` enables Anthropic as an eval target (eval only; ingestion/Q&A/curriculum stay Ollama-local unconditionally). Provider is a **column** on `eval_runs`, never a slug prefix (`ModelPinBadge` still splits on `:`). The compose model list now comes from `GET /v1/eval-models` (the old direct Ollama-tags BFF is gone); model list is fetched live from Anthropic's Models API — never hardcode model ids. Worker: one failed case no longer fails a run (per-case `error` in metrics/events); local transient failures retry 3×. **To live-verify the enabled path** (doc §8 step 2): set the two env vars, restart api+worker, run a ≤25-case suite on the cheapest listed model, confirm the consent dialog, token totals in metrics, and `provider='anthropic'` on the run.
 
 **v0.7.0 (2026-08-06):** teams + per-resource ACL grants + org explore (`docs/10-teams-and-acls.md`, OQ-13–20). The predicate family in `organisations/predicates.py` grew: `readable_clause(model, resource_type, user)` is now the only correct read relaxation (it layers `acl_grants` onto `team_or_public_clause`) and `editable_clause`/`has_grant(…, permissions=("editor",))` guard the enumerated editor write surface — never hand-roll grant subqueries. JWT claims were **rejected** (OQ-13), not deferred: enforcement stays per-request SQL so grant/membership changes are instant on unchanged tokens. Gotchas: `get_team` needs `populate_existing=True` (membership rows are inserted by FK, not relationship, so the loaded collection goes stale); the literal `/kbs/org` route must stay registered before `/kbs/{kb_id}`; the `kbs/` BFF dir has no catch-all — KB grants got hand-written ofetch routes. Next Tier 4 item queued: **v0.8.0 cloud eval adapter** (`docs/11-cloud-eval-adapter.md`, KC-071–073, not started).
 

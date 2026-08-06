@@ -1,10 +1,16 @@
 import { ofetch } from 'ofetch'
 
-export default defineEventHandler(async () => {
+// KC-072: the compose page's model list now comes from the backend, which
+// groups eval targets by provider (Ollama always; Anthropic only when the
+// operator enabled cloud eval). Replaces the old direct Ollama-tags proxy.
+export default defineEventHandler(async (event) => {
+  const auth = getHeader(event, 'authorization') ?? ''
   try {
-    const data = await ofetch<{ models: { name: string }[] }>('http://ollama:11434/api/tags')
-    return { models: (data.models ?? []).map((m) => m.name) }
+    return await ofetch<{ providers: { provider: string; models: string[] }[] }>(
+      'http://api:8000/v1/eval-models',
+      { headers: { Authorization: auth } }
+    )
   } catch {
-    return { models: [] }
+    return { providers: [{ provider: 'ollama', models: [] }] }
   }
 })

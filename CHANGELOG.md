@@ -4,6 +4,26 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.8.0] — 2026-08-06
+
+Cloud eval adapter (KC-071–073) — the last Tier 4 candidate and the guarded exception OQ-2 always promised: eval runs (and only eval runs) can target Anthropic models, strictly opt-in (design in `docs/11-cloud-eval-adapter.md`, OQ-21–28). **Default behaviour is byte-identical to v0.7.0** — with no configuration, no cloud code path is reachable and no request leaves the host.
+
+### Features
+
+#### Cloud eval adapter (opt-in)
+- Operator opt-in via `CLOUD_EVAL_ENABLED=true` + `ANTHROPIC_API_KEY`; both required, default off
+- `eval_runs.provider` column (Migration 015) — `model_pin` stays a bare model id, no slug encoding
+- Official Anthropic SDK adapter: live model list from the provider's Models API (no hardcoded ids), safety-refusal handling, SDK retry with backoff on 429/5xx
+- Provider-aware pre-flight in `POST /harnesses/{id}/eval`: opt-in gate, live model validation, and a case-count cap (`CLOUD_EVAL_MAX_CASES`, default 25) refused **before** any spend
+- Per-case token usage recorded and totalled in run metrics; shown with the result
+- `GET /v1/eval-models`: eval targets grouped by provider; the compose page selector shows Local/Cloud optgroups (cloud never a silent default) and asks for explicit consent on every cloud submission — the dialog names what leaves the host
+- Reliability for all providers: a failed case no longer fails the whole run (error captured per case, shown as ERROR in the case table), and transient local Ollama errors retry with backoff
+
+### Test Coverage
+- 137 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 015
+
+---
+
 ## [0.7.0] — 2026-08-06
 
 Teams, ACLs & org discovery (KC-065–070) — sharing gets a scalpel: named teams inside an organisation, per-resource viewer/editor grants on KBs/assets/harnesses, and an explore tab for what your org has shared (design in `docs/10-teams-and-acls.md`, OQ-13–20). Live-verified with a 37-check three-user script. JWT namespace claims were assessed and **rejected** (OQ-13): SQL-predicate enforcement keeps join/leave/grant changes instant on unchanged tokens.
