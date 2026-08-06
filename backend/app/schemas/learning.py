@@ -107,6 +107,40 @@ class UpdateConceptRequest(BaseModel):
     instructor_annotation: str | None = None
 
 
+class LearnerAnalyticsOut(BaseModel):
+    user: PathOwnerOut
+    learned_count: int
+    completion_pct: float
+    attempt_count: int
+    correct_count: int
+    correct_rate: float
+    last_activity: datetime | None = None
+
+
+class WrongAnswerOut(BaseModel):
+    answer_text: str
+    count: int
+    misconception_label: str | None = None
+
+
+class ConceptAnalyticsOut(BaseModel):
+    concept_id: str
+    title: str
+    position: int
+    learners_learned: int
+    attempt_count: int
+    correct_rate: float
+    top_wrong_answers: list[WrongAnswerOut] = []
+
+
+class PathAnalyticsOut(BaseModel):
+    path_id: str
+    active_concept_count: int
+    learner_count: int
+    learners: list[LearnerAnalyticsOut] = []
+    concepts: list[ConceptAnalyticsOut] = []
+
+
 class AttemptRequest(BaseModel):
     answer: str
 
