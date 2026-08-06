@@ -184,6 +184,9 @@ class EvalRun(Base):
         ForeignKey("asset_versions.id"), nullable=True
     )
     model_pin: Mapped[str] = mapped_column(String(100), nullable=False)
+    # 'ollama' | 'anthropic' — a column, not a slug prefix, so model_pin stays
+    # a bare model id (docs/11-cloud-eval-adapter.md OQ-22)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="ollama")
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="queued"
     )  # queued | running | completed | failed
