@@ -98,8 +98,8 @@ class LearningService:
     @staticmethod
     def _readable_kb_exists(user: User):
         """Correlated EXISTS: the path's KB is readable by this user
-        (docs/09-organisations.md OQ-7 — team = same org)."""
-        from app.domains.organisations.predicates import team_or_public_clause
+        (docs/09 OQ-7 — team = same org; docs/10 OQ-17 — KB grants flow to paths)."""
+        from app.domains.organisations.predicates import readable_clause
 
         return (
             select(KnowledgeBase.id)
@@ -107,7 +107,7 @@ class LearningService:
                 KnowledgeBase.id == LearningPath.kb_id,
                 or_(
                     KnowledgeBase.owner_user_id == user.id,
-                    team_or_public_clause(KnowledgeBase, user),
+                    readable_clause(KnowledgeBase, "kb", user),
                 ),
             )
             .exists()
