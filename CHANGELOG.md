@@ -4,6 +4,26 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.12.0] — 2026-08-06
+
+Video transcript ingestion, part 1 (KC-092–095) — first slice of the roadmap's #2 V2 priority (design in `docs/15-video-ingestion.md`, OQ-53–62). YouTube URLs now ingest the captions the video already has — no ASR, no new heavyweight dependency — and every downstream layer (search, Q&A citations, curriculum grounding, discussion anchors) picks up timestamp locators for free, because the `RawBlock` contract reserved `ts:HH:MM:SS` from the start. Local Whisper for caption-less/uploaded media stays in part 2.
+
+### Fixed
+
+- Ingestion submit race (KC-095, pre-existing): the job was enqueued to Redis before the Source row committed, so a fast worker could find nothing, skip the job, and leave the source `pending` forever. Both `submit_url` and `submit_file` now commit before enqueue (the KC-077 lesson, applied to the original ingestion path)
+
+### Features
+
+#### Video transcript ingestion
+- Submitting a YouTube URL (watch/youtu.be/shorts/embed/live forms) creates a `video` source with a human title via oEmbed; the worker fetches the best transcript (manual > auto-generated, English first) instead of the watch page
+- Caption snippets accumulate into ~400-char blocks with `ts:HH:MM:SS` locators (start of what you'll hear); caption-less or unavailable videos fail cleanly with a logged reason
+- KB search results and learn-page source passages render video locators as `watch?t=Ns` deep links — a citation now jumps to the exact moment in the talk; video badge on source cards
+
+### Test Coverage
+- 206 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · 15-check live script (`scripts/verify-v0120.py`) incl. end-to-end transcript → search → curriculum grounding
+
+---
+
 ## [0.11.0] — 2026-08-06
 
 Mastery gates (KC-087–091) — cohort learning, part 2 (design in `docs/14-mastery-gates.md`, OQ-45–52; spec shape from `docs/03-learning-layer.md` §4.4). The instructor can now shape the learner flow: a path-level gate keeps learners on a concept until they demonstrate mastery of everything before it. **Default is `off` = byte-identical to v0.10.0** — no gate state is computed or shipped until the owner opts a path in.
