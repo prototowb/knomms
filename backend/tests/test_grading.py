@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.domains.learning.service import _normalize_answer
+from app.domains.learning.service import _match_distractor, _normalize_answer
 
 
 # ── _normalize_answer ─────────────────────────────────────────────────────────
@@ -58,3 +58,40 @@ def test_normalised_equals_match():
 
 def test_empty_answer_normalises_to_empty():
     assert _normalize_answer("   ") == ""
+
+
+# ── _match_distractor (KC-081) ────────────────────────────────────────────────
+
+
+class _D:
+    def __init__(self, id: str, text: str, misconception_label: str | None):
+        self.id = id
+        self.text = text
+        self.misconception_label = misconception_label
+
+
+def test_match_distractor_returns_id_and_label():
+    ds = [_D("d1", "Compression", "confuses WAL with compression"), _D("d2", "Caching", None)]
+    assert _match_distractor(_normalize_answer(" compression! "), ds) == (
+        "d1",
+        "confuses WAL with compression",
+    )
+
+
+def test_match_distractor_normalised_comparison():
+    ds = [_D("d1", "  Write  Ahead   Logging ", "label")]
+    assert _match_distractor(_normalize_answer("write ahead logging"), ds) == ("d1", "label")
+
+
+def test_match_distractor_no_match():
+    ds = [_D("d1", "Compression", "label")]
+    assert _match_distractor(_normalize_answer("replication"), ds) == (None, None)
+
+
+def test_match_distractor_empty_list():
+    assert _match_distractor("anything", []) == (None, None)
+
+
+def test_match_distractor_first_match_wins():
+    ds = [_D("d1", "same", "first"), _D("d2", "same", "second")]
+    assert _match_distractor("same", ds) == ("d1", "first")
