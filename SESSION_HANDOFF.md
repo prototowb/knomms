@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-06  
-**State:** v0.9.0 released — harness study KBs + the curriculum multi-concept fix; everything KC-032–079 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** `development` and `main` in sync once the v0.9.0 PR merges  
-**Tests:** 157/157 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB checks green on Colima (2026-08-06). Migration head: **016**.  
+**State:** v0.10.0 released — cohort learning part 1 (persisted attempts, owner analytics, passage-anchored discussion); everything KC-032–086 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** `development` and `main` in sync once the v0.10.0 PR merges  
+**Tests:** 179/179 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort checks green on Colima (2026-08-06). Migration head: **017**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.10.0 (2026-08-06):** cohort learning part 1 (`docs/13-cohort-learning.md`, OQ-37–44). MC attempts are now **persisted** (`assessment_attempts`, Migration 017) — they were graded statelessly before, so analytics start from this release (no backfill exists). "Cohort" = readers of the path — every discussion/analytics guard reuses `get_readable_path`/`_get_readable_concept_id`; never invent a new predicate. Owner analytics at `GET /v1/learning-paths/{id}/analytics` (owner-only 404 — learner rosters must not leak); discussion threads are passage-anchored with the excerpt **snapshotted at creation** (chunk ids are soft refs). Gotchas: `grade_attempt` had a cross-path scoping hole (fixed KC-081 — item was never checked against path_id; any persisted-attempt feature would have mis-attributed rows); Nuxt's typed `$fetch` rejects `method: 'DELETE'` on dynamic BFF routes — cast the URL to plain `string` (ConceptDiscussion.vue precedent).
 
 **v0.9.0 (2026-08-06):** harness study KBs (`docs/12-harness-study-kb.md`, OQ-29–36). `POST /v1/harnesses/{id}/study-kb` (owner-only, 404 non-leak) projects slots + eval suite + last 10 completed runs into a dedicated **always-private** KB (OQ-34 — mirroring harness visibility could republish grant-shared asset content), one Source per facet; refresh is idempotent via `harness_study_docs` UNIQUE(kb, kind, ref) and re-queues failed docs. **Foundational fix (KC-074):** the curriculum heading heuristic was dead code — chunk text never contains `\n\n` (windows rejoin with single spaces), so every path ever generated had exactly 1 concept; `build_concept_groups` now splits on source boundaries + an 8-passage cap. Gotchas: `HarnessStudyDoc` has no ORM relationship to `Source`, so the unit of work will NOT order the inserts — flush Sources before adding doc rows (found live: FK violation); projected docs dual-write to MinIO (`storage_key`) because a reclaimed worker job past the 3600s Redis TTL is otherwise permanently unrecoverable; DB commits BEFORE the xadd loop so the worker never sees a job for an uncommitted Source row.
 

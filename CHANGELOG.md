@@ -4,6 +4,32 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.10.0] — 2026-08-06
+
+Cohort learning, part 1 (KC-080–086) — the roadmap's highest-impact V2 priority begins: the instructor persona gets eyes and a voice on shared learning paths (design in `docs/13-cohort-learning.md`, OQ-37–44; feature shape from `docs/03-learning-layer.md` §5.2/§5.4). "Cohort" = whoever can read the path — no new entity, and org/grant changes apply instantly. Mastery gates stay in part 2.
+
+### Fixed
+
+- `grade_attempt` cross-path scoping (KC-081): the graded item was never validated as belonging to the requested path — any readable path id could grade (and would have mis-attributed attempts to) an unrelated item
+- `concept_count` on path cards now counts non-pruned concepts, matching `completion_pct`'s denominator (OQ-43)
+
+### Features
+
+#### Persisted attempts + comprehension analytics
+- Every MC answer submission is now recorded (`assessment_attempts`, Migration 017) with the submitted text, correctness, and the matched distractor — the response shape (and learner UX) is unchanged
+- Owner-only `GET /v1/learning-paths/{id}/analytics`: per-learner progress, attempt counts, correct rates, last activity; per-concept learned counts, correct rates, and top wrong answers with misconception labels. 404 for non-owners so learner rosters never leak. Private notes are never exposed
+- Learn page gains an owner-only **Learners** view rendering both tables
+
+#### Passage-anchored discussion
+- `discussion_threads` + `discussion_posts` (Migration 017): threads on a concept, optionally anchored to one of its source passages — the anchor is validated against the concept and the excerpt snapshotted at creation (chunks are soft references)
+- Read/write for anyone who can read the path (drafts stay owner-only); posts deletable by their author or the path owner; threads newest-first, replies oldest-first
+- `ConceptDiscussion` component on the learn page: thread list with excerpt headers, thread view, anchored new-thread form, replies
+
+### Test Coverage
+- 179 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 017
+
+---
+
 ## [0.9.0] — 2026-08-06
 
 Harness study KBs (KC-074–079) — the AI Assets pillar and the Learning pillar finally talk to each other: one click projects a harness's prompt slots, eval suite, and recent eval-run reports into a dedicated private KB, and the existing curriculum flow turns that corpus into a learning path (design in `docs/12-harness-study-kb.md`, OQ-29–36). Ships with a foundational fix: **every learning path ever generated had exactly one concept** — the curriculum agent's heading heuristic was dead code, since chunker output never contains the `\n\n` it looked for.
