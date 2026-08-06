@@ -116,5 +116,41 @@ def compose_eval_run_doc(
     return "\n".join(lines)
 
 
+def plan_study_projection(
+    desired: list[tuple[str, str]],
+    existing: dict[tuple[str, str], str],
+) -> dict:
+    """Decide what a create-or-refresh projection does (docs/12, OQ-33).
+
+    desired: (doc_kind, ref_id) pairs in projection order — duplicates are
+    dropped (two slots can reference the same asset version).
+    existing: (doc_kind, ref_id) → the projected source's ingestion_status.
+
+    Returns {"create": [...], "reenqueue": [...], "skipped": int}. Docs whose
+    source previously failed are re-enqueued; docs that are pending, mid-
+    ingest, or embedded are skipped (re-enqueueing an in-flight doc would
+    race the worker for no benefit — chunk dedup makes it harmless but not
+    useful).
+    """
+    create: list[tuple[str, str]] = []
+    reenqueue: list[tuple[str, str]] = []
+    skipped = 0
+    seen: set[tuple[str, str]] = set()
+
+    for key in desired:
+        if key in seen:
+            continue
+        seen.add(key)
+        status = existing.get(key)
+        if status is None:
+            create.append(key)
+        elif status == "failed":
+            reenqueue.append(key)
+        else:
+            skipped += 1
+
+    return {"create": create, "reenqueue": reenqueue, "skipped": skipped}
+
+
 def _humanize(role: str) -> str:
     return role.replace("_", " ")

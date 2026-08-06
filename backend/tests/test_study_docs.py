@@ -4,6 +4,7 @@ from app.domains.harnesses.study_docs import (
     compose_eval_run_doc,
     compose_eval_suite_doc,
     compose_slot_doc,
+    plan_study_projection,
 )
 
 
@@ -152,3 +153,53 @@ def test_eval_run_doc_tolerates_missing_results():
         "H", "m", "ollama", "2026-08-06", {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0.0}
     )
     assert "graded 0 case(s)" in doc
+
+
+# ── plan_study_projection (OQ-33 idempotency semantics) ───────────────────────
+
+
+def test_plan_first_projection_creates_everything():
+    desired = [("slot", "v1"), ("eval_suite", "v2"), ("eval_run", "r1")]
+    plan = plan_study_projection(desired, existing={})
+    assert plan["create"] == desired
+    assert plan["reenqueue"] == []
+    assert plan["skipped"] == 0
+
+
+def test_plan_refresh_skips_embedded_and_adds_only_new():
+    desired = [("slot", "v1"), ("eval_run", "r1"), ("eval_run", "r2")]
+    existing = {("slot", "v1"): "embedded", ("eval_run", "r1"): "embedded"}
+    plan = plan_study_projection(desired, existing)
+    assert plan["create"] == [("eval_run", "r2")]
+    assert plan["skipped"] == 2
+
+
+def test_plan_reenqueues_failed_docs():
+    desired = [("slot", "v1")]
+    plan = plan_study_projection(desired, existing={("slot", "v1"): "failed"})
+    assert plan["create"] == []
+    assert plan["reenqueue"] == [("slot", "v1")]
+    assert plan["skipped"] == 0
+
+
+def test_plan_does_not_reenqueue_in_flight_docs():
+    desired = [("slot", "v1"), ("slot", "v2")]
+    existing = {("slot", "v1"): "pending", ("slot", "v2"): "processing"}
+    plan = plan_study_projection(desired, existing)
+    assert plan["create"] == []
+    assert plan["reenqueue"] == []
+    assert plan["skipped"] == 2
+
+
+def test_plan_dedupes_desired_pairs():
+    # Two slots referencing the same asset version project one doc
+    desired = [("slot", "v1"), ("slot", "v1")]
+    plan = plan_study_projection(desired, existing={})
+    assert plan["create"] == [("slot", "v1")]
+
+
+def test_plan_same_ref_different_kind_not_deduped():
+    # The eval-suite version yields both a slot doc and a cases doc
+    desired = [("slot", "v1"), ("eval_suite", "v1")]
+    plan = plan_study_projection(desired, existing={})
+    assert plan["create"] == [("slot", "v1"), ("eval_suite", "v1")]
