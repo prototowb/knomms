@@ -41,6 +41,9 @@ class ChunkSearchResult(BaseModel):
     source_id: str
     source_title: str
     source_type: str
+    # Original URL for URL-backed sources — lets clients deep-link ts:
+    # locators on video sources (docs/15, OQ-61)
+    source_url: str | None = None
     locator: str
     text: str
     score: float  # cosine distance for semantic mode (lower = more similar)

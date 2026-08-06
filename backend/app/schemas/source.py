@@ -16,6 +16,7 @@ class SourceOut(BaseModel):
     title: str
     ingestion_status: str
     kb_id: str
+    raw_url: str | None = None  # deep-link target for video ts: locators (OQ-61)
     created_at: datetime
 
 

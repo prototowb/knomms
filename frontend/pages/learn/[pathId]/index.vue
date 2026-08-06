@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '~/stores/auth'
+import { videoDeepLink } from '~/utils/video'
 
 const route = useRoute()
 const pathId = route.params.pathId as string
@@ -179,6 +180,28 @@ async function toggleLearned(conceptId: string) {
   }
 }
 
+// Source type/url per source_id — resolves video passages to deep links (KC-094)
+const sourceInfo = ref<Record<string, { type: string; raw_url: string | null }>>({})
+
+async function loadSourceInfo(kbId: string) {
+  if (Object.keys(sourceInfo.value).length > 0) return
+  try {
+    const sources = await $fetch<{ id: string; type: string; raw_url: string | null }[]>(
+      `/api/kb/${kbId}/sources`,
+      { headers: { Authorization: `Bearer ${auth.token}` } },
+    )
+    sourceInfo.value = Object.fromEntries(sources.map(s => [s.id, { type: s.type, raw_url: s.raw_url }]))
+  } catch {
+    // deep links degrade to plain locators
+  }
+}
+
+function passageDeepLink(p: SourcePassage): string | null {
+  const info = sourceInfo.value[p.source_id]
+  if (!info || info.type !== 'video') return null
+  return videoDeepLink(info.raw_url, p.locator)
+}
+
 async function fetchPath() {
   loading.value = true
   try {
@@ -186,6 +209,7 @@ async function fetchPath() {
       headers: { Authorization: `Bearer ${auth.token}` },
     })
     path.value = data
+    loadSourceInfo(data.kb_id)
     if (data.status === 'generating') {
       _startPolling()
     } else {
@@ -744,7 +768,15 @@ onUnmounted(_clearPoll)
                   :key="p.chunk_id"
                   class="rounded-lg border border-grounded/20 bg-grounded-light p-3"
                 >
-                  <p class="text-xs font-mono text-grounded mb-1">{{ p.locator }}</p>
+                  <a
+                    v-if="passageDeepLink(p)"
+                    :href="passageDeepLink(p)!"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs font-mono text-grounded mb-1 block underline decoration-dotted hover:text-accent"
+                    title="Open the video at this timestamp"
+                  >▶ {{ p.locator }}</a>
+                  <p v-else class="text-xs font-mono text-grounded mb-1">{{ p.locator }}</p>
                   <p class="text-xs text-text-secondary leading-5">{{ p.excerpt }}</p>
                 </div>
               </div>
