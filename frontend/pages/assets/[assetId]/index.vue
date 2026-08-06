@@ -408,10 +408,18 @@ const visibilityColor: Record<string, string> = {
 
 function visibilityTitle(v: string): string | undefined {
   const parts: string[] = []
-  if (v === 'team') parts.push('Team — visible to members of your organisation')
+  if (v === 'team') {
+    parts.push(
+      auth.user?.org_name
+        ? `Team — visible to ${auth.user.org_name}`
+        : 'Team — visible to members of your organisation'
+    )
+  }
   if (isOwner.value) parts.push('Click to change visibility')
   return parts.join(' · ') || undefined
 }
+
+const shareOpen = ref(false)
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -464,6 +472,14 @@ onMounted(async () => {
                     @click="cycleVisibility"
                   >
                     {{ asset.visibility }}
+                  </button>
+                  <button
+                    v-if="isOwner"
+                    class="text-xs px-2 py-0.5 rounded-full font-medium text-text-muted bg-border hover:text-text-primary transition-colors"
+                    title="Share this asset with specific users or teams"
+                    @click="shareOpen = true"
+                  >
+                    Share
                   </button>
                 </ClientOnly>
                 <span class="text-xs text-text-muted">
@@ -957,5 +973,13 @@ onMounted(async () => {
         </div>
       </div>
     </template>
+
+    <ShareDialog
+      v-if="shareOpen && asset"
+      resource-type="assets"
+      :resource-id="assetId"
+      :resource-title="asset.title"
+      @close="shareOpen = false"
+    />
   </div>
 </template>

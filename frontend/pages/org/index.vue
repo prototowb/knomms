@@ -174,7 +174,140 @@ async function copyInvite() {
   setTimeout(() => { copied.value = false }, 1500)
 }
 
-onMounted(fetchOrg)
+// ── Teams (KC-069, docs/10-teams-and-acls.md) ──────────────────────────────
+
+interface TeamMember {
+  id: string
+  handle: string
+  display_name: string
+}
+
+interface TeamSummary {
+  id: string
+  name: string
+  member_count: number
+  is_member: boolean
+  can_manage: boolean
+  created_at: string
+}
+
+interface TeamDetail {
+  id: string
+  name: string
+  created_at: string
+  can_manage: boolean
+  members: TeamMember[]
+}
+
+const teams = ref<TeamSummary[]>([])
+const newTeamName = ref('')
+const expandedTeam = ref<TeamDetail | null>(null)
+const teamBusy = ref(false)
+const teamError = ref<string | null>(null)
+const addMemberId = ref('')
+
+const teamHeaders = () => ({ Authorization: `Bearer ${auth.token}` })
+
+// Org members not yet in the expanded team — candidates for adding
+const addableMembers = computed(() => {
+  if (!org.value || !expandedTeam.value) return []
+  const inTeam = new Set(expandedTeam.value.members.map((m) => m.id))
+  return org.value.members.filter((m) => !inTeam.has(m.id))
+})
+
+async function loadTeams() {
+  if (!org.value) return
+  teams.value = await $fetch<TeamSummary[]>('/api/orgs/teams', { headers: teamHeaders() }).catch(() => [])
+}
+
+async function createTeam() {
+  if (!newTeamName.value.trim() || teamBusy.value) return
+  teamBusy.value = true
+  teamError.value = null
+  try {
+    await $fetch('/api/orgs/teams', {
+      method: 'POST',
+      headers: teamHeaders(),
+      body: { name: newTeamName.value.trim() },
+    })
+    newTeamName.value = ''
+    await loadTeams()
+  } catch (e: unknown) {
+    teamError.value = (e as { statusCode?: number }).statusCode === 409
+      ? 'A team with that name already exists'
+      : 'Failed to create team'
+  } finally {
+    teamBusy.value = false
+  }
+}
+
+async function toggleTeam(team: TeamSummary) {
+  teamError.value = null
+  if (expandedTeam.value?.id === team.id) {
+    expandedTeam.value = null
+    return
+  }
+  expandedTeam.value = await $fetch<TeamDetail>(`/api/orgs/teams/${team.id}`, {
+    headers: teamHeaders(),
+  }).catch(() => null)
+}
+
+async function addTeamMember() {
+  if (!expandedTeam.value || !addMemberId.value || teamBusy.value) return
+  teamBusy.value = true
+  teamError.value = null
+  try {
+    expandedTeam.value = await $fetch<TeamDetail>(`/api/orgs/teams/${expandedTeam.value.id}/members`, {
+      method: 'POST',
+      headers: teamHeaders(),
+      body: { user_id: addMemberId.value },
+    })
+    addMemberId.value = ''
+    await loadTeams()
+  } catch {
+    teamError.value = 'Failed to add member'
+  } finally {
+    teamBusy.value = false
+  }
+}
+
+async function removeTeamMember(member: TeamMember) {
+  if (!expandedTeam.value || teamBusy.value) return
+  teamBusy.value = true
+  teamError.value = null
+  try {
+    expandedTeam.value = await $fetch<TeamDetail>(
+      `/api/orgs/teams/${expandedTeam.value.id}/members/${member.id}`,
+      { method: 'DELETE', headers: teamHeaders() }
+    )
+    await loadTeams()
+  } catch {
+    teamError.value = 'Failed to remove member'
+  } finally {
+    teamBusy.value = false
+  }
+}
+
+async function deleteTeam(team: TeamSummary) {
+  if (teamBusy.value) return
+  if (!confirm(`Delete team “${team.name}”? Grants to this team are revoked immediately.`)) return
+  teamBusy.value = true
+  teamError.value = null
+  try {
+    await $fetch(`/api/orgs/teams/${team.id}`, { method: 'DELETE', headers: teamHeaders() })
+    if (expandedTeam.value?.id === team.id) expandedTeam.value = null
+    await loadTeams()
+  } catch {
+    teamError.value = 'Failed to delete team'
+  } finally {
+    teamBusy.value = false
+  }
+}
+
+onMounted(async () => {
+  await fetchOrg()
+  await loadTeams()
+})
 </script>
 
 <template>
@@ -324,6 +457,114 @@ onMounted(fetchOrg)
                 Remove
               </button>
             </template>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Teams (KC-069) -->
+      <section class="rounded-xl border border-border bg-surface overflow-hidden">
+        <div class="px-5 pt-4 pb-2">
+          <h3 class="text-sm font-semibold text-text-primary">Teams</h3>
+          <p class="text-xs text-text-muted mt-0.5">
+            Named subsets of this organisation — share KBs, assets, or harnesses with a team from the item's Share dialog.
+          </p>
+        </div>
+
+        <p v-if="teamError" class="mx-5 mb-2 px-3 py-2 rounded-lg text-xs bg-red-50 text-red-700 border border-red-200">
+          {{ teamError }}
+        </p>
+
+        <form class="flex gap-2 px-5 pb-3" @submit.prevent="createTeam">
+          <input
+            v-model="newTeamName"
+            type="text"
+            maxlength="100"
+            placeholder="New team name"
+            class="flex-1 px-3 py-2 rounded-lg border border-border bg-surface-secondary text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+          >
+          <button
+            type="submit"
+            :disabled="!newTeamName.trim() || teamBusy"
+            class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
+          >
+            Create
+          </button>
+        </form>
+
+        <p v-if="teams.length === 0" class="px-5 pb-4 text-xs text-text-muted">No teams yet.</p>
+        <ul v-else class="divide-y divide-border">
+          <li v-for="t in teams" :key="t.id">
+            <div class="flex items-center gap-3 px-5 py-3">
+              <button class="flex-1 min-w-0 text-left" @click="toggleTeam(t)">
+                <p class="text-sm text-text-primary truncate">
+                  {{ t.name }}
+                  <span v-if="t.is_member" class="text-text-muted">(member)</span>
+                </p>
+                <p class="text-xs text-text-muted">
+                  {{ t.member_count }} member{{ t.member_count === 1 ? '' : 's' }}
+                </p>
+              </button>
+              <button
+                v-if="t.can_manage"
+                :disabled="teamBusy"
+                class="text-xs text-text-muted hover:text-red-600 transition-colors disabled:opacity-50"
+                @click="deleteTeam(t)"
+              >
+                Delete
+              </button>
+              <svg
+                class="w-4 h-4 text-text-muted transition-transform"
+                :class="expandedTeam?.id === t.id ? 'rotate-180' : ''"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            <div v-if="expandedTeam?.id === t.id" class="px-5 pb-4 bg-surface-secondary/40">
+              <ul class="divide-y divide-border">
+                <li v-for="m in expandedTeam.members" :key="m.id" class="flex items-center gap-3 py-2">
+                  <div class="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center text-[10px] font-semibold text-accent shrink-0">
+                    {{ m.handle.charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-text-primary truncate">{{ m.display_name }}</p>
+                    <p class="text-xs text-text-muted truncate">@{{ m.handle }}</p>
+                  </div>
+                  <button
+                    v-if="expandedTeam.can_manage || m.id === auth.user?.id"
+                    :disabled="teamBusy"
+                    class="text-xs text-text-muted hover:text-red-600 transition-colors disabled:opacity-50"
+                    @click="removeTeamMember(m)"
+                  >
+                    {{ m.id === auth.user?.id ? 'Leave' : 'Remove' }}
+                  </button>
+                </li>
+              </ul>
+
+              <form
+                v-if="expandedTeam.can_manage && addableMembers.length > 0"
+                class="flex gap-2 mt-3"
+                @submit.prevent="addTeamMember"
+              >
+                <select
+                  v-model="addMemberId"
+                  class="flex-1 px-2 py-1.5 rounded-lg border border-border bg-surface text-xs text-text-primary focus:outline-none focus:border-accent"
+                >
+                  <option value="" disabled>Add an org member…</option>
+                  <option v-for="m in addableMembers" :key="m.id" :value="m.id">
+                    {{ m.display_name }} (@{{ m.handle }})
+                  </option>
+                </select>
+                <button
+                  type="submit"
+                  :disabled="!addMemberId || teamBusy"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-text-primary hover:bg-surface transition-colors disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </form>
+            </div>
           </li>
         </ul>
       </section>

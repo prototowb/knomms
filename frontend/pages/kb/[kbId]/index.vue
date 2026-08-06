@@ -34,10 +34,18 @@ const visibilityColor: Record<string, string> = {
 
 function visibilityTitle(v: string): string | undefined {
   const parts: string[] = []
-  if (v === 'team') parts.push('Team — visible to members of your organisation')
+  if (v === 'team') {
+    parts.push(
+      auth.user?.org_name
+        ? `Team — visible to ${auth.user.org_name}`
+        : 'Team — visible to members of your organisation'
+    )
+  }
   if (isOwner.value) parts.push('Click to change visibility')
   return parts.join(' · ') || undefined
 }
+
+const shareOpen = ref(false)
 
 const updatingVisibility = ref(false)
 async function cycleVisibility() {
@@ -279,6 +287,14 @@ onUnmounted(stopPolling)
                 >
                   {{ kbMeta.visibility }}
                 </button>
+                <button
+                  v-if="isOwner && kbMeta"
+                  class="px-2 py-0.5 rounded-full font-medium text-text-muted bg-border hover:text-text-primary transition-colors"
+                  title="Share this KB with specific users or teams"
+                  @click="shareOpen = true"
+                >
+                  Share
+                </button>
                 <span v-if="!isOwner && kbMeta?.owner" class="text-text-muted">
                   by @{{ kbMeta.owner.handle }}
                 </span>
@@ -485,5 +501,13 @@ onUnmounted(stopPolling)
         </li>
       </ul>
     </aside>
+
+    <ShareDialog
+      v-if="shareOpen && kbMeta"
+      resource-type="kbs"
+      :resource-id="kbId"
+      :resource-title="kbMeta.title"
+      @close="shareOpen = false"
+    />
   </div>
 </template>
