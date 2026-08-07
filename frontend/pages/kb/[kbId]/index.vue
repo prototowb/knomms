@@ -85,10 +85,17 @@ async function handleSubmit() {
 }
 
 function formatResponse(text: string) {
-  return text.replace(
-    /\[SOURCE:([a-f0-9-]{36})\]/g,
-    '<sup class="text-grounded font-mono text-xs">[src]</sup>'
-  )
+  // Match both [SOURCE:uuid] (the prompt contract) and bare [uuid] — the
+  // local model sometimes omits the prefix (learn-page precedent)
+  return text
+    .replace(
+      /\[SOURCE:([a-f0-9-]{36})\]/g,
+      '<sup class="text-grounded font-mono text-xs">[src]</sup>'
+    )
+    .replace(
+      /\[([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\]/g,
+      '<sup class="text-grounded font-mono text-xs">[src]</sup>'
+    )
 }
 
 // ── Sources ───────────────────────────────────────────────────────────────────
@@ -97,7 +104,49 @@ interface SourceOut {
   id: string; type: string; title: string; ingestion_status: string; created_at: string
 }
 
-const activeTab = ref<'query' | 'search' | 'sources'>('query')
+const activeTab = ref<'query' | 'search' | 'compare' | 'sources'>('query')
+
+// ── Multi-source synthesis (KC-097, docs/16) ────────────────────────────────
+
+const {
+  response: compareResponse,
+  citations: compareCitations,
+  isStreaming: compareStreaming,
+  error: compareError,
+  submit: compareSubmit,
+} = useStreamingQuery(kbId, 'synthesize')
+
+const compareQuestion = ref('')
+const compareSelected = ref<Set<string>>(new Set())
+
+function toggleCompareSource(id: string) {
+  const next = new Set(compareSelected.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  compareSelected.value = next
+}
+
+const compareReady = computed(() =>
+  compareQuestion.value.trim().length > 0
+  && compareSelected.value.size >= 2
+  && compareSelected.value.size <= 5
+  && !compareStreaming.value,
+)
+
+async function handleCompare() {
+  if (!compareReady.value) return
+  await compareSubmit(compareQuestion.value.trim(), [...compareSelected.value])
+}
+
+const compareCitationList = computed(() =>
+  Object.values(compareCitations.value) as Array<{
+    chunk_id: string; source_id: string; locator: string; excerpt: string
+  }>
+)
+
+const sidebarCitations = computed(() =>
+  activeTab.value === 'compare' ? compareCitationList.value : citationList.value
+)
 
 // ── KB search (KC-051) ──────────────────────────────────────────────────────
 
@@ -139,6 +188,9 @@ async function runKbSearch() {
 const sources = ref<SourceOut[]>([])
 const sourcesLoading = ref(false)
 const urlInput = ref('')
+
+// Only embedded sources can be compared — the others have no chunks yet
+const embeddedSources = computed(() => sources.value.filter(s => s.ingestion_status === 'embedded'))
 const addingUrl = ref(false)
 const urlError = ref<string | null>(null)
 const dragging = ref(false)
@@ -316,7 +368,7 @@ onUnmounted(stopPolling)
 
         <div class="flex gap-0">
           <button
-            v-for="tab in (['query', 'search', 'sources'] as const)"
+            v-for="tab in (['query', 'search', 'compare', 'sources'] as const)"
             :key="tab"
             class="px-4 py-2 text-sm border-b-2 transition-colors"
             :class="activeTab === tab
@@ -324,7 +376,7 @@ onUnmounted(stopPolling)
               : 'border-transparent text-text-muted hover:text-text-secondary'"
             @click="activeTab = tab"
           >
-            {{ tab === 'query' ? 'Ask' : tab === 'search' ? 'Search' : `Sources (${sources.length})` }}
+            {{ tab === 'query' ? 'Ask' : tab === 'search' ? 'Search' : tab === 'compare' ? 'Compare' : `Sources (${sources.length})` }}
           </button>
         </div>
       </div>
@@ -353,6 +405,63 @@ onUnmounted(stopPolling)
             class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
           >
             {{ isStreaming ? 'Thinking…' : 'Ask' }}
+          </button>
+        </form>
+      </div>
+
+      <!-- Compare tab (KC-097, docs/16) -->
+      <div v-show="activeTab === 'compare'" class="flex flex-col flex-1 min-h-0 p-5">
+        <div class="mb-4">
+          <p class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+            Sources to compare (2–5)
+          </p>
+          <p v-if="embeddedSources.length < 2" class="text-sm text-text-muted">
+            Comparison needs at least two embedded sources in this KB.
+          </p>
+          <div v-else class="flex flex-wrap gap-2">
+            <label
+              v-for="s in embeddedSources"
+              :key="s.id"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors"
+              :class="compareSelected.has(s.id)
+                ? 'border-accent bg-accent/5 text-text-primary'
+                : 'border-border text-text-secondary hover:border-accent/40'"
+            >
+              <input
+                type="checkbox"
+                class="accent-current"
+                :checked="compareSelected.has(s.id)"
+                :disabled="compareStreaming"
+                @change="toggleCompareSource(s.id)"
+              />
+              <span>{{ sourceTypeIcon[s.type] ?? '📎' }}</span>
+              <span class="max-w-[16rem] truncate">{{ s.title }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto rounded-xl border border-border bg-surface-secondary p-5 mb-4 min-h-[120px]">
+          <p v-if="compareError" class="text-warning text-sm">{{ compareError }}</p>
+          <p v-else-if="!compareResponse && !compareStreaming" class="text-text-muted text-sm">
+            Pick two or more sources and ask how they relate — agreements, disagreements, unique claims. Every claim is cited per source.
+          </p>
+          <div v-else class="font-prose text-text-primary text-sm leading-7" v-html="formatResponse(compareResponse)" />
+          <span v-if="compareStreaming" class="inline-block w-1.5 h-4 bg-accent animate-pulse align-middle ml-0.5" />
+        </div>
+        <form class="flex gap-3" @submit.prevent="handleCompare">
+          <input
+            v-model="compareQuestion"
+            type="text"
+            placeholder="What should these sources be compared on?"
+            :disabled="compareStreaming"
+            class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
+          />
+          <button
+            type="submit"
+            :disabled="!compareReady"
+            class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+          >
+            {{ compareStreaming ? 'Comparing…' : 'Compare' }}
           </button>
         </form>
       </div>
@@ -492,17 +601,17 @@ onUnmounted(stopPolling)
       </div>
     </div>
 
-    <!-- Citations sidebar (Q&A tab only) -->
+    <!-- Citations sidebar (Ask + Compare tabs) -->
     <aside
-      v-if="activeTab === 'query' && citationList.length > 0"
+      v-if="(activeTab === 'query' || activeTab === 'compare') && sidebarCitations.length > 0"
       class="w-64 shrink-0 border-l border-border bg-surface overflow-y-auto p-4"
     >
       <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-        Sources ({{ citationList.length }})
+        Sources ({{ sidebarCitations.length }})
       </h2>
       <ul class="space-y-3">
         <li
-          v-for="c in citationList"
+          v-for="c in sidebarCitations"
           :key="c.chunk_id"
           class="rounded-lg border border-grounded/20 bg-grounded-light p-3"
         >

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # CPU default=3 (~1200 input tokens, ~2min TTFT on a 4-core machine).
     # Set to 10 for GPU deployments where prefill is fast.
     retrieval_top_k: int = 3
+    # Chunks retrieved per selected source in multi-source synthesis
+    # (docs/16, OQ-64) — GPU deployments can raise this
+    synthesis_chunks_per_source: int = 2
 
     # cloud eval adapter (docs/11-cloud-eval-adapter.md, OQ-21/25).
     # Default OFF — with these unset no cloud code path is reachable and no

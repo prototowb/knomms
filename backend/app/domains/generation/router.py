@@ -15,6 +15,11 @@ class QueryRequest(BaseModel):
     query: str
 
 
+class SynthesizeRequest(BaseModel):
+    question: str
+    source_ids: list[str]
+
+
 @router.post("/{kb_id}/query")
 async def query_knowledge_base(
     kb_id: str,
@@ -28,6 +33,31 @@ async def query_knowledge_base(
     """
     svc = GenerationService(db)
     response_stream = await svc.stream_grounded_response(kb_id, body.query, current_user)
+    return StreamingResponse(
+        response_stream,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable Nginx buffering
+        },
+    )
+
+
+@router.post("/{kb_id}/synthesize")
+async def synthesize_sources(
+    kb_id: str,
+    body: SynthesizeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """Comparative synthesis across selected sources (docs/16) — same SSE
+    contract as /query, so clients reuse the streaming composable."""
+    from app.domains.generation.synthesis import SynthesisService
+
+    svc = SynthesisService(db)
+    response_stream = await svc.stream_synthesis(
+        kb_id, body.question, body.source_ids, current_user
+    )
     return StreamingResponse(
         response_stream,
         media_type="text/event-stream",

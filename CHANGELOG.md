@@ -4,6 +4,23 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.13.0] — 2026-08-07
+
+Multi-source synthesis, part 1 (KC-096–098) — first slice of the roadmap's #3 V2 priority, shipping its own example: "compare these sources on topic X" with multi-document citation (design in `docs/16-multi-source-synthesis.md`, OQ-63–68). One grounded generation pass over **balanced per-source retrieval** — global top-k was the failure mode (ask a 3-paper KB how the papers differ and retrieval returns one paper). Iterative hop loops stay in part 2 (one CPU generation ≈ 2 min; a 3-hop loop is a 10-minute query).
+
+### Features
+
+#### Multi-source comparative synthesis
+- `POST /v1/kbs/{kb_id}/synthesize` (`{question, source_ids: [2–5]}`): retrieves `SYNTHESIS_CHUNKS_PER_SOURCE` (default 2) nearest chunks *per selected source*, then streams one comparison over them — agreements, disagreements, unique claims, every claim cited `[SOURCE:chunk_id]`
+- Sources with nothing relevant are reported in the prompt rather than silently dropped; readable-KB 404 and membership/count/duplicate 422 guards; SSE events byte-identical to `/query`, so the citation validator and streaming composable reuse unchanged
+- `retrieve()` gains an optional per-source filter (the reusable primitive)
+- KB workspace gains a **Compare** tab: embedded-source multi-select, comparison question, streamed answer, shared citations sidebar — video sources cite with clickable `ts:` timestamps via v0.12.0
+
+### Test Coverage
+- 213 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · live script (`scripts/verify-v0130.py`): full streamed synthesis over a web + video source pair through the BFF chain, per-source citation balance, no hallucinated ids, all guards
+
+---
+
 ## [0.12.0] — 2026-08-06
 
 Video transcript ingestion, part 1 (KC-092–095) — first slice of the roadmap's #2 V2 priority (design in `docs/15-video-ingestion.md`, OQ-53–62). YouTube URLs now ingest the captions the video already has — no ASR, no new heavyweight dependency — and every downstream layer (search, Q&A citations, curriculum grounding, discussion anchors) picks up timestamp locators for free, because the `RawBlock` contract reserved `ts:HH:MM:SS` from the start. Local Whisper for caption-less/uploaded media stays in part 2.
