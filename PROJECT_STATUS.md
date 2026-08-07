@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.12.0 — Video transcript ingestion (complete, released)"
+current_sprint: "v0.13.0 — Multi-source synthesis, part 1"
 last_release: "v0.12.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-096"
+next_ticket: "KC-099"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,16 @@ next_ticket: "KC-096"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.13.0: Multi-source synthesis, part 1 (KC-096–098)
+
+*Design in `docs/16-multi-source-synthesis.md` (OQ-63–68) — first slice of V2 roadmap #3, shipping the roadmap's own example: "compare these sources on X" in one grounded generation pass. Balanced per-source retrieval (global top-k is the failure mode), comparison prompt with the existing `[SOURCE:chunk_id]` contract, byte-identical SSE events so `useStreamingQuery` reuses. Iterative hop loops deferred (one CPU generation ≈ 2 min).*
+
+### Sprint order (implement in sequence)
+
+- **KC-096** backend: `retrieve()` source filter + `generation/synthesis.py` (pure `build_synthesis_prompt`, `SynthesisService` with readable-KB + source-membership 422 guards, per-source retrieval, `synthesis_chunks_per_source` setting) + `POST /v1/kbs/{kb_id}/synthesize` SSE endpoint; unit tests
+- **KC-097** frontend: Compare tab on the KB workspace (embedded-source multi-select 2–5, question input, streamed answer + citations sidebar) + `synthesize.post.ts` streaming BFF
+- **KC-098** verification + release — doc §7 live checks (two-source synthesis with per-source citations incl. a video source, 422/404 guards, browser run); regression; changelog; release v0.13.0
 
 ## ✅ v0.12.0: Video transcript ingestion, part 1 (KC-092–095) — released 2026-08-06
 
