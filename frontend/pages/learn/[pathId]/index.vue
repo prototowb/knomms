@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '~/stores/auth'
+import { videoDeepLink } from '~/utils/video'
 
 const route = useRoute()
 const pathId = route.params.pathId as string
@@ -45,6 +46,12 @@ interface SourcePassage {
   excerpt: string
 }
 
+interface ConceptGate {
+  mastered: boolean
+  correct_items: number
+  item_count: number
+}
+
 interface PathConcept {
   id: string
   position: number
@@ -55,6 +62,8 @@ interface PathConcept {
   instructor_annotation: string | null
   status: string
   assessment_items: AssessmentItem[]
+  locked: boolean
+  gate: ConceptGate | null
 }
 
 interface LearningPath {
@@ -63,6 +72,8 @@ interface LearningPath {
   learning_goal: string
   status: string
   version: number
+  mastery_mode: string
+  mastery_threshold: number
   concepts: PathConcept[]
   learned_concept_ids: string[]
   owner: { id: string; handle: string; display_name: string } | null
@@ -161,11 +172,34 @@ async function toggleLearned(conceptId: string) {
     if (wasLearned) next.delete(conceptId)
     else next.add(conceptId)
     learnedIds.value = next
+    refreshGates()
   } catch {
     // leave state unchanged; the user can retry
   } finally {
     learnedSaving.value[conceptId] = false
   }
+}
+
+// Source type/url per source_id — resolves video passages to deep links (KC-094)
+const sourceInfo = ref<Record<string, { type: string; raw_url: string | null }>>({})
+
+async function loadSourceInfo(kbId: string) {
+  if (Object.keys(sourceInfo.value).length > 0) return
+  try {
+    const sources = await $fetch<{ id: string; type: string; raw_url: string | null }[]>(
+      `/api/kb/${kbId}/sources`,
+      { headers: { Authorization: `Bearer ${auth.token}` } },
+    )
+    sourceInfo.value = Object.fromEntries(sources.map(s => [s.id, { type: s.type, raw_url: s.raw_url }]))
+  } catch {
+    // deep links degrade to plain locators
+  }
+}
+
+function passageDeepLink(p: SourcePassage): string | null {
+  const info = sourceInfo.value[p.source_id]
+  if (!info || info.type !== 'video') return null
+  return videoDeepLink(info.raw_url, p.locator)
 }
 
 async function fetchPath() {
@@ -175,6 +209,7 @@ async function fetchPath() {
       headers: { Authorization: `Bearer ${auth.token}` },
     })
     path.value = data
+    loadSourceInfo(data.kb_id)
     if (data.status === 'generating') {
       _startPolling()
     } else {
@@ -220,6 +255,7 @@ async function submitAnswer(concept: PathConcept, item: AssessmentItem) {
       }
     )
     attemptResults.value[item.id] = result
+    if (result.correct) refreshGates()
   } catch {
     // keep selected, let user retry
   } finally {
@@ -249,6 +285,68 @@ const acceptedCount = computed(() =>
   path.value?.concepts.filter(c => c.status === 'accepted').length ?? 0
 )
 const conceptCount = computed(() => path.value?.concepts.length ?? 0)
+
+// ── Mastery gates (KC-089, docs/14) ─────────────────────────────────────────
+
+const gateMode = ref<'off' | 'soft' | 'hard'>('off')
+const gateThresholdPct = ref(80)
+const gateSaving = ref(false)
+
+watch(
+  () => path.value && [path.value.mastery_mode, path.value.mastery_threshold] as const,
+  (v) => {
+    if (!v) return
+    gateMode.value = v[0] as 'off' | 'soft' | 'hard'
+    gateThresholdPct.value = Math.round((v[1] as number) * 100)
+  },
+  { immediate: true },
+)
+
+async function saveGateSettings() {
+  if (gateSaving.value || !path.value) return
+  const threshold = Math.min(100, Math.max(1, gateThresholdPct.value || 80)) / 100
+  gateSaving.value = true
+  try {
+    await $fetch(`/api/learning-paths/${pathId}` as string, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { mastery_mode: gateMode.value, mastery_threshold: threshold },
+    })
+    path.value.mastery_mode = gateMode.value
+    path.value.mastery_threshold = threshold
+  } catch {
+    // revert the selectors to what the server still has
+    gateMode.value = path.value.mastery_mode as 'off' | 'soft' | 'hard'
+    gateThresholdPct.value = Math.round(path.value.mastery_threshold * 100)
+  } finally {
+    gateSaving.value = false
+  }
+}
+
+function isHardLocked(concept: PathConcept): boolean {
+  return concept.locked && path.value?.mastery_mode === 'hard'
+}
+
+/** What the learner still has to do on the first unmastered predecessor. */
+function unlockHint(idx: number): string | null {
+  if (!path.value) return null
+  for (let i = 0; i < idx; i++) {
+    const c = path.value.concepts[i]
+    if (c.status === 'pruned' || !c.gate || c.gate.mastered) continue
+    if (c.gate.item_count > 0) {
+      const needed = Math.ceil(path.value.mastery_threshold * c.gate.item_count) - c.gate.correct_items
+      return `Answer ${needed} more assessment item${needed !== 1 ? 's' : ''} correctly in “${c.title}”.`
+    }
+    return `Mark “${c.title}” as learned.`
+  }
+  return null
+}
+
+/** Gate state is computed fresh per request — refetch quietly after any
+ *  action that can change mastery, so locks open without a manual reload. */
+function refreshGates() {
+  if (path.value && path.value.mastery_mode !== 'off' && !isOwner.value) _pollPath()
+}
 
 // ── Owner analytics (KC-085, docs/13) ───────────────────────────────────────
 
@@ -364,6 +462,31 @@ onUnmounted(_clearPoll)
           >
             Published
           </span>
+          <div v-if="isOwner && path.status !== 'generating'" class="flex items-center gap-1.5">
+            <label class="text-xs text-text-muted">Gates</label>
+            <select
+              v-model="gateMode"
+              :disabled="gateSaving"
+              class="text-xs border border-border rounded-lg px-2 py-1.5 bg-surface text-text-secondary focus:outline-none focus:border-accent disabled:opacity-50"
+              @change="saveGateSettings"
+            >
+              <option value="off">Off</option>
+              <option value="soft">Soft</option>
+              <option value="hard">Hard</option>
+            </select>
+            <template v-if="gateMode !== 'off'">
+              <input
+                v-model.number="gateThresholdPct"
+                type="number"
+                min="1"
+                max="100"
+                :disabled="gateSaving"
+                class="w-14 text-xs border border-border rounded-lg px-2 py-1.5 bg-surface text-text-secondary focus:outline-none focus:border-accent disabled:opacity-50"
+                @change="saveGateSettings"
+              />
+              <span class="text-xs text-text-muted">%</span>
+            </template>
+          </div>
           <button
             v-if="isOwner && path.status !== 'generating'"
             class="text-xs px-3 py-1.5 rounded-lg border transition-colors"
@@ -403,7 +526,10 @@ onUnmounted(_clearPoll)
               >
                 <span class="mr-1.5 text-text-muted">{{ idx + 1 }}.</span>
                 {{ c.title }}
-                <span v-if="c.status === 'accepted'" class="ml-1 text-grounded">✓</span>
+                <svg v-if="c.locked" class="w-3 h-3 inline -mt-0.5 ml-1 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                </svg>
+                <span v-else-if="c.status === 'accepted'" class="ml-1 text-grounded">✓</span>
               </button>
             </li>
           </ul>
@@ -511,6 +637,36 @@ onUnmounted(_clearPoll)
 
           <template v-else-if="path.concepts.length > 0">
             <div v-for="(concept, idx) in path.concepts" :key="concept.id" v-show="activeConcept === idx">
+              <!-- Hard-locked concept — the server redacts its content (docs/14, OQ-48) -->
+              <template v-if="isHardLocked(concept)">
+                <div class="mb-6">
+                  <p class="text-xs text-text-muted mb-1">Concept {{ idx + 1 }} of {{ path.concepts.length }}</p>
+                  <h2 class="text-xl font-semibold text-text-primary">{{ concept.title }}</h2>
+                </div>
+                <div class="rounded-xl border border-border bg-surface-secondary p-10 text-center">
+                  <svg class="w-8 h-8 mx-auto text-text-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4m-2 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                  </svg>
+                  <p class="text-sm font-medium text-text-primary mb-1">Locked by mastery gating</p>
+                  <p class="text-xs text-text-muted">
+                    {{ unlockHint(idx) ?? 'Master the previous concepts to unlock this one.' }}
+                  </p>
+                </div>
+                <div class="flex justify-between mt-8 pt-6 border-t border-border">
+                  <button
+                    v-if="idx > 0"
+                    class="text-sm text-text-secondary hover:text-accent flex items-center gap-1.5"
+                    @click="activeConcept = idx - 1"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                </div>
+              </template>
+
+              <template v-else>
               <!-- Concept header -->
               <div class="flex items-start justify-between gap-4 mb-6">
                 <div>
@@ -543,6 +699,18 @@ onUnmounted(_clearPoll)
                     Prune
                   </button>
                 </div>
+              </div>
+
+              <!-- Soft-gate warning (docs/14, OQ-48 — warns, never blocks) -->
+              <div
+                v-if="concept.locked && path.mastery_mode === 'soft'"
+                class="rounded-xl border border-warning/40 bg-warning/5 p-4 mb-5"
+              >
+                <p class="text-xs text-warning font-medium mb-0.5">This concept is gated</p>
+                <p class="text-xs text-text-secondary">
+                  {{ unlockHint(idx) ?? 'Master the previous concepts first.' }}
+                  You can keep going, but the path owner recommends mastering the previous concepts first.
+                </p>
               </div>
 
               <!-- Explanation -->
@@ -600,7 +768,15 @@ onUnmounted(_clearPoll)
                   :key="p.chunk_id"
                   class="rounded-lg border border-grounded/20 bg-grounded-light p-3"
                 >
-                  <p class="text-xs font-mono text-grounded mb-1">{{ p.locator }}</p>
+                  <a
+                    v-if="passageDeepLink(p)"
+                    :href="passageDeepLink(p)!"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs font-mono text-grounded mb-1 block underline decoration-dotted hover:text-accent"
+                    title="Open the video at this timestamp"
+                  >▶ {{ p.locator }}</a>
+                  <p v-else class="text-xs font-mono text-grounded mb-1">{{ p.locator }}</p>
                   <p class="text-xs text-text-secondary leading-5">{{ p.excerpt }}</p>
                 </div>
               </div>
@@ -715,6 +891,7 @@ onUnmounted(_clearPoll)
                   </svg>
                 </button>
               </div>
+              </template>
             </div>
           </template>
           <p v-else class="text-text-muted text-sm">No concepts in this path.</p>

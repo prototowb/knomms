@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStreamingQuery } from '~/composables/useStreamingQuery'
+import { videoDeepLink } from '~/utils/video'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -105,6 +106,7 @@ interface ChunkSearchResult {
   source_id: string
   source_title: string
   source_type: string
+  source_url: string | null
   locator: string
   text: string
   score: number
@@ -252,7 +254,7 @@ const statusColor: Record<string, string> = {
   failed: 'text-red-500',
 }
 const sourceTypeIcon: Record<string, string> = {
-  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚',
+  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', video: '🎬', prompt_asset: '🧩',
 }
 
 onMounted(() => { fetchKBMeta(); fetchSources() })
@@ -401,7 +403,15 @@ onUnmounted(stopPolling)
                   {{ r.source_title }}
                   <span class="text-text-muted font-normal ml-1">({{ r.source_type.replace('_', ' ') }})</span>
                 </p>
-                <p class="text-xs font-mono text-grounded shrink-0">{{ r.locator }}</p>
+                <a
+                  v-if="r.source_type === 'video' && videoDeepLink(r.source_url, r.locator)"
+                  :href="videoDeepLink(r.source_url, r.locator)!"
+                  target="_blank"
+                  rel="noopener"
+                  class="text-xs font-mono text-grounded shrink-0 underline decoration-dotted hover:text-accent"
+                  title="Open the video at this timestamp"
+                >▶ {{ r.locator }}</a>
+                <p v-else class="text-xs font-mono text-grounded shrink-0">{{ r.locator }}</p>
               </div>
               <p class="text-xs text-text-secondary leading-5 whitespace-pre-wrap break-words">{{ r.text }}</p>
             </li>

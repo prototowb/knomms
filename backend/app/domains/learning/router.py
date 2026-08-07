@@ -22,6 +22,7 @@ from app.schemas.learning import (
     ThreadOut,
     ThreadSummaryOut,
     UpdateConceptRequest,
+    UpdatePathRequest,
     UpsertNoteRequest,
 )
 
@@ -86,6 +87,7 @@ async def list_learning_paths(
     paths = await svc.list_paths(kb_id, user)
     all_concept_ids = [c.id for p in paths for c in (p.concepts or [])]
     learned = await svc.learned_concept_ids(user, all_concept_ids)
+    learner_counts = await svc.learner_counts([p.id for p in paths])
     result = []
     for p in paths:
         # Learner-facing completion counts non-pruned concepts only
@@ -102,6 +104,8 @@ async def list_learning_paths(
                 concept_count=len(active),
                 learned_count=learned_count,
                 completion_pct=round(learned_count / len(active), 4) if active else 0.0,
+                learner_count=learner_counts.get(p.id, 0),
+                mastery_mode=p.mastery_mode,
                 created_at=p.created_at,
                 owner=p.owner,
             )
@@ -128,7 +132,36 @@ async def get_learning_path(
         await svc.learned_concept_ids(user, [c.id for c in path.concepts])
     )
     _shape_assessment_items(out, is_owner=path.user_id == user.id, user_id=user.id)
+    _apply_gates(out, await svc.gate_states(path, user))
     return out
+
+
+def _apply_gates(out: LearningPathOut, gates: dict[str, dict] | None) -> None:
+    """Stamp per-concept gate state and redact locked concepts in hard mode
+    (docs/14, OQ-48/49). No-op when gates is None (mode off, or owner)."""
+    from app.schemas.learning import ConceptGateOut
+
+    if gates is None:
+        return
+    hard = out.mastery_mode == "hard"
+    for concept in out.concepts:
+        state = gates.get(concept.id)
+        if state is None:  # pruned concepts neither gate nor lock
+            continue
+        concept.locked = state["locked"]
+        concept.gate = ConceptGateOut(
+            mastered=state["mastered"],
+            correct_items=state["correct_items"],
+            item_count=state["item_count"],
+        )
+        if hard and concept.locked:
+            # Redaction is what makes hard mode honest — a 422 on writes
+            # alone would still hand the content to anyone with curl
+            concept.explanation_text = ""
+            concept.explanation_passage_ids = []
+            concept.source_passages = []
+            concept.assessment_items = []
+            concept.instructor_annotation = None
 
 
 def _shape_assessment_items(out: LearningPathOut, *, is_owner: bool, user_id: str) -> None:
@@ -171,6 +204,32 @@ async def get_path_analytics(
     svc = LearningService(db)
     result = await svc.path_analytics(path_id, user)
     return PathAnalyticsOut(**result)
+
+
+@router.patch(
+    "/learning-paths/{path_id}",
+    response_model=LearningPathOut,
+    summary="Instructor: update path settings (mastery gating)",
+)
+async def update_learning_path(
+    path_id: str,
+    req: UpdatePathRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> LearningPathOut:
+    svc = LearningService(db)
+    path = await svc.update_path(
+        path_id,
+        user,
+        mastery_mode=req.mastery_mode,
+        mastery_threshold=req.mastery_threshold,
+    )
+    out = LearningPathOut.model_validate(path)
+    out.learned_concept_ids = sorted(
+        await svc.learned_concept_ids(user, [c.id for c in path.concepts])
+    )
+    _shape_assessment_items(out, is_owner=True, user_id=user.id)
+    return out
 
 
 @router.patch(

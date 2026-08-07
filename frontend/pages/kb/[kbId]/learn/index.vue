@@ -17,6 +17,8 @@ interface LearningPathSummary {
   concept_count: number
   learned_count: number
   completion_pct: number
+  learner_count: number
+  mastery_mode: string
   created_at: string
 }
 
@@ -156,9 +158,16 @@ onMounted(fetchPaths)
             <div class="flex-1 min-w-0">
               <p class="font-medium text-text-primary text-sm truncate">{{ p.learning_goal }}</p>
               <p class="text-xs text-text-muted mt-1">
-                {{ p.concept_count }} concept{{ p.concept_count !== 1 ? 's' : '' }} · v{{ p.version }}<template v-if="p.learned_count > 0"> · <span class="text-grounded font-medium">{{ Math.round(p.completion_pct * 100) }}% learned</span></template>
+                {{ p.concept_count }} concept{{ p.concept_count !== 1 ? 's' : '' }} · v{{ p.version }}<template v-if="p.learner_count > 0"> · {{ p.learner_count }} learner{{ p.learner_count !== 1 ? 's' : '' }}</template><template v-if="p.learned_count > 0"> · <span class="text-grounded font-medium">{{ Math.round(p.completion_pct * 100) }}% learned</span></template>
               </p>
             </div>
+            <span
+              v-if="p.mastery_mode !== 'off'"
+              class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium text-accent bg-accent/10"
+              :title="`Mastery gates: ${p.mastery_mode}`"
+            >
+              {{ p.mastery_mode === 'hard' ? 'gated' : 'soft gates' }}
+            </span>
             <span
               class="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
               :class="statusColor[p.status] ?? 'text-text-muted bg-border'"

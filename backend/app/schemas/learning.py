@@ -30,6 +30,12 @@ class AssessmentItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConceptGateOut(BaseModel):
+    mastered: bool
+    correct_items: int
+    item_count: int
+
+
 class PathConceptOut(BaseModel):
     id: str
     position: int
@@ -40,6 +46,10 @@ class PathConceptOut(BaseModel):
     instructor_annotation: str | None = None
     status: str
     assessment_items: list[AssessmentItemOut] = []
+    # Mastery gating (docs/14) — gate is null when gating is off or the
+    # requester owns the path; locked concepts are redacted in hard mode
+    locked: bool = False
+    gate: ConceptGateOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -59,6 +69,8 @@ class LearningPathOut(BaseModel):
     status: str
     version: int
     time_budget_hours: float | None = None
+    mastery_mode: str = "off"
+    mastery_threshold: float = 0.8
     created_at: datetime
     updated_at: datetime
     concepts: list[PathConceptOut] = []
@@ -77,6 +89,9 @@ class LearningPathSummary(BaseModel):
     concept_count: int = 0
     learned_count: int = 0
     completion_pct: float = 0.0
+    # Distinct users with progress or attempts — a count, never a roster (OQ-51)
+    learner_count: int = 0
+    mastery_mode: str = "off"
     created_at: datetime
     owner: PathOwnerOut | None = None
 
@@ -105,6 +120,11 @@ class CreateLearningPathRequest(BaseModel):
 class UpdateConceptRequest(BaseModel):
     status: str | None = None
     instructor_annotation: str | None = None
+
+
+class UpdatePathRequest(BaseModel):
+    mastery_mode: str | None = None
+    mastery_threshold: float | None = None
 
 
 class LearnerAnalyticsOut(BaseModel):

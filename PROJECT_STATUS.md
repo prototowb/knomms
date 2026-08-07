@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.10.0 — Cohort learning, part 1 (in progress)"
-last_release: "v0.9.0 (2026-08-06)"
+current_sprint: "v0.12.0 — Video transcript ingestion (complete, released)"
+last_release: "v0.12.0 (2026-08-06)"
 ticket_prefix: "KC"
-next_ticket: "KC-087"
+next_ticket: "KC-096"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,29 @@ next_ticket: "KC-087"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## ✅ v0.12.0: Video transcript ingestion, part 1 (KC-092–095) — released 2026-08-06
+
+*Design in `docs/15-video-ingestion.md` (OQ-53–62) — first slice of V2 roadmap #2. YouTube caption/transcript ingestion with `ts:HH:MM:SS` locators (the RawBlock contract already reserves them); local ASR stays in part 2. `youtube-transcript-api` via `asyncio.to_thread`; manual > auto captions, English first; ~400-char blocks; caption-less videos fail cleanly; oEmbed titles; timestamp deep links in search results and learn passages.*
+
+### Sprint order (implement in sequence — 092 unblocks 093; 093 unblocks 094)
+
+- ~~**KC-092**~~ ✅ backend: extractor — pure `parse_video_url` (watch/short/shorts/embed/live forms, hostname allowlist) + `pick_transcript` (manual > auto, English first) + `build_transcript_blocks` (~400-char accumulation, sentence-end early close, `ts:` locators); `youtube-transcript-api` was already in the ingestion extra; 13 unit tests — 206 total (2026-08-06)
+- ~~**KC-093**~~ ✅ backend: wiring — `submit_url` stamps `type="video"` on match + best-effort oEmbed title (OQ-60, 5s timeout, never blocks); worker `video` branch dispatches to `fetch_and_extract`, skipping the page fetch (OQ-58) (2026-08-06)
+- ~~**KC-094**~~ ✅ frontend: `ChunkSearchResult.source_url` + `SourceOut.raw_url`; `ts:` locators rendered as `watch?t=Ns` deep links in KB search results and learn source passages (`utils/video.ts`); video/prompt_asset icons on source cards; vue-tsc clean (2026-08-06)
+- ~~**KC-095**~~ ✅ verification + release — 15-check live script (`scripts/verify-v0120.py`) all green on Colima: captioned video end-to-end (type/title/embedded/ts: locators/deep-link fields/semantic search), unavailable video → `failed`, web regression, curriculum concepts grounded in `ts:` passages; **found+fixed a pre-existing race**: ingestion jobs were enqueued before the Source row committed → fast worker skipped the job, source stuck `pending` (commit-before-enqueue now in both submit paths); release v0.12.0 (2026-08-06)
+
+## ✅ v0.11.0: Mastery gates — cohort learning, part 2 (KC-087–091) — released 2026-08-06
+
+*Design in `docs/14-mastery-gates.md` (OQ-45–52), spec shape from `docs/03-learning-layer.md` §4.4 — the slice deferred from v0.10.0. Path-level `mastery_mode` (off|soft|hard, default off = byte-identical) + `mastery_threshold`; mastery per concept = distinct items answered correctly ≥ threshold (learned-mark fallback for item-less concepts); sequence gating (concept N locked until 1…N-1 mastered), owner exempt; hard mode redacts locked concepts and 422s attempt/learned/thread read+create. Plus the backlog's "N learners" badge (OQ-51).*
+
+### Sprint order (implement in sequence — 087 unblocks 088; 088 unblocks 089)
+
+- ~~**KC-087**~~ ✅ backend: Migration 018 — `learning_paths.mastery_mode` (default 'off') + `mastery_threshold` (default 0.8); ORM fields; owner-only `PATCH /v1/learning-paths/{id}` (mode/threshold validation, 422); applied live, head **018** (2026-08-06)
+- ~~**KC-088**~~ ✅ backend: gates — pure `compute_gates` in `learning/gates.py` (best-attempt mastery, learned fallback for item-less concepts); path GET ships `locked`/`gate` per concept for non-owner readers (mode ≠ off) with hard-mode redaction; `ensure_not_locked` 422 guards on attempt, learned, thread list/create/read (deletes exempt, OQ-50); 14 unit tests — 193 total (2026-08-06)
+- ~~**KC-089**~~ ✅ frontend: owner gate controls (mode select + threshold) in the learn top bar via new `index.patch.ts` BFF; learner locked UI (nav lock glyphs, locked panel with unlock hint, soft-mode warning banner, quiet refetch on mastery changes); vue-tsc clean (2026-08-06)
+- ~~**KC-090**~~ ✅ backend+frontend: `learner_count` + `mastery_mode` on `LearningPathSummary` (one grouped UNION over progress/attempts) + "N learners" text and gate-mode chip on KB learn cards (2026-08-06)
+- ~~**KC-091**~~ ✅ verification + release — 29-check two-user live script (`scripts/verify-v0110.py`) all green on Colima: PATCH validation/authz, owner exemption, locked-flag consistency, hard-mode redaction + all four 422 guards, unlock-by-mastering, unchanged attempt shape, soft warns-not-blocks, off byte-identical, learner_count; release v0.11.0 (2026-08-06)
 
 ## ✅ v0.10.0: Cohort learning, part 1 (KC-080–086) — released 2026-08-06
 
@@ -281,6 +304,10 @@ next_ticket: "KC-087"
 ---
 
 ## Recent Updates
+
+- 2026-08-06: v0.12.0 released — video transcript ingestion part 1 (YouTube captions → `video` sources with oEmbed titles, ~400-char transcript blocks with `ts:HH:MM:SS` locators, manual>auto/English-first transcript preference, timestamp deep links in search + learn passages); fixed pre-existing enqueue-before-commit race that could strand sources `pending`; 15-check live verification (`scripts/verify-v0120.py`) incl. curriculum grounded in timestamp passages; 206 backend tests
+
+- 2026-08-06: v0.11.0 released — mastery gates (Migration 018: path-level off/soft/hard mode + threshold; best-attempt mastery from persisted attempts with learned fallback; sequence gating with owner exemption; hard-mode server-side redaction + 422 guards on attempt/learned/discussion; owner gate controls + locked learner UI; learner_count on path cards); default off is byte-identical; 29-check two-user live verification (`scripts/verify-v0110.py`); 193 backend tests
 
 - 2026-08-06: v0.10.0 released — cohort learning part 1 (Migration 017: persisted attempts + discussion threads/posts; owner-only path analytics with misconception aggregation; passage-anchored ConceptDiscussion + Learners panel); fixed pre-existing cross-path grading leak (KC-081) and the concept_count denominator (OQ-43); 24-check two-user live verification (`scripts/verify-v0100.py`); 179 backend tests
 

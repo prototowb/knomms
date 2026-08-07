@@ -29,20 +29,37 @@ class IngestionService:
         kb = await self._resolve_kb(data.kb_id, user)
         url_str = str(data.url)
 
+        # YouTube URLs become video sources (docs/15, OQ-55) — the worker
+        # dispatches extractors on the type, so it must be right at creation
+        from app.domains.ingestion.extractors.video import parse_video_url
+
+        video_id = parse_video_url(url_str)
+        if video_id:
+            source_type = "video"
+            title = await _video_title(url_str, video_id)
+        else:
+            source_type = "web_page"
+            title = _title_from_url(url_str)
+
         source = Source(
             id=str(uuid.uuid4()),
             owner_user_id=user.id,
-            type="web_page",
+            type=source_type,
             raw_url=url_str,
-            title=_title_from_url(url_str),
+            title=title,
             kb_id=kb.id,
             ingestion_status="pending",
         )
         self.db.add(source)
-        await self.db.flush()
+        # Commit BEFORE enqueue — the worker must never see a job for an
+        # uncommitted Source row, or the source is stuck 'pending' forever
+        # (the KC-077 lesson; race caught live in KC-095)
+        kb_id_val, namespace = kb.id, kb.vector_namespace
+        await self.db.commit()
+        await self.db.refresh(source)
 
-        await self._dispatch(source.id, user.id, kb.id, kb.vector_namespace)
-        return source, kb.id
+        await self._dispatch(source.id, user.id, kb_id_val, namespace)
+        return source, kb_id_val
 
     async def submit_file(self, file: UploadFile, kb_id: str | None, user: User) -> tuple[Source, str]:
         """Submit an uploaded file for ingestion. Returns (source, kb_id)."""
@@ -85,8 +102,13 @@ class IngestionService:
         redis = await get_redis()
         await redis.setex(f"upload:{source_id}", 3600, content)
 
-        await self._dispatch(source.id, user.id, kb.id, kb.vector_namespace, upload=True)
-        return source, kb.id
+        # Commit BEFORE enqueue (same race as submit_url — KC-095)
+        kb_id_val, namespace = kb.id, kb.vector_namespace
+        await self.db.commit()
+        await self.db.refresh(source)
+
+        await self._dispatch(source.id, user.id, kb_id_val, namespace, upload=True)
+        return source, kb_id_val
 
     async def get_source(self, source_id: str, user: User) -> Source | None:
         return await self.db.get(Source, source_id)
@@ -122,6 +144,25 @@ class IngestionService:
                 "upload": "1" if upload else "0",
             },
         )
+
+
+async def _video_title(url: str, video_id: str) -> str:
+    """Best-effort oEmbed title (docs/15, OQ-60) — never blocks submission."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+            resp = await client.get(
+                "https://www.youtube.com/oembed",
+                params={"url": url, "format": "json"},
+            )
+            resp.raise_for_status()
+            title = (resp.json().get("title") or "").strip()
+            if title:
+                return title[:200]
+    except Exception:
+        pass
+    return f"youtube:{video_id}"
 
 
 def _title_from_url(url: str) -> str:
