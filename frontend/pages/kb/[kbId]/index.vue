@@ -85,10 +85,17 @@ async function handleSubmit() {
 }
 
 function formatResponse(text: string) {
-  return text.replace(
-    /\[SOURCE:([a-f0-9-]{36})\]/g,
-    '<sup class="text-grounded font-mono text-xs">[src]</sup>'
-  )
+  // Match both [SOURCE:uuid] (the prompt contract) and bare [uuid] — the
+  // local model sometimes omits the prefix (learn-page precedent)
+  return text
+    .replace(
+      /\[SOURCE:([a-f0-9-]{36})\]/g,
+      '<sup class="text-grounded font-mono text-xs">[src]</sup>'
+    )
+    .replace(
+      /\[([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\]/g,
+      '<sup class="text-grounded font-mono text-xs">[src]</sup>'
+    )
 }
 
 // ── Sources ───────────────────────────────────────────────────────────────────
