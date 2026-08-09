@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useStreamingQuery } from '~/composables/useStreamingQuery'
 import { videoDeepLink } from '~/utils/video'
 
@@ -133,9 +133,137 @@ const compareReady = computed(() =>
   && !compareStreaming.value,
 )
 
+// The question/sources the current answer was generated from — the inputs
+// may be edited after submission, but Save must persist what actually ran
+const lastRun = ref<{ question: string; sourceIds: string[] } | null>(null)
+
 async function handleCompare() {
   if (!compareReady.value) return
-  await compareSubmit(compareQuestion.value.trim(), [...compareSelected.value])
+  const question = compareQuestion.value.trim()
+  const sourceIds = [...compareSelected.value]
+  lastRun.value = { question, sourceIds }
+  synthSaved.value = false
+  await compareSubmit(question, sourceIds)
+}
+
+// ── Saved syntheses (KC-101, docs/17) ───────────────────────────────────────
+
+interface SavedSynthesis {
+  id: string
+  kb_id: string
+  question: string
+  answer_text: string
+  citations: { chunk_id: string; source_id: string; locator: string; excerpt: string }[]
+  source_ids: string[]
+  created_at: string
+}
+
+const savedSyntheses = ref<SavedSynthesis[]>([])
+const savedLoaded = ref(false)
+const synthSaving = ref(false)
+const synthSaved = ref(false)
+const expandedSynthesis = ref<string | null>(null)
+
+async function loadSavedSyntheses() {
+  if (savedLoaded.value) return
+  savedLoaded.value = true
+  try {
+    savedSyntheses.value = await $fetch<SavedSynthesis[]>(`/api/kb/${kbId}/syntheses`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+  } catch {
+    savedLoaded.value = false
+  }
+}
+
+watch(activeTab, (t) => { if (t === 'compare') loadSavedSyntheses() })
+
+async function saveSynthesis() {
+  if (synthSaving.value || !lastRun.value || !compareResponse.value) return
+  synthSaving.value = true
+  try {
+    const row = await $fetch<SavedSynthesis>(`/api/kb/${kbId}/syntheses` as string, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: {
+        question: lastRun.value.question,
+        source_ids: lastRun.value.sourceIds,
+        answer_text: compareResponse.value,
+        citations: compareCitationList.value.map(c => ({
+          chunk_id: c.chunk_id,
+          source_id: c.source_id,
+          locator: c.locator,
+          excerpt: (c.excerpt ?? '').slice(0, 500),
+        })),
+      },
+    })
+    savedSyntheses.value = [row, ...savedSyntheses.value]
+    synthSaved.value = true
+  } catch {
+    // leave the button enabled; the user can retry
+  } finally {
+    synthSaving.value = false
+  }
+}
+
+async function deleteSynthesis(id: string) {
+  try {
+    await $fetch(`/api/kb/${kbId}/syntheses/${id}` as string, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    savedSyntheses.value = savedSyntheses.value.filter(s => s.id !== id)
+  } catch {
+    // keep the row; the user can retry
+  }
+}
+
+// Add a saved synthesis to one of my boards (asset-detail precedent, KC-046)
+interface BoardSummary { id: string; title: string }
+
+const abForSynthesis = ref<string | null>(null)  // synthesis id the picker is open for
+const myBoards = ref<BoardSummary[]>([])
+const abBoardId = ref('')
+const abSaving = ref(false)
+const abMessage = ref<string | null>(null)
+
+async function openBoardPicker(synthesisId: string) {
+  abForSynthesis.value = abForSynthesis.value === synthesisId ? null : synthesisId
+  abMessage.value = null
+  if (myBoards.value.length === 0) {
+    try {
+      myBoards.value = await $fetch<BoardSummary[]>('/api/my/boards', {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      })
+      if (myBoards.value.length > 0) abBoardId.value = myBoards.value[0].id
+    } catch {
+      abMessage.value = 'Could not load your boards'
+    }
+  }
+}
+
+async function addSynthesisToBoard(synthesisId: string) {
+  if (abSaving.value || !abBoardId.value) return
+  abSaving.value = true
+  abMessage.value = null
+  try {
+    await $fetch(`/api/boards/${abBoardId.value}/syntheses` as string, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { synthesis_id: synthesisId },
+    })
+    const board = myBoards.value.find(b => b.id === abBoardId.value)
+    abMessage.value = `Added to “${board?.title ?? 'board'}”`
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    abMessage.value = typeof detail === 'string' ? detail : 'Failed to add to board'
+  } finally {
+    abSaving.value = false
+  }
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 const compareCitationList = computed(() =>
@@ -306,7 +434,7 @@ const statusColor: Record<string, string> = {
   failed: 'text-red-500',
 }
 const sourceTypeIcon: Record<string, string> = {
-  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', video: '🎬', prompt_asset: '🧩',
+  pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', video: '🎬', prompt_asset: '🧩', synthesis: '⚗️',
 }
 
 onMounted(() => { fetchKBMeta(); fetchSources() })
@@ -457,6 +585,15 @@ onUnmounted(stopPolling)
             class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50 transition-colors"
           />
           <button
+            v-if="compareResponse && !compareStreaming && lastRun"
+            type="button"
+            :disabled="synthSaving || synthSaved"
+            class="px-4 py-2.5 rounded-lg text-sm font-medium border border-grounded text-grounded hover:bg-grounded/10 disabled:opacity-50 transition-colors"
+            @click="saveSynthesis"
+          >
+            {{ synthSaved ? '✓ Saved' : synthSaving ? 'Saving…' : 'Save' }}
+          </button>
+          <button
             type="submit"
             :disabled="!compareReady"
             class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
@@ -464,6 +601,68 @@ onUnmounted(stopPolling)
             {{ compareStreaming ? 'Comparing…' : 'Compare' }}
           </button>
         </form>
+
+        <!-- Saved syntheses (KC-101) -->
+        <div v-if="savedSyntheses.length > 0" class="mt-6">
+          <p class="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+            Saved syntheses ({{ savedSyntheses.length }})
+          </p>
+          <ul class="space-y-2">
+            <li
+              v-for="s in savedSyntheses"
+              :key="s.id"
+              class="rounded-xl border border-border p-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <button
+                  class="flex-1 min-w-0 text-left text-sm text-text-primary font-medium truncate hover:text-accent"
+                  @click="expandedSynthesis = expandedSynthesis === s.id ? null : s.id"
+                >
+                  ⚗️ {{ s.question }}
+                </button>
+                <span class="text-xs text-text-muted shrink-0">{{ fmtDate(s.created_at) }}</span>
+                <button
+                  class="text-xs text-text-secondary hover:text-accent shrink-0"
+                  @click="openBoardPicker(s.id)"
+                >
+                  Add to board
+                </button>
+                <button
+                  class="text-xs text-text-muted hover:text-warning shrink-0"
+                  title="Delete this saved synthesis"
+                  @click="deleteSynthesis(s.id)"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div v-if="abForSynthesis === s.id" class="mt-2 flex items-center gap-2">
+                <select
+                  v-model="abBoardId"
+                  class="text-xs border border-border rounded-lg px-2 py-1.5 bg-surface text-text-secondary focus:outline-none focus:border-accent"
+                >
+                  <option v-for="b in myBoards" :key="b.id" :value="b.id">{{ b.title }}</option>
+                </select>
+                <button
+                  :disabled="abSaving || !abBoardId"
+                  class="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+                  @click="addSynthesisToBoard(s.id)"
+                >
+                  {{ abSaving ? 'Adding…' : 'Add' }}
+                </button>
+                <span v-if="abMessage" class="text-xs text-text-muted">{{ abMessage }}</span>
+              </div>
+
+              <div v-if="expandedSynthesis === s.id" class="mt-3 border-t border-border pt-3">
+                <div class="font-prose text-text-primary text-sm leading-7" v-html="formatResponse(s.answer_text)" />
+                <p class="text-xs text-text-muted mt-2">
+                  {{ s.citations.length }} citation{{ s.citations.length !== 1 ? 's' : '' }} ·
+                  {{ s.source_ids.length }} sources compared
+                </p>
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- Search tab (KC-051) -->
