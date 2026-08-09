@@ -4,6 +4,30 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.14.0] — 2026-08-09
+
+Synthesis persistence & board projection (KC-099–102) — a comparison worth two CPU-minutes of generation no longer evaporates on tab switch (design in `docs/17-synthesis-persistence.md`, OQ-69–74). Saved syntheses are the author's private record (the concept-note contract); sharing goes through board projection, where the synthesis becomes an embedded, searchable, forkable `synthesis` Source (the prompt-asset precedent). Also fixes the curation twin of the v0.12.0 ingestion race.
+
+### Fixed
+
+- Board-add enqueue race (OQ-73, pre-existing): all three board-add paths (URL, file, asset) enqueued the ingestion job before the Source row committed — a fast worker could skip the job and strand the item `pending` forever. Same class as the v0.12.0 `submit_url`/`submit_file` fix, now applied where the pattern was copied from
+- Board-added YouTube URLs now get the same `video` typing as direct submission (they were typed `web_page`, which since v0.12.0 meant extracting the watch-page HTML instead of the transcript)
+
+### Features
+
+#### Saved syntheses
+- `POST/GET /v1/kbs/{id}/syntheses` + `DELETE .../syntheses/{id}` (Migration 019): author-owned rows with the question, answer, snapshotted citations, and compared source ids; size caps and source-membership validation on save; author-only 404s
+- Compare tab: **Save** button persists exactly what ran (inputs captured at submit time); **Saved** list with expand, delete, and an inline add-to-board picker
+
+#### Board projection
+- `POST /v1/boards/{id}/syntheses`: composes a self-contained markdown doc (question, answer, per-source citation appendix), creates a `synthesis` Source in the board's dedicated KB, and ingests it — board search, forks, and summaries inherit the synthesis. Content is dual-written to MinIO (the KC-077 lesson), and re-adding reuses the existing Source (`synthesis_source_projections` UNIQUE)
+- ⚗️ `synthesis` icon on KB and board source cards
+
+### Test Coverage
+- 217 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 019 · 17-check two-user live script (`scripts/verify-v0140.py`) incl. projection embed + search, idempotent re-add, and the rapid-add race regression
+
+---
+
 ## [0.13.0] — 2026-08-07
 
 Multi-source synthesis, part 1 (KC-096–098) — first slice of the roadmap's #3 V2 priority, shipping its own example: "compare these sources on topic X" with multi-document citation (design in `docs/16-multi-source-synthesis.md`, OQ-63–68). One grounded generation pass over **balanced per-source retrieval** — global top-k was the failure mode (ask a 3-paper KB how the papers differ and retrieval returns one paper). Iterative hop loops stay in part 2 (one CPU generation ≈ 2 min; a 3-hop loop is a 10-minute query).

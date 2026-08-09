@@ -34,8 +34,8 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.14.0 — Synthesis persistence & board projection"
-last_release: "v0.13.0 (2026-08-07)"
+current_sprint: "v0.14.0 — Synthesis persistence (complete, released)"
+last_release: "v0.14.0 (2026-08-09)"
 ticket_prefix: "KC"
 next_ticket: "KC-103"
 ```
@@ -53,16 +53,16 @@ next_ticket: "KC-103"
 
 ---
 
-## 🔄 v0.14.0: Synthesis persistence & board projection (KC-099–102)
+## ✅ v0.14.0: Synthesis persistence & board projection (KC-099–102) — released 2026-08-09
 
 *Design in `docs/17-synthesis-persistence.md` (OQ-69–74). Saved syntheses are author-owned rows (concept-note privacy contract, citations snapshotted); sharing goes through board projection as a `synthesis` Source (prompt-asset precedent, OQ-1) with MinIO dual-write (KC-077 lesson). Also fixes the curation twin of the KC-095 enqueue-before-commit race in all three existing board-add paths (OQ-73).*
 
 ### Sprint order (implement in sequence — 099 unblocks 100; 100 unblocks 101)
 
-- **KC-099** backend: Migration 019 (`syntheses` + `synthesis_source_projections`) in new `models/synthesis.py` (both import sites); save/list/delete endpoints (author-only 404, `check_source_selection` reuse, size caps, citation-shape schema); unit tests
-- **KC-100** backend: `add_synthesis_to_board` mirroring KC-046 (compose doc, MinIO dual-write, IntegrityError → Source reuse) + pure `compose_synthesis_doc` + commit-before-enqueue fix in `add_source_to_board`/`add_file_to_board`/`add_asset_to_board`; tests
-- **KC-101** frontend: Save button + Saved list (expand/delete/Add-to-board picker) on the Compare tab; `synthesis` icon on board/source cards; BFF handlers; vue-tsc clean
-- **KC-102** verification + release — doc §7 live checks (save/list/delete + author-only 404, projection embedded + idempotent re-add, board-KB search hit, rapid-add race regression); changelog; release v0.14.0
+- ~~**KC-099**~~ ✅ backend: Migration 019 (`syntheses` + `synthesis_source_projections`) in new `models/synthesis.py` (both import sites); save/list/delete endpoints (author-only 404, `check_source_selection` reuse, size caps, citation-shape schema); pure `compose_synthesis_doc`; 4 tests — 217 total (2026-08-09)
+- ~~**KC-100**~~ ✅ backend: `add_synthesis_to_board` mirroring KC-046 (compose doc, MinIO dual-write, IntegrityError → Source reuse) + commit-before-enqueue fix in all three existing board-add paths (OQ-73) + board-added YouTube URLs typed `video` (2026-08-09)
+- ~~**KC-101**~~ ✅ frontend: Save button (persists what actually ran) + Saved list (expand/delete/inline add-to-board picker) on the Compare tab; ⚗️ icon on KB + board cards; 4 BFF handlers; vue-tsc clean (2026-08-09)
+- ~~**KC-102**~~ ✅ verification + release — 17-check two-user live script (`scripts/verify-v0140.py`) all green: save/list/caps/author-404s, projection embedded + board-KB search hit + idempotent re-add + tester 404, rapid-add race regression, delete; found+fixed a quoted-forward-reference annotation that 500'd the list endpoint; release v0.14.0 (2026-08-09)
 
 ## ✅ v0.13.0: Multi-source synthesis, part 1 (KC-096–098) — released 2026-08-07
 
@@ -325,6 +325,8 @@ next_ticket: "KC-103"
 ---
 
 ## Recent Updates
+
+- 2026-08-09: v0.14.0 released — synthesis persistence & board projection (Migration 019: author-owned saved syntheses with snapshotted citations; board projection as embedded `synthesis` Sources with MinIO dual-write + idempotent re-add; Save/Saved UI on the Compare tab); fixed the curation enqueue-before-commit race in all three board-add paths and board-added YouTube URL typing; 17-check live verification (`scripts/verify-v0140.py`); 217 backend tests
 
 - 2026-08-07: v0.13.0 released — multi-source synthesis part 1 (`POST /v1/kbs/{id}/synthesize`: balanced per-source retrieval + one comparison generation with per-source citations, SSE identical to /query; Compare tab on the KB workspace); fixed bare-`[uuid]` citation rendering on the KB page; 12-check live verification (`scripts/verify-v0130.py`) incl. full streamed synthesis over a web+video pair; 213 backend tests; no migration (head stays 018)
 
