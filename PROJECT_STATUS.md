@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.13.0 — Multi-source synthesis (complete, released)"
+current_sprint: "v0.14.0 — Synthesis persistence & board projection"
 last_release: "v0.13.0 (2026-08-07)"
 ticket_prefix: "KC"
-next_ticket: "KC-099"
+next_ticket: "KC-103"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-099"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.14.0: Synthesis persistence & board projection (KC-099–102)
+
+*Design in `docs/17-synthesis-persistence.md` (OQ-69–74). Saved syntheses are author-owned rows (concept-note privacy contract, citations snapshotted); sharing goes through board projection as a `synthesis` Source (prompt-asset precedent, OQ-1) with MinIO dual-write (KC-077 lesson). Also fixes the curation twin of the KC-095 enqueue-before-commit race in all three existing board-add paths (OQ-73).*
+
+### Sprint order (implement in sequence — 099 unblocks 100; 100 unblocks 101)
+
+- **KC-099** backend: Migration 019 (`syntheses` + `synthesis_source_projections`) in new `models/synthesis.py` (both import sites); save/list/delete endpoints (author-only 404, `check_source_selection` reuse, size caps, citation-shape schema); unit tests
+- **KC-100** backend: `add_synthesis_to_board` mirroring KC-046 (compose doc, MinIO dual-write, IntegrityError → Source reuse) + pure `compose_synthesis_doc` + commit-before-enqueue fix in `add_source_to_board`/`add_file_to_board`/`add_asset_to_board`; tests
+- **KC-101** frontend: Save button + Saved list (expand/delete/Add-to-board picker) on the Compare tab; `synthesis` icon on board/source cards; BFF handlers; vue-tsc clean
+- **KC-102** verification + release — doc §7 live checks (save/list/delete + author-only 404, projection embedded + idempotent re-add, board-KB search hit, rapid-add race regression); changelog; release v0.14.0
 
 ## ✅ v0.13.0: Multi-source synthesis, part 1 (KC-096–098) — released 2026-08-07
 
