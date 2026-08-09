@@ -7,6 +7,7 @@ from app.deps.auth import get_current_user
 from app.deps.db import get_db
 from app.domains.generation.service import GenerationService
 from app.models.user import User
+from app.schemas.synthesis import SaveSynthesisRequest, SynthesisOut
 
 router = APIRouter(prefix="/kbs", tags=["generation"])
 
@@ -41,6 +42,52 @@ async def query_knowledge_base(
             "X-Accel-Buffering": "no",  # disable Nginx buffering
         },
     )
+
+
+@router.post("/{kb_id}/syntheses", status_code=201)
+async def save_synthesis(
+    kb_id: str,
+    body: "SaveSynthesisRequest",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> "SynthesisOut":
+    """Save a completed synthesis as the author's record (docs/17, OQ-70)."""
+    from app.domains.generation.synthesis import SynthesisService
+
+    row = await SynthesisService(db).save(
+        kb_id,
+        current_user,
+        question=body.question,
+        answer_text=body.answer_text,
+        source_ids=body.source_ids,
+        citations=[c.model_dump() for c in body.citations],
+    )
+    return SynthesisOut.model_validate(row)
+
+
+@router.get("/{kb_id}/syntheses")
+async def list_syntheses(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list["SynthesisOut"]:
+    """The current user's saved syntheses on this KB, newest first."""
+    from app.domains.generation.synthesis import SynthesisService
+
+    rows = await SynthesisService(db).list_for_kb(kb_id, current_user)
+    return [SynthesisOut.model_validate(r) for r in rows]
+
+
+@router.delete("/{kb_id}/syntheses/{synthesis_id}", status_code=204)
+async def delete_synthesis(
+    kb_id: str,
+    synthesis_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    from app.domains.generation.synthesis import SynthesisService
+
+    await SynthesisService(db).delete(kb_id, synthesis_id, current_user)
 
 
 @router.post("/{kb_id}/synthesize")

@@ -76,9 +76,108 @@ QUESTION: {question}
 COMPARISON:"""
 
 
+def compose_synthesis_doc(
+    question: str,
+    answer_text: str,
+    citations: list[dict],
+    source_titles: dict[str, str],
+) -> str:
+    """Markdown doc for board projection (docs/17, OQ-72). Pure.
+
+    Question as title, answer body, per-source appendix of cited locators —
+    self-contained so the projected Source reads standalone on a board.
+    """
+    by_source: dict[str, list[str]] = {}
+    for c in citations:
+        by_source.setdefault(c["source_id"], []).append(c["locator"])
+
+    appendix_lines = []
+    for sid, locators in by_source.items():
+        title = source_titles.get(sid, sid)
+        appendix_lines.append(f"- {title}: {', '.join(locators)}")
+    appendix = "\n".join(appendix_lines) if appendix_lines else "- (no citations recorded)"
+
+    return f"""# {question}
+
+{answer_text}
+
+## Compared sources
+
+{appendix}
+"""
+
+
 class SynthesisService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _readable_kb(self, kb_id: str, user: User):
+        kb = await KnowledgeBaseService(self.db).get_readable_by_id(kb_id, user)
+        if kb is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+        return kb
+
+    async def save(
+        self,
+        kb_id: str,
+        user: User,
+        question: str,
+        answer_text: str,
+        source_ids: list[str],
+        citations: list[dict],
+    ):
+        """Persist a completed synthesis as the author's record (OQ-69/70).
+
+        The answer only exists client-side (it streamed there) — the row is
+        the author's own note, like a concept note; sharing goes through
+        board projection.
+        """
+        from app.models.synthesis import Synthesis
+
+        await self._readable_kb(kb_id, user)
+        kb_source_ids = set(
+            (await self.db.execute(select(Source.id).where(Source.kb_id == kb_id))).scalars().all()
+        )
+        error = check_source_selection(source_ids, kb_source_ids)
+        if error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+
+        row = Synthesis(
+            kb_id=kb_id,
+            user_id=user.id,
+            question=question,
+            answer_text=answer_text,
+            citations=citations,
+            source_ids=source_ids,
+        )
+        self.db.add(row)
+        await self.db.commit()
+        await self.db.refresh(row)
+        return row
+
+    async def list_for_kb(self, kb_id: str, user: User):
+        """The author's saved syntheses on this KB, newest first (OQ-69)."""
+        from app.models.synthesis import Synthesis
+
+        await self._readable_kb(kb_id, user)
+        rows = (
+            await self.db.execute(
+                select(Synthesis)
+                .where(Synthesis.kb_id == kb_id, Synthesis.user_id == user.id)
+                .order_by(Synthesis.created_at.desc(), Synthesis.id)
+            )
+        ).scalars().all()
+        return list(rows)
+
+    async def delete(self, kb_id: str, synthesis_id: str, user: User) -> None:
+        from app.models.synthesis import Synthesis
+
+        row = await self.db.get(Synthesis, synthesis_id)
+        # Author-only 404 (non-leak) — a foreign id and a wrong-KB id look identical
+        if row is None or row.kb_id != kb_id or row.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Synthesis not found")
+        await self.db.delete(row)
+        await self.db.commit()
 
     async def stream_synthesis(
         self,
