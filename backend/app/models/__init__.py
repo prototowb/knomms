@@ -11,3 +11,4 @@ from app.models import learning as _  # noqa: F401
 from app.models import asset as _  # noqa: F401
 from app.models import team as _  # noqa: F401
 from app.models import acl as _  # noqa: F401
+from app.models import synthesis as _  # noqa: F401

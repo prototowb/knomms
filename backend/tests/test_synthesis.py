@@ -68,3 +68,72 @@ def test_comparison_instructions_present():
     prompt = build_synthesis_prompt("q?", [("A", [_chunk("c1", "s1")]), ("B", [_chunk("c2", "s2")])])
     assert "agree" in prompt and "disagree" in prompt
     assert "never invent" in prompt
+
+
+# ── compose_synthesis_doc (KC-100, docs/17 OQ-72) ─────────────────────────────
+
+
+def test_compose_doc_shape():
+    from app.domains.generation.synthesis import compose_synthesis_doc
+
+    doc = compose_synthesis_doc(
+        "How do they differ?",
+        "They differ a lot.",
+        [
+            {"chunk_id": "c1", "source_id": "s1", "locator": "para:3", "excerpt": "x"},
+            {"chunk_id": "c2", "source_id": "s2", "locator": "ts:00:01:33", "excerpt": "y"},
+            {"chunk_id": "c3", "source_id": "s1", "locator": "para:9", "excerpt": "z"},
+        ],
+        {"s1": "Paper One", "s2": "Talk Two"},
+    )
+    assert doc.startswith("# How do they differ?")
+    assert "They differ a lot." in doc
+    assert "- Paper One: para:3, para:9" in doc
+    assert "- Talk Two: ts:00:01:33" in doc
+
+
+def test_compose_doc_without_citations():
+    from app.domains.generation.synthesis import compose_synthesis_doc
+
+    doc = compose_synthesis_doc("q?", "answer", [], {})
+    assert "(no citations recorded)" in doc
+
+
+def test_compose_doc_unknown_source_falls_back_to_id():
+    from app.domains.generation.synthesis import compose_synthesis_doc
+
+    doc = compose_synthesis_doc(
+        "q?", "a",
+        [{"chunk_id": "c1", "source_id": "sX", "locator": "para:1", "excerpt": "x"}],
+        {},
+    )
+    assert "- sX: para:1" in doc
+
+
+# ── SaveSynthesisRequest caps (KC-099, docs/17 OQ-70) ─────────────────────────
+
+
+def test_save_request_caps():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.synthesis import MAX_ANSWER_CHARS, SaveSynthesisRequest
+
+    ok = SaveSynthesisRequest(question="q", answer_text="a", source_ids=["s1", "s2"])
+    assert ok.citations == []
+
+    with pytest.raises(ValidationError):
+        SaveSynthesisRequest(question="q", answer_text="", source_ids=["s1", "s2"])
+    with pytest.raises(ValidationError):
+        SaveSynthesisRequest(
+            question="q", answer_text="a" * (MAX_ANSWER_CHARS + 1), source_ids=["s1", "s2"]
+        )
+    with pytest.raises(ValidationError):
+        SaveSynthesisRequest(
+            question="q",
+            answer_text="a",
+            source_ids=["s1"],
+            citations=[
+                {"chunk_id": "c", "source_id": "s", "locator": "l", "excerpt": "e"}
+            ] * 51,
+        )
