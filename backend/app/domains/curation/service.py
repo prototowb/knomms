@@ -254,10 +254,14 @@ class BoardService:
 
         kb = await self._resolve_board_kb(board, user)
 
+        # Board-added URLs get the same video typing as direct submission
+        # (docs/15, OQ-55) — the worker dispatches extractors on the type
+        from app.domains.ingestion.extractors.video import parse_video_url
+
         source = Source(
             id=str(uuid.uuid4()),
             owner_user_id=user.id,
-            type="web_page",
+            type="video" if parse_video_url(source_url) else "web_page",
             raw_url=source_url,
             title=source_url[:200],
             kb_id=kb.id,
@@ -276,17 +280,21 @@ class BoardService:
         self.db.add(item)
         await self.db.flush()
 
+        # Commit BEFORE enqueue (docs/17 OQ-73 — the KC-095 race's curation
+        # twin); capture scalars first, they expire on commit
+        source_id_val, item_id = source.id, item.id
+        kb_id_val, namespace, user_id = kb.id, kb.vector_namespace, user.id
+        await self.db.commit()
+
         redis = await get_redis()
         await redis.xadd(STREAM_KEY, {
-            "source_id": source.id,
-            "user_id": user.id,
-            "kb_id": kb.id,
-            "vector_namespace": kb.vector_namespace,
+            "source_id": source_id_val,
+            "user_id": user_id,
+            "kb_id": kb_id_val,
+            "vector_namespace": namespace,
             "upload": "0",
         })
-
-        await self.db.commit()
-        return await self._reload_item(item.id)
+        return await self._reload_item(item_id)
 
     async def add_asset_to_board(
         self,
@@ -390,6 +398,10 @@ class BoardService:
         self.db.add(item)
         await self.db.flush()
 
+        # Commit BEFORE enqueue (docs/17 OQ-73)
+        item_id = item.id
+        await self.db.commit()
+
         if needs_ingestion:
             redis = await get_redis()
             await redis.setex(f"upload:{source_id}", 3600, version_content.encode("utf-8"))
@@ -401,8 +413,128 @@ class BoardService:
                 "upload": "1",
             })
 
+        return await self._reload_item(item_id)
+
+    async def add_synthesis_to_board(
+        self,
+        board_id: str,
+        user: User,
+        synthesis_id: str,
+        note: str,
+        lane: str,
+    ) -> CollectionItem:
+        """Project a saved synthesis onto a board as a `synthesis` CollectionItem
+        (docs/17, OQ-71/72) — the add_asset_to_board twin. Re-adding into the
+        same board KB reuses the existing Source; the composed doc is
+        dual-written to MinIO so late worker retries survive the Redis TTL.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        from app.domains.generation.synthesis import compose_synthesis_doc
+        from app.models.synthesis import Synthesis, SynthesisSourceProjection
+
+        board = await self.get_board_for_owner(board_id, user)
+        if board is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Board not found")
+
+        synthesis = await self.db.get(Synthesis, synthesis_id)
+        # Author-only 404 (non-leak) — saved syntheses are private notes
+        if synthesis is None or synthesis.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Synthesis not found")
+
+        kb = await self._resolve_board_kb(board, user)
+
+        source_titles: dict[str, str] = {}
+        if synthesis.source_ids:
+            rows = (await self.db.execute(
+                select(Source.id, Source.title).where(Source.id.in_(synthesis.source_ids))
+            )).all()
+            source_titles = {r.id: r.title for r in rows}
+
+        # Capture scalars before any rollback/commit — expired ORM attributes
+        # cannot be lazily refreshed on an async session
+        user_id = user.id
+        kb_id, vector_namespace = kb.id, kb.vector_namespace
+        question = synthesis.question
+        doc = compose_synthesis_doc(
+            question, synthesis.answer_text, synthesis.citations or [], source_titles
+        )
+
+        source_id = str(uuid.uuid4())
+        storage_key = f"raw/{user_id}/{source_id}/synthesis.md"
+        source = Source(
+            id=source_id,
+            owner_user_id=user_id,
+            type="synthesis",
+            title=question[:200],
+            storage_key=storage_key,
+            kb_id=kb_id,
+        )
+        self.db.add(source)
+        await self.db.flush()
+
+        projection = SynthesisSourceProjection(
+            synthesis_id=synthesis_id,
+            kb_id=kb_id,
+            source_id=source_id,
+            owner_user_id=user_id,
+        )
+        self.db.add(projection)
+
+        needs_ingestion = True
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            # Already projected into this board's KB — reuse that Source
+            await self.db.rollback()
+            board = (await self.db.execute(
+                select(Collection)
+                .where(Collection.id == board_id, Collection.owner_user_id == user_id)
+                .options(selectinload(Collection.items))
+            )).scalar_one()
+            existing = (await self.db.execute(
+                select(SynthesisSourceProjection).where(
+                    SynthesisSourceProjection.synthesis_id == synthesis_id,
+                    SynthesisSourceProjection.kb_id == kb_id,
+                )
+            )).scalar_one()
+            source_id = existing.source_id
+            needs_ingestion = False
+
+        item = CollectionItem(
+            collection_id=board.id,
+            source_id=source_id,
+            added_by=user_id,
+            note=note,
+            lane=lane,
+            position=len(board.items),
+        )
+        self.db.add(item)
+        await self.db.flush()
+
+        if needs_ingestion:
+            # MinIO dual-write BEFORE commit — if it fails, the transaction
+            # rolls back and no job references a content-less Source
+            from app.core.config import settings as _settings
+            from app.core.storage import write_object
+            await write_object(_settings.minio_bucket, storage_key, doc.encode("utf-8"))
+
+        # Commit BEFORE enqueue (docs/17 OQ-73)
+        item_id = item.id
         await self.db.commit()
-        return await self._reload_item(item.id)
+
+        if needs_ingestion:
+            redis = await get_redis()
+            await redis.setex(f"upload:{source_id}", 3600, doc.encode("utf-8"))
+            await redis.xadd(STREAM_KEY, {
+                "source_id": source_id,
+                "user_id": user_id,
+                "kb_id": kb_id,
+                "vector_namespace": vector_namespace,
+                "upload": "1",
+            })
+
+        return await self._reload_item(item_id)
 
     async def add_file_to_board(
         self,
@@ -458,18 +590,22 @@ class BoardService:
         from app.core.config import settings as _settings
         from app.core.storage import write_object
         await write_object(_settings.minio_bucket, storage_key, content)
+
+        # Commit BEFORE enqueue (docs/17 OQ-73); capture scalars first
+        item_id = item.id
+        kb_id_val, namespace, user_id = kb.id, kb.vector_namespace, user.id
+        await self.db.commit()
+
         redis = await get_redis()
         await redis.setex(f"upload:{source_id}", 3600, content)
         await redis.xadd(STREAM_KEY, {
-            "source_id": source.id,
-            "user_id": user.id,
-            "kb_id": kb.id,
-            "vector_namespace": kb.vector_namespace,
+            "source_id": source_id,
+            "user_id": user_id,
+            "kb_id": kb_id_val,
+            "vector_namespace": namespace,
             "upload": "1",
         })
-
-        await self.db.commit()
-        return await self._reload_item(item.id)
+        return await self._reload_item(item_id)
 
     async def _reload_item(self, item_id: str) -> "CollectionItem":
         """Re-fetch a CollectionItem with its source relationship loaded."""

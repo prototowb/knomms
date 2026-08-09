@@ -5,6 +5,7 @@ from app.deps.auth import get_current_user, get_optional_user
 from app.deps.db import get_db
 from app.domains.curation.service import BoardService
 from app.models.user import User
+from app.schemas.synthesis import ProjectSynthesisRequest
 from pydantic import BaseModel as _BaseModel
 
 from app.schemas.curation import (
@@ -182,6 +183,25 @@ async def add_asset(
 ) -> BoardItemOut:
     svc = BoardService(db)
     item = await svc.add_asset_to_board(board_id, user, req.asset_id, req.version_num, req.note, req.lane)
+    return BoardItemOut.model_validate(item)
+
+
+@router.post(
+    "/boards/{board_id}/syntheses",
+    response_model=BoardItemOut,
+    status_code=201,
+    summary="Project a saved synthesis onto a board as a synthesis source",
+)
+async def add_synthesis(
+    board_id: str,
+    req: ProjectSynthesisRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BoardItemOut:
+    svc = BoardService(db)
+    item = await svc.add_synthesis_to_board(
+        board_id, user, req.synthesis_id, req.note, req.lane
+    )
     return BoardItemOut.model_validate(item)
 
 
