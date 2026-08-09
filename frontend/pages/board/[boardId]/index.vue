@@ -107,6 +107,7 @@ const sourceTypeIcon: Record<string, string> = {
   plain_text: '📝',
   epub: '📚',
   prompt_asset: '🧩',
+  synthesis: '⚗️',
 }
 
 // Similar boards
