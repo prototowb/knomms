@@ -47,10 +47,10 @@ async def query_knowledge_base(
 @router.post("/{kb_id}/syntheses", status_code=201)
 async def save_synthesis(
     kb_id: str,
-    body: "SaveSynthesisRequest",
+    body: SaveSynthesisRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> "SynthesisOut":
+) -> SynthesisOut:
     """Save a completed synthesis as the author's record (docs/17, OQ-70)."""
     from app.domains.generation.synthesis import SynthesisService
 
@@ -70,7 +70,7 @@ async def list_syntheses(
     kb_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list["SynthesisOut"]:
+) -> list[SynthesisOut]:
     """The current user's saved syntheses on this KB, newest first."""
     from app.domains.generation.synthesis import SynthesisService
 
