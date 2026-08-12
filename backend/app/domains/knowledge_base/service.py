@@ -76,8 +76,10 @@ class KnowledgeBaseService:
         return list(result.scalars().all())
 
     async def get_by_id(self, kb_id: str, user: User) -> KnowledgeBase | None:
-        """Owner-only lookup — the guard for every WRITE path (ingest, project,
-        create learning path). Do not relax; reads go through get_readable_by_id."""
+        """Owner-only lookup — the guard for owner-reserved writes (create
+        learning path, metadata PATCH, export, grants). Ingest moved to
+        get_editable_by_id in KC-067 (OQ-18 editor surface); reads go through
+        get_readable_by_id. See docs/21-team-workspaces-audit.md §3.1."""
         result = await self.db.execute(
             select(KnowledgeBase)
             .where(
