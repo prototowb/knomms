@@ -23,6 +23,7 @@ from app.schemas.learning import (
     ThreadSummaryOut,
     UpdateConceptRequest,
     UpdatePathRequest,
+    UpdatePostRequest,
     UpsertNoteRequest,
 )
 
@@ -251,6 +252,7 @@ async def update_concept(
         user,
         concept_status=req.status,
         instructor_annotation=req.instructor_annotation,
+        prerequisites=req.prerequisites,
     )
     return PathConceptOut.model_validate(concept)
 
@@ -442,6 +444,24 @@ async def create_post(
 ) -> PostOut:
     svc = DiscussionService(db)
     post = await svc.create_post(path_id, thread_id, user, req.body)
+    return PostOut.model_validate(post)
+
+
+@router.patch(
+    "/learning-paths/{path_id}/threads/{thread_id}/posts/{post_id}",
+    response_model=PostOut,
+    summary="Edit your own post",
+)
+async def update_post(
+    path_id: str,
+    thread_id: str,
+    post_id: str,
+    req: UpdatePostRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PostOut:
+    svc = DiscussionService(db)
+    post = await svc.update_post(path_id, thread_id, post_id, user, req.body)
     return PostOut.model_validate(post)
 
 

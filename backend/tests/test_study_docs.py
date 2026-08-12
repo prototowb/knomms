@@ -198,6 +198,19 @@ def test_plan_dedupes_desired_pairs():
     assert plan["create"] == [("slot", "v1")]
 
 
+def test_plan_rebuild_clears_existing_then_recreates_everything():
+    # Rebuild-from-scratch (KC-113) is modelled upstream as "delete all doc
+    # rows, then plan against an empty existing map" — docs that were embedded
+    # (or failed) before the wipe must all come back as fresh creates.
+    desired = [("slot", "v1"), ("eval_suite", "v1"), ("eval_run", "r1")]
+    before = {("slot", "v1"): "embedded", ("eval_run", "r1"): "failed"}
+    assert plan_study_projection(desired, before)["create"] == [("eval_suite", "v1")]
+    plan = plan_study_projection(desired, existing={})  # post-wipe view
+    assert plan["create"] == desired
+    assert plan["reenqueue"] == []
+    assert plan["skipped"] == 0
+
+
 def test_plan_same_ref_different_kind_not_deduped():
     # The eval-suite version yields both a slot doc and a cases doc
     desired = [("slot", "v1"), ("eval_suite", "v1")]

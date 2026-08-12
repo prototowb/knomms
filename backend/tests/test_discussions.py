@@ -1,8 +1,8 @@
-"""Unit tests for discussion guards/anchoring — pure logic, no DB (KC-083)."""
+"""Unit tests for discussion guards/anchoring — pure logic, no DB (KC-083, KC-112)."""
 
 import pytest
 
-from app.domains.learning.discussions import can_delete_post, resolve_passage_anchor
+from app.domains.learning.discussions import can_delete_post, can_edit_post, resolve_passage_anchor
 
 _PASSAGES = [
     {"chunk_id": "ch1", "locator": "para:1", "source_id": "s1", "excerpt": "WAL ensures durability…"},
@@ -50,3 +50,19 @@ def test_path_owner_moderates_any_post():
 
 def test_other_reader_cannot_delete():
     assert can_delete_post("u1", "u2", "owner") is False
+
+
+# ── can_edit_post (docs/20, OQ-89) ────────────────────────────────────────────
+
+
+def test_author_edits_own_post():
+    assert can_edit_post("u1", "u1") is True
+
+
+def test_path_owner_cannot_edit_others_post():
+    # The owner moderates by delete, never by rewrite (OQ-89)
+    assert can_edit_post("u1", "owner") is False
+
+
+def test_other_reader_cannot_edit():
+    assert can_edit_post("u1", "u2") is False

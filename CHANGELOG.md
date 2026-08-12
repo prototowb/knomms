@@ -4,6 +4,30 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.17.0] — 2026-08-12
+
+Polish wave (KC-111–115) — the highest-leverage "part 2" slice of four shipped features, implemented **in parallel by four agents** in isolated worktrees and integrated with zero manual conflicts (design in `docs/20-polish-wave.md`, OQ-88–91).
+
+### Features
+
+#### Instructor prerequisite editing (graph part 2 slice)
+- The owner concept PATCH accepts `prerequisites`; pure `validate_edge_update` **rejects** (not silently repairs — a human edit deserves an error) self-edges, non-siblings, duplicates, over-cap lists, and any edit that would close a cycle against the path's other edges
+- Learn page: owner-only Edit-prerequisites panel per concept (none/required/recommended per sibling); edited edges drive the mastery gates immediately
+
+#### Discussion post editing (cohort part 3 slice)
+- `PATCH .../posts/{id}` — **author-only 403**: the path owner moderates by deleting, never by rewriting someone's words; `edited_at` (Migration 021) keeps the cohort honest with an "(edited)" marker
+
+#### Study-KB rebuild (v0.9.0 backlog)
+- `POST /v1/harnesses/{id}/study-kb` accepts `{"rebuild": true}`: wipes the study docs + Sources (nothing-to-study 422 checked *first*, so an emptied harness can't destroy its corpus) and re-projects everything fresh; compose-page Rebuild button with confirm; refresh idempotence preserved
+
+#### Team-workspaces audit (V2 #4)
+- `docs/21-team-workspaces-audit.md`: verdict — **~80% delivered** by v0.6.0/v0.7.0; the one blocking gap is editor-authored learning paths on granted KBs (gated on a path-owner-bundle decision); boards are excluded by thrice-reaffirmed design, with one accept-then-ignore `visibility="team"` inconsistency flagged; a stale write-guard docstring fixed in this release
+
+### Test Coverage
+- 256 backend tests (pytest, 16 new) · 0 TypeScript errors (vue-tsc) · migration head 021 · 20-check live script (`scripts/verify-v0170.py`) all green
+
+---
+
 ## [0.16.0] — 2026-08-12
 
 Prerequisite graph, part 1 (KC-107–110) — V2 roadmap #6 (design in `docs/19-prerequisite-graph.md`, OQ-82–87; spec §3.4/§4.4). Learning paths gain agent-inferred prerequisite **edges** (with strength + rationale), and the v0.11.0 mastery gates become **graph-aware**: a concept is locked by its actual dependencies, not by reading order — unrelated branches stay open from the start.

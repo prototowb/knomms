@@ -306,6 +306,7 @@ class LearningService:
         *,
         concept_status: str | None = None,
         instructor_annotation: str | None = None,
+        prerequisites: list | None = None,
     ) -> PathConcept:
         path = await self.get_path(path_id, user)
         if path is None:
@@ -326,6 +327,26 @@ class LearningService:
             concept.status = concept_status
         if instructor_annotation is not None:
             concept.instructor_annotation = instructor_annotation
+        if prerequisites is not None:
+            from app.domains.learning.gates import validate_edge_update
+
+            existing_prereqs_by_id = {
+                c.id: (c.prerequisites or [])
+                for c in path.concepts
+                if c.status != "pruned"
+            }
+            error = validate_edge_update(existing_prereqs_by_id, concept_id, prerequisites)
+            if error is not None:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+            # New list object — JSONB columns need reassignment to be flushed
+            concept.prerequisites = [
+                {
+                    "concept_id": p["concept_id"],
+                    "strength": p["strength"],
+                    "rationale": p.get("rationale") or "",
+                }
+                for p in prerequisites
+            ]
 
         await self.db.commit()
         await self.db.refresh(concept)

@@ -81,6 +81,13 @@ class SubmitEvalRequest(BaseModel):
     provider: str = "ollama"  # 'ollama' | 'anthropic' — validated in the service
 
 
+class StudyKBProjectRequest(BaseModel):
+    """Optional body for POST /study-kb (KC-113). Omitting the body entirely
+    is the pre-existing contract and means a plain create-or-refresh."""
+
+    rebuild: bool = False
+
+
 class StudyKBProjectOut(BaseModel):
     kb_id: str
     projected: int

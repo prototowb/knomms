@@ -31,6 +31,7 @@ interface Post {
   body: string
   author: Author | null
   created_at: string
+  edited_at: string | null
 }
 
 interface Thread extends ThreadSummary {
@@ -64,6 +65,10 @@ const replyBody = ref('')
 const replying = ref(false)
 const deleting = ref<Record<string, boolean>>({})
 
+const editingPostId = ref<string | null>(null)
+const editBody = ref('')
+const savingEdit = ref(false)
+
 async function loadThreads() {
   try {
     threads.value = await $fetch<ThreadSummary[]>(
@@ -95,6 +100,7 @@ async function openThreadView(threadId: string) {
 function closeThreadView() {
   openThread.value = null
   replyBody.value = ''
+  cancelEdit()
   loadThreads()
 }
 
@@ -152,6 +158,45 @@ async function submitReply() {
 
 function canDelete(post: Post): boolean {
   return props.isPathOwner || post.author?.id === auth.user?.id
+}
+
+// Author-only — the path owner moderates by delete, never by rewrite (OQ-89)
+function canEdit(post: Post): boolean {
+  return post.author?.id === auth.user?.id
+}
+
+function startEdit(post: Post) {
+  editingPostId.value = post.id
+  editBody.value = post.body
+}
+
+function cancelEdit() {
+  editingPostId.value = null
+  editBody.value = ''
+}
+
+async function saveEdit(post: Post) {
+  if (!editBody.value.trim() || savingEdit.value || !openThread.value) return
+  savingEdit.value = true
+  try {
+    // Cast to plain string — Nuxt's typed $fetch doesn't infer PATCH for
+    // this dynamic route and rejects the method otherwise.
+    const updated = await $fetch<Post>(
+      `/api/learning-paths/${props.pathId}/threads/${openThread.value.id}/posts/${post.id}` as string,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: { body: editBody.value },
+      }
+    )
+    post.body = updated.body
+    post.edited_at = updated.edited_at
+    cancelEdit()
+  } catch {
+    // keep the draft; the user can retry
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 async function deletePost(post: Post) {
@@ -268,18 +313,51 @@ watch(
           <div class="flex items-center justify-between">
             <p class="text-xs text-text-muted">
               {{ post.author ? `@${post.author.handle}` : '—' }} · {{ fmtDate(post.created_at) }}
+              <span v-if="post.edited_at" class="text-text-muted/70">(edited)</span>
             </p>
-            <button
-              v-if="canDelete(post)"
-              :disabled="deleting[post.id]"
-              class="text-xs text-text-muted hover:text-warning disabled:opacity-50"
-              title="Delete post"
-              @click="deletePost(post)"
-            >
-              Delete
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                v-if="canEdit(post) && editingPostId !== post.id"
+                class="text-xs text-text-muted hover:text-accent"
+                title="Edit post"
+                @click="startEdit(post)"
+              >
+                Edit
+              </button>
+              <button
+                v-if="canDelete(post)"
+                :disabled="deleting[post.id]"
+                class="text-xs text-text-muted hover:text-warning disabled:opacity-50"
+                title="Delete post"
+                @click="deletePost(post)"
+              >
+                Delete
+              </button>
+            </div>
           </div>
-          <p class="text-sm text-text-primary leading-6 mt-1 whitespace-pre-wrap">{{ post.body }}</p>
+          <div v-if="editingPostId === post.id" class="mt-1 space-y-2">
+            <textarea
+              v-model="editBody"
+              rows="3"
+              class="w-full border border-border rounded-lg px-3 py-2 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent resize-none"
+            />
+            <div class="flex justify-end gap-2">
+              <button
+                class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-surface-secondary transition-colors"
+                @click="cancelEdit"
+              >
+                Cancel
+              </button>
+              <button
+                :disabled="!editBody.trim() || savingEdit"
+                class="text-xs px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+                @click="saveEdit(post)"
+              >
+                {{ savingEdit ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </div>
+          <p v-else class="text-sm text-text-primary leading-6 mt-1 whitespace-pre-wrap">{{ post.body }}</p>
         </div>
       </div>
       <p v-else class="text-xs text-text-muted mb-3">No replies yet.</p>

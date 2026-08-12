@@ -122,6 +122,7 @@ class CreateLearningPathRequest(BaseModel):
 class UpdateConceptRequest(BaseModel):
     status: str | None = None
     instructor_annotation: str | None = None
+    prerequisites: list[dict] | None = None
 
 
 class UpdatePathRequest(BaseModel):
@@ -169,6 +170,7 @@ class PostOut(BaseModel):
     body: str
     author: PathOwnerOut | None = None
     created_at: datetime
+    edited_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -198,6 +200,10 @@ class CreateThreadRequest(BaseModel):
 
 
 class CreatePostRequest(BaseModel):
+    body: str
+
+
+class UpdatePostRequest(BaseModel):
     body: str
 
 

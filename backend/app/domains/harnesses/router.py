@@ -20,6 +20,7 @@ from app.schemas.harness import (
     HarnessOut,
     HarnessSummary,
     StudyKBProjectOut,
+    StudyKBProjectRequest,
     StudyKBStatusOut,
     SubmitEvalRequest,
     SwapAssetVersionRequest,
@@ -230,11 +231,12 @@ async def get_eval_run(
 )
 async def project_study_kb(
     harness_id: str,
+    body: StudyKBProjectRequest | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StudyKBProjectOut:
     svc = HarnessStudyService(db)
-    result = await svc.project(harness_id, user)
+    result = await svc.project(harness_id, user, rebuild=bool(body and body.rebuild))
     return StudyKBProjectOut(**result)
 
 
