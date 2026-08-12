@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.15.0 — Portable KB bundles (complete, released)"
+current_sprint: "v0.16.0 — Prerequisite graph, part 1"
 last_release: "v0.15.0 (2026-08-12)"
 ticket_prefix: "KC"
-next_ticket: "KC-107"
+next_ticket: "KC-111"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-107"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.16.0: Prerequisite graph, part 1 (KC-107–110)
+
+*Design in `docs/19-prerequisite-graph.md` (OQ-82–87) — V2 roadmap #6, spec §3.4/§4.4. One LLM pass infers `{from, to, strength, rationale}` edges per path (O(n²) pairwise deferred to GPU); pure `sanitize_edges` guarantees a DAG by construction (cycle-closing edges dropped); mastery gates become graph-aware (required-prereq locking, independent branches open, sequence fallback for edge-less paths = pre-020 behaviour); Requires/Recommended chips with jump + rationale tooltip. Inference is fail-open — never the reason a curriculum fails.*
+
+### Sprint order (implement in sequence)
+
+- **KC-107** backend: Migration 020 (`path_concepts.prerequisites` JSONB) + `infer_prerequisites` agent pass (one call, fail-open) + pure `sanitize_edges` + curriculum-worker stamping + `PathConceptOut.prerequisites`; unit tests
+- **KC-108** backend: graph-aware `compute_gates` (OQ-85 — required-only locking, pruned prereqs ignored, recommended never locks, zero-edge sequence fallback); unit tests
+- **KC-109** frontend: Requires/Recommended chips (click-to-jump, rationale tooltip) + graph-aware `unlockHint`; vue-tsc clean
+- **KC-110** verification + release — doc §7 live checks (edges on a regenerated multi-source path, independent branch unlocked under hard gates, prereq mastery unlocks dependents, edge-less path regression); changelog; release v0.16.0
 
 ## ✅ v0.15.0: Portable KB bundles — federation, part 1 (KC-103–106) — released 2026-08-12
 
