@@ -5,6 +5,8 @@ LearningService's readable-path helpers, exactly as notes/progress do. Threads
 list newest-first; posts within a thread oldest-first (OQ-42).
 """
 
+from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +36,12 @@ def resolve_passage_anchor(passage_chunk_id: str | None, source_passages: list) 
 def can_delete_post(post_author_id: str, requester_id: str, path_owner_id: str) -> bool:
     """Post author may delete their own post; the path owner moderates (OQ-41)."""
     return requester_id == post_author_id or requester_id == path_owner_id
+
+
+def can_edit_post(post_author_id: str, requester_id: str) -> bool:
+    """Only the author may edit a post (docs/20, OQ-89) — the path owner
+    moderates by *deleting*, never by rewriting someone's words."""
+    return requester_id == post_author_id
 
 
 class DiscussionService:
@@ -123,6 +131,32 @@ class DiscussionService:
 
         post = DiscussionPost(thread_id=thread_id, user_id=user.id, body=body)
         self.db.add(post)
+        await self.db.commit()
+        stmt = (
+            select(DiscussionPost)
+            .where(DiscussionPost.id == post.id)
+            .options(selectinload(DiscussionPost.author))
+        )
+        return (await self.db.execute(stmt)).scalar_one()
+
+    async def update_post(
+        self, path_id: str, thread_id: str, post_id: str, user: User, body: str
+    ) -> DiscussionPost:
+        """Edit your own post (docs/20, OQ-89). Resolving via get_thread
+        inherits the readable-path 404 *and* the hard-mode gate (OQ-48) —
+        deliberate, consistent with create_post."""
+        if not body.strip():
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="body must not be empty")
+        await self.get_thread(path_id, thread_id, user)
+
+        post = await self.db.get(DiscussionPost, post_id)
+        if post is None or post.thread_id != thread_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Post not found")
+        if not can_edit_post(post.user_id, user.id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the author can edit a post")
+
+        post.body = body
+        post.edited_at = datetime.now(timezone.utc)
         await self.db.commit()
         stmt = (
             select(DiscussionPost)
