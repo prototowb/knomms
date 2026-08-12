@@ -87,13 +87,17 @@ def compute_gates(
     """Gate state per concept for one learner.
 
     `concepts` is the path's non-pruned sequence in position order, each
-    `{"id": str, "item_ids": list[str]}`. Returns
-    `{concept_id: {mastered, locked, correct_items, item_count}}`; the first
-    concept is never locked, and each later concept is locked while any
-    earlier one is unmastered.
+    `{"id": str, "item_ids": list[str], "prerequisites": list[dict]}`.
+    Returns `{concept_id: {mastered, locked, correct_items, item_count}}`.
+
+    Graph mode (docs/19, OQ-85): when the path has any prerequisite edges, a
+    concept is locked iff any of its **required**, non-pruned prerequisites
+    is unmastered — concepts without required prerequisites are never
+    locked, and `recommended` edges never lock. Paths with no edges keep
+    the v0.11.0 sequence rule (each concept locked while any earlier one
+    is unmastered; the first is never locked).
     """
     result: dict[str, dict] = {}
-    blocked = False
     for concept in concepts:
         item_ids = concept["item_ids"]
         mastered, correct = is_mastered(
@@ -101,9 +105,25 @@ def compute_gates(
         )
         result[concept["id"]] = {
             "mastered": mastered,
-            "locked": blocked,
+            "locked": False,
             "correct_items": correct,
             "item_count": len(item_ids),
         }
-        blocked = blocked or not mastered
+
+    if any(concept.get("prerequisites") for concept in concepts):
+        for concept in concepts:
+            required = [
+                p.get("concept_id")
+                for p in (concept.get("prerequisites") or [])
+                if p.get("strength") == "required"
+            ]
+            # Prereqs absent from result are pruned — they neither gate nor lock
+            result[concept["id"]]["locked"] = any(
+                pid in result and not result[pid]["mastered"] for pid in required
+            )
+    else:
+        blocked = False
+        for concept in concepts:
+            result[concept["id"]]["locked"] = blocked
+            blocked = blocked or not result[concept["id"]]["mastered"]
     return result

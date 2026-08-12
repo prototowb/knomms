@@ -204,7 +204,14 @@ class LearningService:
         )
         learned = await self.learned_concept_ids(user, [c.id for c in active])
         return compute_gates(
-            [{"id": c.id, "item_ids": [i.id for i in c.assessment_items]} for c in active],
+            [
+                {
+                    "id": c.id,
+                    "item_ids": [i.id for i in c.assessment_items],
+                    "prerequisites": c.prerequisites or [],
+                }
+                for c in active
+            ],
             correct_ids,
             learned,
             path.mastery_threshold,

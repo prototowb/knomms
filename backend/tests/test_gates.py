@@ -86,6 +86,71 @@ def test_counts_reported_per_concept():
     assert gates["c1"]["item_count"] == 3
 
 
+# ── graph mode (docs/19, OQ-85) ───────────────────────────────────────────────
+
+
+def _gconcept(cid: str, item_ids: list[str], prereqs: list[dict] | None = None) -> dict:
+    return {"id": cid, "item_ids": item_ids, "prerequisites": prereqs or []}
+
+
+def test_graph_mode_independent_branch_never_locked():
+    # c3 has no prerequisites — open even though c1 (earlier) is unmastered
+    concepts = [
+        _gconcept("c1", ["i1"]),
+        _gconcept("c2", ["i2"], [{"concept_id": "c1", "strength": "required", "rationale": ""}]),
+        _gconcept("c3", ["i3"]),
+    ]
+    gates = compute_gates(concepts, set(), set(), 1.0)
+    assert gates["c2"]["locked"] is True   # required prereq unmastered
+    assert gates["c3"]["locked"] is False  # independent branch open
+    assert gates["c1"]["locked"] is False
+
+
+def test_graph_mode_unlocks_when_required_prereq_mastered():
+    concepts = [
+        _gconcept("c1", ["i1"]),
+        _gconcept("c2", ["i2"], [{"concept_id": "c1", "strength": "required", "rationale": ""}]),
+    ]
+    gates = compute_gates(concepts, {"i1"}, set(), 1.0)
+    assert gates["c2"]["locked"] is False
+
+
+def test_graph_mode_recommended_never_locks():
+    concepts = [
+        _gconcept("c1", ["i1"]),
+        _gconcept("c2", ["i2"], [{"concept_id": "c1", "strength": "recommended", "rationale": ""}]),
+    ]
+    gates = compute_gates(concepts, set(), set(), 1.0)
+    assert gates["c2"]["locked"] is False
+
+
+def test_graph_mode_pruned_prereq_ignored():
+    # cX is pruned (absent from the non-pruned sequence) — it cannot lock c2
+    concepts = [
+        _gconcept("c1", ["i1"]),
+        _gconcept("c2", ["i2"], [{"concept_id": "cX", "strength": "required", "rationale": ""}]),
+    ]
+    gates = compute_gates(concepts, set(), set(), 1.0)
+    assert gates["c2"]["locked"] is False
+
+
+def test_graph_mode_forward_edge_locks_earlier_concept():
+    # Dependency can point against reading order: c1 requires c2
+    concepts = [
+        _gconcept("c1", ["i1"], [{"concept_id": "c2", "strength": "required", "rationale": ""}]),
+        _gconcept("c2", ["i2"]),
+    ]
+    gates = compute_gates(concepts, set(), set(), 1.0)
+    assert gates["c1"]["locked"] is True
+    assert gates["c2"]["locked"] is False
+
+
+def test_zero_edges_keeps_sequence_rule():
+    concepts = [_gconcept("c1", ["i1"]), _gconcept("c2", ["i2"])]
+    gates = compute_gates(concepts, set(), set(), 1.0)
+    assert gates["c2"]["locked"] is True  # v0.11.0 behaviour preserved
+
+
 # ── _apply_gates payload shaping ──────────────────────────────────────────────
 
 
