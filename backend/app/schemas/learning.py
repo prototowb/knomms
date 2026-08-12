@@ -50,6 +50,8 @@ class PathConceptOut(BaseModel):
     # requester owns the path; locked concepts are redacted in hard mode
     locked: bool = False
     gate: ConceptGateOut | None = None
+    # Prerequisite edges (docs/19) — [{concept_id, strength, rationale}]
+    prerequisites: list[dict] = []
 
     model_config = {"from_attributes": True}
 

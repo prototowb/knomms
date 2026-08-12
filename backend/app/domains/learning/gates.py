@@ -9,6 +9,61 @@ never see owner requests.
 """
 
 
+STRENGTHS = ("required", "recommended")
+MAX_PREREQS_PER_CONCEPT = 3
+
+
+def sanitize_edges(concept_count: int, raw_edges: list) -> dict[int, list[dict]]:
+    """Model-proposed edges → a DAG by construction (docs/19, OQ-84). Pure.
+
+    Drops self-edges, out-of-range indexes, over-cap prerequisites, and any
+    edge that would close a cycle (edges are considered in model order, so
+    the drop is deterministic). Duplicates keep the strongest strength.
+    Returns {dependent_index: [{prereq_index, strength, rationale}]}.
+    """
+    fwd: dict[int, set[int]] = {}  # prereq → dependents (edge direction)
+    result: dict[int, list[dict]] = {}
+
+    def _reachable(start: int, target: int) -> bool:
+        stack, visited = [start], set()
+        while stack:
+            node = stack.pop()
+            if node == target:
+                return True
+            if node in visited:
+                continue
+            visited.add(node)
+            stack.extend(fwd.get(node, ()))
+        return False
+
+    for edge in raw_edges or []:
+        if not isinstance(edge, dict):
+            continue
+        frm, to = edge.get("from"), edge.get("to")
+        if not isinstance(frm, int) or not isinstance(to, int) or isinstance(frm, bool) or isinstance(to, bool):
+            continue
+        if frm == to or not (0 <= frm < concept_count) or not (0 <= to < concept_count):
+            continue
+        strength = edge.get("strength") if edge.get("strength") in STRENGTHS else "recommended"
+        rationale = str(edge.get("rationale") or "")[:300]
+
+        existing = next((p for p in result.get(to, []) if p["prereq_index"] == frm), None)
+        if existing is not None:
+            if existing["strength"] == "recommended" and strength == "required":
+                existing["strength"] = strength  # duplicate: keep the strongest
+            continue
+        if len(result.get(to, [])) >= MAX_PREREQS_PER_CONCEPT:
+            continue
+        if _reachable(to, frm):  # a path to→…→frm exists; frm→to would close a cycle
+            continue
+
+        fwd.setdefault(frm, set()).add(to)
+        result.setdefault(to, []).append(
+            {"prereq_index": frm, "strength": strength, "rationale": rationale}
+        )
+    return result
+
+
 def is_mastered(
     item_ids: list[str],
     correct_item_ids: set[str],
