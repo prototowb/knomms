@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-08-09  
-**State:** v0.14.0 released — synthesis persistence & board projection; everything KC-032–102 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** PR #16 (v0.13.0) status unknown at handoff — if still open, v0.14.0 rides the same PR (same head branch); tags v0.10.0–v0.14.0 pushed  
-**Tests:** 217/217 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort + v0.11.0 gates + v0.12.0 video + v0.13.0 synthesis + v0.14.0 persistence (`scripts/verify-v0140.py`) green on Colima. Migration head: **019**.  
+**Session date:** 2026-08-12  
+**State:** v0.15.0 released — portable KB bundles (federation part 1); everything KC-032–106 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** PR #16 (v0.13.0+v0.14.0) merged 2026-08-12; v0.15.0 rides the next `development` → `main` PR; tags v0.10.0–v0.15.0 pushed  
+**Tests:** 225/225 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort + v0.11.0 gates + v0.12.0 video + v0.13.0 synthesis + v0.14.0 persistence + v0.15.0 bundles (`scripts/verify-v0150.py`) green on Colima. Migration head: **019** (v0.15.0 is schema-free).  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.15.0 (2026-08-12):** portable KB bundles (`docs/18-kb-bundles.md`, OQ-75–81) — offline federation: a file is the API. Export is **owner-only 404** (bulk disclosure ≠ read access; a team reader can query but not bulk-download). Bundles carry chunks + embeddings + `embedding_model_id`; instance ids are mapped to bundle indexes and must never leak. Import treats bundles as **attacker-controlled JSON**: `validate_bundle` bounds every axis (500 sources / 50k chunks / 20k chars / 768-dim vectors) before anything touches the DB, fresh ids everywhere, private KB. Embeddings kept only on model match; else one `import.jobs` message (new stream in `_STREAMS`) re-embeds the namespace batch-wise and flips sources + KB to ready. Unknown source types degrade to `plain_text` (forward compatibility). Bundle format v1 is the future federation wire format — version-gate any change.
 
 **v0.14.0 (2026-08-09):** synthesis persistence & board projection (`docs/17-synthesis-persistence.md`, OQ-69–74). Saved syntheses are **author-owned** (list/delete 404 for everyone else — the concept-note contract); the save endpoint accepts the client-streamed answer (server-side re-verification would double a 2-minute CPU generation for no trust gain). Board projection composes a self-contained markdown doc → `Source(type="synthesis")` in the board's dedicated KB, **MinIO dual-write**, `synthesis_source_projections` UNIQUE(synthesis, kb) → IntegrityError → reuse (the KC-046 idiom exactly). **The curation enqueue-before-commit race is now fixed in all three legacy board-add paths** (OQ-73) — capture scalars → commit → XADD; and board-added YouTube URLs are typed `video` (they bypassed KC-093's typing and would have extracted watch-page HTML). Gotchas: quoted forward references in FastAPI return annotations (`-> list["SynthesisOut"]`) pass import and pytest but 500 at call time (pydantic TypeAdapter can't resolve them) — always import the schema and annotate unquoted; Nuxt typed `$fetch` needed `as string` casts on the new dynamic POST routes (known idiom).
 

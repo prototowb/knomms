@@ -75,6 +75,35 @@ async function createKB() {
   }
 }
 
+// ── Import bundle (KC-105, docs/18) ─────────────────────────────────────────
+
+const importing = ref(false)
+const importInput = ref<HTMLInputElement | null>(null)
+
+async function handleImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || importing.value) return
+  importing.value = true
+  error.value = null
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await $fetch<{ kb_id: string }>('/api/kbs/import' as string, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: form,
+    })
+    await navigateTo(`/kb/${res.kb_id}`)
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    error.value = typeof detail === 'string' ? detail : 'Import failed — is this a knomms KB bundle?'
+  } finally {
+    importing.value = false
+    input.value = ''
+  }
+}
+
 const statusLabel: Record<string, { text: string; cls: string }> = {
   building: { text: 'Building', cls: 'text-warning bg-warning/10' },
   ready: { text: 'Ready', cls: 'text-grounded bg-grounded/10' },
@@ -97,12 +126,29 @@ onMounted(() => {
         </h1>
         <p class="text-sm text-text-muted mt-0.5">Your knowledge bases</p>
       </div>
-      <button
-        class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
-        @click="showCreateForm = !showCreateForm"
-      >
-        + New KB
-      </button>
+      <div class="flex items-center gap-2">
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json,application/json"
+          class="hidden"
+          @change="handleImportFile"
+        />
+        <button
+          :disabled="importing"
+          class="px-3 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-surface-secondary disabled:opacity-50 transition-colors"
+          title="Import a .knomms.json KB bundle"
+          @click="importInput?.click()"
+        >
+          {{ importing ? 'Importing…' : 'Import bundle' }}
+        </button>
+        <button
+          class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+          @click="showCreateForm = !showCreateForm"
+        >
+          + New KB
+        </button>
+      </div>
     </header>
 
     <!-- Create KB form -->

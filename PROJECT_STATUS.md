@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.14.0 — Synthesis persistence (complete, released)"
-last_release: "v0.14.0 (2026-08-09)"
+current_sprint: "v0.15.0 — Portable KB bundles (complete, released)"
+last_release: "v0.15.0 (2026-08-12)"
 ticket_prefix: "KC"
-next_ticket: "KC-103"
+next_ticket: "KC-107"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-103"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## ✅ v0.15.0: Portable KB bundles — federation, part 1 (KC-103–106) — released 2026-08-12
+
+*Design in `docs/18-kb-bundles.md` (OQ-75–81) — offline federation: export a KB as a self-contained JSON bundle (chunks + embeddings + model id, instance ids mapped to indexes), import on any instance (fresh ids, private, 422-bounded untrusted input; embeddings kept on model match else re-embedded via a new `import.jobs` worker stream). Owner-only export (bulk disclosure ≠ read access). Doubles as backup/restore; the format becomes the wire format when live federation arrives.*
+
+### Sprint order (implement in sequence)
+
+- ~~**KC-103**~~ ✅ backend: export — pure `build_kb_bundle` (ids → indexes, embeddings + model id included) + owner-only `GET /v1/kbs/{kb_id}/export` attachment; 8 bundle tests — 225 total (2026-08-12)
+- ~~**KC-104**~~ ✅ backend: import — pure `validate_bundle`/`plan_import` (OQ-79 caps, dim check, type degradation, hash backfill) + `POST /v1/kbs/import` (multipart, fresh ids, private, commit-before-enqueue) + `import.jobs` re-embed worker registered in `_STREAMS` (2026-08-12)
+- ~~**KC-105**~~ ✅ frontend: owner Export chip on the KB workspace (blob download honouring the attachment filename) + Import-bundle button on the dashboard (navigates to the new KB); streaming/multipart BFF proxies; vue-tsc clean (2026-08-12)
+- ~~**KC-106**~~ ✅ verification + release — 20-check live script (`scripts/verify-v0150.py`) all green first run: owner-only export (tester 404), no instance-id leakage, round-trip with instant embeddings + preserved `ts:` locators + semantic search, all four tamper 422s, stripped-embeddings import re-embedded by the worker; release v0.15.0 (2026-08-12)
 
 ## ✅ v0.14.0: Synthesis persistence & board projection (KC-099–102) — released 2026-08-09
 
@@ -325,6 +336,8 @@ next_ticket: "KC-103"
 ---
 
 ## Recent Updates
+
+- 2026-08-12: v0.15.0 released — portable KB bundles, federation part 1 (owner-only export of self-contained JSON bundles with embeddings; bounded-validation import with fresh ids, model-match instant embedding or `import.jobs` re-embed; Export/Import UI); doubles as backup/restore; 20-check live verification (`scripts/verify-v0150.py`); 225 backend tests; no migration (head 019)
 
 - 2026-08-09: v0.14.0 released — synthesis persistence & board projection (Migration 019: author-owned saved syntheses with snapshotted citations; board projection as embedded `synthesis` Sources with MinIO dual-write + idempotent re-add; Save/Saved UI on the Compare tab); fixed the curation enqueue-before-commit race in all three board-add paths and board-added YouTube URL typing; 17-check live verification (`scripts/verify-v0140.py`); 217 backend tests
 
