@@ -532,14 +532,18 @@ function stopStudyPoll() {
   }
 }
 
-async function projectStudyKb() {
+async function projectStudyKb(rebuild = false) {
   if (studyProjecting.value) return
   studyProjecting.value = true
   studyError.value = null
   try {
     const res = await $fetch<{ kb_id: string; projected: number; skipped: number }>(
       `/api/harnesses/${harnessId}/study-kb`,
-      { method: 'POST', headers: { Authorization: `Bearer ${auth.token}` } }
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.token}` },
+        ...(rebuild ? { body: { rebuild: true } } : {}),
+      }
     )
     studyKbId.value = res.kb_id
     await loadStudyStatus()
@@ -548,10 +552,16 @@ async function projectStudyKb() {
     const msg = err instanceof Error ? err.message : ''
     studyError.value = msg.includes('Nothing to study')
       ? 'Nothing to study yet — add asset slots or complete an eval run first.'
-      : 'Could not create the study KB.'
+      : rebuild ? 'Could not rebuild the study KB.' : 'Could not create the study KB.'
   } finally {
     studyProjecting.value = false
   }
+}
+
+function rebuildStudyKb() {
+  // KC-113: destructive — drops all study docs and re-projects from scratch
+  if (!confirm('Rebuild the study KB from scratch? Existing study documents will be re-projected.')) return
+  projectStudyKb(true)
 }
 
 onUnmounted(stopStudyPoll)
@@ -1073,9 +1083,17 @@ onMounted(loadPage)
                   <button
                     :disabled="studyProjecting"
                     class="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
-                    @click="projectStudyKb"
+                    @click="projectStudyKb()"
                   >
                     {{ studyProjecting ? 'Projecting…' : studyKbId ? 'Refresh study KB' : 'Create study KB' }}
+                  </button>
+                  <button
+                    v-if="studyKbId"
+                    :disabled="studyProjecting"
+                    class="px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-surface-secondary transition-colors disabled:opacity-50"
+                    @click="rebuildStudyKb"
+                  >
+                    Rebuild
                   </button>
                   <NuxtLink
                     v-if="studyKbId && studyDocs.length > 0"

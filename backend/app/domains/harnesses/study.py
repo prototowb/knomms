@@ -8,7 +8,7 @@ source (KC-074), so each facet becomes its own concept in a generated path.
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,12 +49,17 @@ class HarnessStudyService:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Harness not found")
         return harness
 
-    async def project(self, harness_id: str, user: User) -> dict:
+    async def project(self, harness_id: str, user: User, rebuild: bool = False) -> dict:
         """Create-or-refresh the harness's study KB (docs/12, OQ-33).
 
         Ensures the KB exists, projects any facet docs not yet present,
         re-enqueues docs whose previous ingestion failed, and returns
         {kb_id, projected, skipped}.
+
+        With rebuild=True (KC-113) all existing study docs and their Sources
+        are dropped first, so the normal flow below re-projects every facet
+        from scratch with fresh Sources. Rebuilding when no study KB exists
+        yet is just a normal create.
         """
         harness = await self._get_owned_harness(harness_id, user)
         harness_title = harness.title
@@ -142,6 +147,29 @@ class HarnessStudyService:
                     metrics=run.metrics,
                 ),
             )
+
+        # Rebuild from scratch (KC-113): drop every existing study doc and its
+        # Source BEFORE the create-or-refresh planning below, which then sees
+        # an empty doc set and re-projects everything with fresh Source ids.
+        # Runs after the 422 guard so an emptied harness can't wipe its corpus.
+        # Doc rows go first — HarnessStudyDoc.source_id has no ON DELETE, so
+        # Sources can only be removed once nothing references them (the KC-077
+        # FK-ordering lesson, in reverse). Chunks cascade at the DB level.
+        if rebuild and harness.study_kb_id:
+            stale_source_ids = (
+                await self.db.execute(
+                    select(HarnessStudyDoc.source_id).where(
+                        HarnessStudyDoc.kb_id == harness.study_kb_id
+                    )
+                )
+            ).scalars().all()
+            if stale_source_ids:
+                await self.db.execute(
+                    delete(HarnessStudyDoc).where(HarnessStudyDoc.kb_id == harness.study_kb_id)
+                )
+                await self.db.flush()
+                await self.db.execute(delete(Source).where(Source.id.in_(stale_source_ids)))
+                await self.db.flush()
 
         # Resolve-or-create the study KB. Always private (OQ-34): slots may
         # reference versions shared with the owner via grants — mirroring a
