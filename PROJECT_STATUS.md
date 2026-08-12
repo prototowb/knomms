@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.14.0 — Synthesis persistence (complete, released)"
+current_sprint: "v0.15.0 — Portable KB bundles (federation, part 1)"
 last_release: "v0.14.0 (2026-08-09)"
 ticket_prefix: "KC"
-next_ticket: "KC-103"
+next_ticket: "KC-107"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-103"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.15.0: Portable KB bundles — federation, part 1 (KC-103–106)
+
+*Design in `docs/18-kb-bundles.md` (OQ-75–81) — offline federation: export a KB as a self-contained JSON bundle (chunks + embeddings + model id, instance ids mapped to indexes), import on any instance (fresh ids, private, 422-bounded untrusted input; embeddings kept on model match else re-embedded via a new `import.jobs` worker stream). Owner-only export (bulk disclosure ≠ read access). Doubles as backup/restore; the format becomes the wire format when live federation arrives.*
+
+### Sprint order (implement in sequence)
+
+- **KC-103** backend: export — pure `build_kb_bundle` + owner-only `GET /v1/kbs/{kb_id}/export` (attachment download); unit tests
+- **KC-104** backend: import — pure `validate_bundle`/`plan_import` (OQ-79 caps, dim check, type degradation) + `POST /v1/kbs/import` (multipart, commit-before-enqueue) + `import.jobs` re-embed worker; unit tests
+- **KC-105** frontend: owner Export action on the KB workspace + Import-bundle input on the dashboard; BFF handlers; vue-tsc clean
+- **KC-106** verification + release — doc §7 live checks (round-trip incl. instant embed + preserved ts: locators + semantic search, tamper 422s, stripped-embeddings re-embed path, tester export 404); changelog; release v0.15.0
 
 ## ✅ v0.14.0: Synthesis persistence & board projection (KC-099–102) — released 2026-08-09
 
