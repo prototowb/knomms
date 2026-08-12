@@ -34,8 +34,8 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.16.0 — Prerequisite graph, part 1"
-last_release: "v0.15.0 (2026-08-12)"
+current_sprint: "v0.16.0 — Prerequisite graph (complete, released)"
+last_release: "v0.16.0 (2026-08-12)"
 ticket_prefix: "KC"
 next_ticket: "KC-111"
 ```
@@ -53,16 +53,16 @@ next_ticket: "KC-111"
 
 ---
 
-## 🔄 v0.16.0: Prerequisite graph, part 1 (KC-107–110)
+## ✅ v0.16.0: Prerequisite graph, part 1 (KC-107–110) — released 2026-08-12
 
 *Design in `docs/19-prerequisite-graph.md` (OQ-82–87) — V2 roadmap #6, spec §3.4/§4.4. One LLM pass infers `{from, to, strength, rationale}` edges per path (O(n²) pairwise deferred to GPU); pure `sanitize_edges` guarantees a DAG by construction (cycle-closing edges dropped); mastery gates become graph-aware (required-prereq locking, independent branches open, sequence fallback for edge-less paths = pre-020 behaviour); Requires/Recommended chips with jump + rationale tooltip. Inference is fail-open — never the reason a curriculum fails.*
 
 ### Sprint order (implement in sequence)
 
-- **KC-107** backend: Migration 020 (`path_concepts.prerequisites` JSONB) + `infer_prerequisites` agent pass (one call, fail-open) + pure `sanitize_edges` + curriculum-worker stamping + `PathConceptOut.prerequisites`; unit tests
-- **KC-108** backend: graph-aware `compute_gates` (OQ-85 — required-only locking, pruned prereqs ignored, recommended never locks, zero-edge sequence fallback); unit tests
-- **KC-109** frontend: Requires/Recommended chips (click-to-jump, rationale tooltip) + graph-aware `unlockHint`; vue-tsc clean
-- **KC-110** verification + release — doc §7 live checks (edges on a regenerated multi-source path, independent branch unlocked under hard gates, prereq mastery unlocks dependents, edge-less path regression); changelog; release v0.16.0
+- ~~**KC-107**~~ ✅ backend: Migration 020 (`path_concepts.prerequisites` JSONB) + `infer_prerequisites` (one call, fail-open) + pure `sanitize_edges` (DAG by construction — self/range/dup/cap filtering, deterministic cycle drops) + worker stamping + schema field; 9 tests — 234 total (2026-08-12)
+- ~~**KC-108**~~ ✅ backend: graph-aware `compute_gates` (OQ-85 — required-only locking, pruned prereqs ignored, recommended never locks, zero-edge sequence fallback keeps v0.11.0 tests green); 6 tests — 240 total (2026-08-12)
+- ~~**KC-109**~~ ✅ frontend: Requires/Recommended chips (click-to-jump, rationale tooltip) + graph-aware `unlockHint` with linear fallback; vue-tsc clean (2026-08-12)
+- ~~**KC-110**~~ ✅ verification + release — 11-check live script (`scripts/verify-v0160.py`) all green: fresh path carries the prerequisites field (inference proposed 0 edges on the 2-concept KB — fail-open working as designed), deterministic SQL-stamped graph checks (independent concepts unlocked under hard/1.0 where the sequence rule would lock them, dependent locked iff required prereq unmastered, mastering unlocks, edge-less regression gates linearly); release v0.16.0 (2026-08-12)
 
 ## ✅ v0.15.0: Portable KB bundles — federation, part 1 (KC-103–106) — released 2026-08-12
 
@@ -347,6 +347,8 @@ next_ticket: "KC-111"
 ---
 
 ## Recent Updates
+
+- 2026-08-12: v0.16.0 released — prerequisite graph part 1 (Migration 020: agent-inferred `{from,to,strength,rationale}` edges via one fail-open pass, `sanitize_edges` DAG guarantee; graph-aware mastery gates — required-prereq locking, independent branches open, sequence fallback for edge-less paths; Requires/Recommended chips with jump + rationale); 11-check live verification (`scripts/verify-v0160.py`); 240 backend tests
 
 - 2026-08-12: v0.15.0 released — portable KB bundles, federation part 1 (owner-only export of self-contained JSON bundles with embeddings; bounded-validation import with fresh ids, model-match instant embedding or `import.jobs` re-embed; Export/Import UI); doubles as backup/restore; 20-check live verification (`scripts/verify-v0150.py`); 225 backend tests; no migration (head 019)
 
