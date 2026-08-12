@@ -218,6 +218,7 @@ class DiscussionPost(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     thread: Mapped["DiscussionThread"] = relationship("DiscussionThread", back_populates="posts")
     author: Mapped["User"] = relationship("User")  # type: ignore[name-defined]  # noqa: F821
