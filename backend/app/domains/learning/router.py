@@ -252,6 +252,7 @@ async def update_concept(
         user,
         concept_status=req.status,
         instructor_annotation=req.instructor_annotation,
+        prerequisites=req.prerequisites,
     )
     return PathConceptOut.model_validate(concept)
 

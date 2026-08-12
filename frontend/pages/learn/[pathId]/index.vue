@@ -288,6 +288,61 @@ async function updateConceptStatus(concept: PathConcept, newStatus: 'accepted' |
   concept.status = newStatus
 }
 
+// ── Prerequisite editing (KC-111, docs/20 OQ-88) ────────────────────────────
+
+const editingPrereqs = ref<Record<string, boolean>>({})
+const prereqDraft = ref<Record<string, Record<string, string>>>({}) // conceptId → (siblingId → none|required|recommended)
+const prereqSaving = ref<Record<string, boolean>>({})
+const prereqError = ref<Record<string, string | null>>({})
+
+function otherConcepts(concept: PathConcept): PathConcept[] {
+  return path.value?.concepts.filter(c => c.id !== concept.id && c.status !== 'pruned') ?? []
+}
+
+function togglePrereqEditor(concept: PathConcept) {
+  const open = !editingPrereqs.value[concept.id]
+  editingPrereqs.value[concept.id] = open
+  if (!open) return
+  prereqError.value[concept.id] = null
+  const draft: Record<string, string> = {}
+  for (const c of otherConcepts(concept)) {
+    draft[c.id] = concept.prerequisites?.find(p => p.concept_id === c.id)?.strength ?? 'none'
+  }
+  prereqDraft.value[concept.id] = draft
+}
+
+async function savePrereqs(concept: PathConcept) {
+  if (prereqSaving.value[concept.id]) return
+  const draft = prereqDraft.value[concept.id] ?? {}
+  const entries = Object.entries(draft)
+    .filter(([, strength]) => strength !== 'none')
+    .map(([conceptId, strength]) => {
+      const existing = concept.prerequisites?.find(p => p.concept_id === conceptId)
+      return {
+        concept_id: conceptId,
+        strength,
+        // keep the agent's rationale when the strength is unchanged
+        rationale: existing && existing.strength === strength ? existing.rationale : '',
+      }
+    })
+  prereqSaving.value[concept.id] = true
+  prereqError.value[concept.id] = null
+  try {
+    await $fetch(`/api/learning-paths/${pathId}/concepts/${concept.id}` as string, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { prerequisites: entries },
+    })
+    concept.prerequisites = entries
+    editingPrereqs.value[concept.id] = false
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    prereqError.value[concept.id] = detail ?? 'Could not save prerequisites.'
+  } finally {
+    prereqSaving.value[concept.id] = false
+  }
+}
+
 const acceptedCount = computed(() =>
   path.value?.concepts.filter(c => c.status === 'accepted').length ?? 0
 )
@@ -749,6 +804,60 @@ onUnmounted(_clearPoll)
                     @click="updateConceptStatus(concept, 'pruned')"
                   >
                     Prune
+                  </button>
+                  <button
+                    v-if="isOwner"
+                    class="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+                    :class="editingPrereqs[concept.id]
+                      ? 'border-accent text-accent bg-accent/5'
+                      : 'border-border text-text-muted hover:bg-surface-secondary'"
+                    @click="togglePrereqEditor(concept)"
+                  >
+                    Edit prerequisites
+                  </button>
+                </div>
+              </div>
+
+              <!-- Prerequisite editor (KC-111, docs/20 OQ-88) -->
+              <div
+                v-if="isOwner && editingPrereqs[concept.id]"
+                class="rounded-xl border border-border bg-surface p-4 mb-5"
+              >
+                <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Prerequisites</p>
+                <p v-if="otherConcepts(concept).length === 0" class="text-xs text-text-muted">
+                  No other concepts in this path.
+                </p>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="c in otherConcepts(concept)"
+                    :key="c.id"
+                    class="flex items-center justify-between gap-3"
+                  >
+                    <p class="text-xs text-text-primary truncate">
+                      <span class="mr-1 text-text-muted">{{ conceptIndexById(c.id) + 1 }}.</span>
+                      {{ c.title }}
+                    </p>
+                    <select
+                      v-model="prereqDraft[concept.id][c.id]"
+                      :disabled="prereqSaving[concept.id]"
+                      class="text-xs border border-border rounded-lg px-2 py-1.5 bg-surface text-text-secondary focus:outline-none focus:border-accent disabled:opacity-50 shrink-0"
+                    >
+                      <option value="none">None</option>
+                      <option value="required">Required</option>
+                      <option value="recommended">Recommended</option>
+                    </select>
+                  </div>
+                </div>
+                <p v-if="prereqError[concept.id]" class="text-xs text-warning mt-3">
+                  {{ prereqError[concept.id] }}
+                </p>
+                <div class="flex justify-end mt-3">
+                  <button
+                    :disabled="prereqSaving[concept.id]"
+                    class="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+                    @click="savePrereqs(concept)"
+                  >
+                    {{ prereqSaving[concept.id] ? 'Saving…' : 'Save' }}
                   </button>
                 </div>
               </div>
