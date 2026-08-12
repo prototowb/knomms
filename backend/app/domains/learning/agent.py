@@ -198,6 +198,42 @@ async def generate_concept_proposal(group: list[PassageDraft]) -> ConceptProposa
     )
 
 
+_PREREQ_PROMPT = """You are analysing the concepts of a learning path to find prerequisite relationships.
+
+Concepts (numbered):
+{concepts}
+
+For each pair where understanding one concept clearly requires ideas introduced in another, output an edge. Use "required" only when the dependent concept cannot be understood without the prerequisite; use "recommended" for helpful-but-optional background. Most pairs have NO edge — output only real dependencies, at most 3 prerequisites per concept.
+
+Respond with ONLY this JSON shape:
+{{"edges": [{{"from": <prerequisite number>, "to": <dependent number>, "strength": "required", "rationale": "<one sentence>"}}]}}
+
+If there are no dependencies, respond with {{"edges": []}}."""
+
+
+async def infer_prerequisites(concepts: list[dict]) -> list[dict]:
+    """One-pass prerequisite edge inference (docs/19, OQ-83).
+
+    `concepts` are {title, excerpt} in position order. Returns raw edge dicts
+    for sanitize_edges — or [] on ANY failure (OQ-86: this pass must never
+    be the reason a curriculum fails).
+    """
+    if len(concepts) < 2:
+        return []
+    listing = "\n".join(
+        f"{i}. {c['title']} — {c['excerpt']}" for i, c in enumerate(concepts)
+    )
+    try:
+        raw = await _ollama_generate(_PREREQ_PROMPT.format(concepts=listing))
+        data = _parse_json_response(raw)
+    except Exception as exc:
+        log.warning("Prerequisite inference failed (fail-open): %s", exc)
+        return []
+    if not data or not isinstance(data.get("edges"), list):
+        return []
+    return data["edges"]
+
+
 async def generate_curriculum(
     groups: list[list[PassageDraft]],
 ) -> list[ConceptProposal]:

@@ -67,6 +67,7 @@ async def run_curriculum_job(db: AsyncSession, job: dict) -> None:
             await db.commit()
             return
 
+        created: list[PathConcept] = []
         for pos, proposal in enumerate(proposals):
             concept = PathConcept(
                 path_id=path.id,
@@ -86,6 +87,7 @@ async def run_curriculum_job(db: AsyncSession, job: dict) -> None:
             )
             db.add(concept)
             await db.flush()
+            created.append(concept)
 
             if proposal.assessment:
                 a = proposal.assessment
@@ -107,6 +109,25 @@ async def run_curriculum_job(db: AsyncSession, job: dict) -> None:
                             misconception_label=d.misconception_label,
                         )
                     )
+
+        # Prerequisite edge pass (docs/19, OQ-83/86) — one extra generation,
+        # fail-open: an empty result leaves the path linear, never failed
+        if len(created) >= 2:
+            from app.domains.learning.agent import infer_prerequisites
+            from app.domains.learning.gates import sanitize_edges
+
+            raw_edges = await infer_prerequisites(
+                [{"title": c.title, "excerpt": (c.explanation_text or "")[:200]} for c in created]
+            )
+            for dep_idx, prereqs in sanitize_edges(len(created), raw_edges).items():
+                created[dep_idx].prerequisites = [
+                    {
+                        "concept_id": created[p["prereq_index"]].id,
+                        "strength": p["strength"],
+                        "rationale": p["rationale"],
+                    }
+                    for p in prereqs
+                ]
 
         path.status = "draft"
         await db.commit()

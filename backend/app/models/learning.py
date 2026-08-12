@@ -69,6 +69,9 @@ class PathConcept(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending"
     )  # pending | accepted | pruned
+    # Prerequisite edges (docs/19, OQ-82) — soft refs to sibling concepts:
+    # [{concept_id, strength: "required"|"recommended", rationale}]
+    prerequisites: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
