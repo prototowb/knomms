@@ -129,6 +129,49 @@ async def list_kb_sources(
 
 
 @router.get(
+    "/{kb_id}/export",
+    summary="Export this KB as a portable bundle (owner only)",
+)
+async def export_kb(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Self-contained JSON bundle (docs/18, OQ-75/77): chunks + embeddings +
+    source metadata, instance ids mapped to indexes. Owner-only 404 — export
+    is bulk disclosure, a stronger grant than read access."""
+    from fastapi.responses import JSONResponse
+
+    from app.domains.knowledge_base.bundles import build_kb_bundle
+    from app.models.chunk import Chunk
+
+    svc = KnowledgeBaseService(db)
+    kb = await svc.get_by_id(kb_id, user)  # owner-only (the write guard)
+    if kb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+
+    sources = list(
+        (await db.execute(
+            select(Source).where(Source.kb_id == kb_id).order_by(Source.created_at, Source.id)
+        )).scalars().all()
+    )
+    chunks = list(
+        (await db.execute(
+            select(Chunk)
+            .where(Chunk.vector_namespace == kb.vector_namespace)
+            .order_by(Chunk.source_id, Chunk.seq)
+        )).scalars().all()
+    )
+
+    bundle = build_kb_bundle(kb.title, sources, chunks)
+    safe_title = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in kb.title)[:60]
+    return JSONResponse(
+        bundle,
+        headers={"Content-Disposition": f'attachment; filename="{safe_title or "kb"}.knomms.json"'},
+    )
+
+
+@router.get(
     "/{kb_id}/search",
     response_model=list[ChunkSearchResult],
     summary="Search within a KB's sources — semantic (pgvector) or keyword (FTS)",
