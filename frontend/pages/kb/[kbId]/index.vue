@@ -437,6 +437,32 @@ const sourceTypeIcon: Record<string, string> = {
   pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', video: '🎬', prompt_asset: '🧩', synthesis: '⚗️',
 }
 
+// ── Bundle export (KC-105, docs/18) ─────────────────────────────────────────
+
+const exporting = ref(false)
+
+async function exportKB() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const res = await fetch(`/api/kb/${kbId}/export`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')
+    a.download = match?.[1] ?? 'kb.knomms.json'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  } catch {
+    // no dedicated error surface in the header; the button simply re-enables
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(() => { fetchKBMeta(); fetchSources() })
 onUnmounted(stopPolling)
 </script>
@@ -476,6 +502,15 @@ onUnmounted(stopPolling)
                   @click="shareOpen = true"
                 >
                   Share
+                </button>
+                <button
+                  v-if="isOwner && kbMeta"
+                  :disabled="exporting"
+                  class="px-2 py-0.5 rounded-full font-medium text-text-muted bg-border hover:text-text-primary disabled:opacity-50 transition-colors"
+                  title="Download this KB as a portable bundle"
+                  @click="exportKB"
+                >
+                  {{ exporting ? 'Exporting…' : 'Export' }}
                 </button>
                 <span v-if="!isOwner && kbMeta?.owner" class="text-text-muted">
                   by @{{ kbMeta.owner.handle }}
