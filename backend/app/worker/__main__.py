@@ -14,6 +14,7 @@ from app.core.redis import get_redis
 from app.worker.board_summary import run_board_summary_job
 from app.worker.curriculum import run_curriculum_job
 from app.worker.eval import run_eval_job
+from app.worker.import_embed import run_import_embed_job
 from app.worker.pipeline import run_ingestion_pipeline
 
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +49,12 @@ _STREAMS = {
         "group": "board-summary-workers",
         "handler": run_board_summary_job,
         "log_field": "board_id",
+    },
+    "import_embed": {
+        "stream_key": "import.jobs",
+        "group": "import-workers",
+        "handler": run_import_embed_job,
+        "log_field": "kb_id",
     },
 }
 

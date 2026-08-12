@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -126,6 +126,89 @@ async def list_kb_sources(
         .limit(limit)
     )
     return [SourceStatusOut.model_validate(s) for s in result.scalars().all()]
+
+
+@router.post(
+    "/import",
+    status_code=status.HTTP_201_CREATED,
+    summary="Import a portable KB bundle as a new private KB",
+)
+async def import_kb(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Creates a fresh private KB from a bundle (docs/18, OQ-78/79) — fresh
+    ids everywhere, bounded validation first. Embeddings are kept when their
+    model matches; otherwise one import.jobs message re-embeds the namespace.
+    """
+    import json as _json
+    import uuid as _uuid
+
+    from app.core.redis import get_redis
+    from app.domains.knowledge_base.bundles import plan_import, validate_bundle
+    from app.models.chunk import Chunk
+
+    raw = await file.read()
+    if len(raw) > 200 * 1024 * 1024:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Bundle exceeds 200MB")
+    try:
+        data = _json.loads(raw)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Bundle is not valid JSON")
+
+    error = validate_bundle(data)
+    if error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+
+    svc = KnowledgeBaseService(db)
+    kb = await svc.create(user, title=str(data["kb"]["title"]).strip()[:200])
+    plan = plan_import(data, kb.embedding_model_id)
+    needs_embedding = plan["needs_embedding"]
+
+    source_ids: list[str] = []
+    for s in plan["sources"]:
+        sid = str(_uuid.uuid4())
+        source_ids.append(sid)
+        db.add(Source(
+            id=sid,
+            owner_user_id=user.id,
+            type=s["type"],
+            title=s["title"],
+            description=s["description"] or None,
+            raw_url=s["raw_url"],
+            kb_id=kb.id,
+            ingestion_status="pending" if needs_embedding else "embedded",
+        ))
+    for c in plan["chunks"]:
+        db.add(Chunk(
+            source_id=source_ids[c["source_idx"]],
+            seq=c["seq"],
+            locator=c["locator"],
+            text=c["text"],
+            content_hash=c["content_hash"],
+            is_overlap=c["is_overlap"],
+            embedding=c["embedding"],
+            embedding_model_id=c["embedding_model_id"],
+            vector_namespace=kb.vector_namespace,
+        ))
+    kb.index_status = "building" if needs_embedding else "ready"
+
+    # Capture scalars, commit BEFORE enqueue (the OQ-73 rule)
+    kb_id_val, namespace = kb.id, kb.vector_namespace
+    n_sources, n_chunks = len(plan["sources"]), len(plan["chunks"])
+    await db.commit()
+
+    if needs_embedding:
+        redis = await get_redis()
+        await redis.xadd("import.jobs", {"kb_id": kb_id_val, "vector_namespace": namespace})
+
+    return {
+        "kb_id": kb_id_val,
+        "source_count": n_sources,
+        "chunk_count": n_chunks,
+        "reindexing": needs_embedding,
+    }
 
 
 @router.get(
