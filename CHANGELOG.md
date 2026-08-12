@@ -4,6 +4,25 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.15.0] — 2026-08-12
+
+Portable KB bundles (KC-103–106) — federation, part 1 (design in `docs/18-kb-bundles.md`, OQ-75–81). Knowledge finally moves between instances: export a KB as a self-contained JSON bundle, import it on any knomms instance. **A file is the API** — no network protocol, no identity exchange — and it doubles as backup/restore. Embeddings ship inside the bundle, so the common import is instant (zero compute); the format becomes the wire format when live federation arrives.
+
+### Features
+
+#### KB export
+- `GET /v1/kbs/{id}/export` (**owner-only** — bulk disclosure is a stronger grant than read access): self-describing JSON with the KB title, source metadata, and all chunks including embeddings + model id; instance ids are mapped to bundle-local indexes and never leak; owner Export chip on the KB workspace
+
+#### KB import
+- `POST /v1/kbs/import` (multipart, 200MB cap): bounded validation of untrusted bundles (version, counts, chunk sizes, embedding dims — precise 422s), fresh ids everywhere, private-by-default KB
+- Embeddings are kept when their model matches the target KB's; otherwise a new `import.jobs` worker stream re-embeds the namespace in batches and flips the KB to ready — unknown source types degrade to `plain_text` so newer instances' bundles stay importable
+- Import-bundle button on the dashboard, navigating straight to the new KB
+
+### Test Coverage
+- 225 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · no migration (head stays 019) · 20-check live script (`scripts/verify-v0150.py`): full round-trip with instant embeddings, preserved `ts:` locators, semantic search on the imported KB, tamper 422s, and the stripped-embeddings re-embed path
+
+---
+
 ## [0.14.0] — 2026-08-09
 
 Synthesis persistence & board projection (KC-099–102) — a comparison worth two CPU-minutes of generation no longer evaporates on tab switch (design in `docs/17-synthesis-persistence.md`, OQ-69–74). Saved syntheses are the author's private record (the concept-note contract); sharing goes through board projection, where the synthesis becomes an embedded, searchable, forkable `synthesis` Source (the prompt-asset precedent). Also fixes the curation twin of the v0.12.0 ingestion race.
