@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
 **Session date:** 2026-08-12  
-**State:** v0.15.0 released — portable KB bundles (federation part 1); everything KC-032–106 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** PR #16 (v0.13.0+v0.14.0) merged 2026-08-12; v0.15.0 rides the next `development` → `main` PR; tags v0.10.0–v0.15.0 pushed  
-**Tests:** 225/225 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort + v0.11.0 gates + v0.12.0 video + v0.13.0 synthesis + v0.14.0 persistence + v0.15.0 bundles (`scripts/verify-v0150.py`) green on Colima. Migration head: **019** (v0.15.0 is schema-free).  
+**State:** v0.16.0 released — prerequisite graph part 1; everything KC-032–110 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** PR #17 (v0.15.0) merged 2026-08-12; v0.16.0 = PR #18; tags v0.10.0–v0.16.0 pushed  
+**Tests:** 240/240 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via the 37-check three-user script (`scripts/verify-v070.sh`); v0.8.0 disabled-path + v0.9.0 study-KB + v0.10.0 cohort + v0.11.0 gates + v0.12.0 video + v0.13.0 synthesis + v0.14.0 persistence + v0.15.0 bundles + v0.16.0 graph (`scripts/verify-v0160.py`) green on Colima. Migration head: **020**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.16.0 (2026-08-12):** prerequisite graph part 1 (`docs/19-prerequisite-graph.md`, OQ-82–87). `path_concepts.prerequisites` JSONB — soft **sibling** refs `{concept_id, strength, rationale}`, stamped by the curriculum worker after one fail-open inference pass (`infer_prerequisites`; O(n²) pairwise deferred to GPU). `sanitize_edges` (gates.py) guarantees a DAG **by construction** — never trust model structure; cycle-closing edges drop deterministically in model order. `compute_gates` graph mode: locked iff any *required*, non-pruned prereq unmastered; recommended never locks; **zero-edge paths keep the sequence rule** (all pre-020 paths gate exactly as v0.11.0 — this is load-bearing, don't "simplify" it away). Hard-mode redaction deliberately leaves `prerequisites` intact — the learner needs them for unlock hints. No edge-edit API yet (part 2); the verify script stamps edges via `docker compose exec db psql` (user `kc`, db `knomms`) for deterministic gate checks. Inference note: small corpora legitimately yield 0 edges — that's fail-open, not a bug.
 
 **v0.15.0 (2026-08-12):** portable KB bundles (`docs/18-kb-bundles.md`, OQ-75–81) — offline federation: a file is the API. Export is **owner-only 404** (bulk disclosure ≠ read access; a team reader can query but not bulk-download). Bundles carry chunks + embeddings + `embedding_model_id`; instance ids are mapped to bundle indexes and must never leak. Import treats bundles as **attacker-controlled JSON**: `validate_bundle` bounds every axis (500 sources / 50k chunks / 20k chars / 768-dim vectors) before anything touches the DB, fresh ids everywhere, private KB. Embeddings kept only on model match; else one `import.jobs` message (new stream in `_STREAMS`) re-embeds the namespace batch-wise and flips sources + KB to ready. Unknown source types degrade to `plain_text` (forward compatibility). Bundle format v1 is the future federation wire format — version-gate any change.
 

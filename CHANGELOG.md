@@ -4,6 +4,27 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.16.0] — 2026-08-12
+
+Prerequisite graph, part 1 (KC-107–110) — V2 roadmap #6 (design in `docs/19-prerequisite-graph.md`, OQ-82–87; spec §3.4/§4.4). Learning paths gain agent-inferred prerequisite **edges** (with strength + rationale), and the v0.11.0 mastery gates become **graph-aware**: a concept is locked by its actual dependencies, not by reading order — unrelated branches stay open from the start.
+
+### Features
+
+#### Prerequisite edges
+- One fail-open LLM pass per generated path proposes `{from, to, strength, rationale}` edges (`required`|`recommended`); pairwise-precision inference deferred to GPU hardware (O(n²) generations)
+- Pure `sanitize_edges` makes the graph a DAG *by construction*: self-edges, out-of-range indexes, duplicates (strongest kept), and over-cap prerequisites dropped; any cycle-closing edge rejected deterministically — never by trusting the model
+- Edges are stored on the concept (`path_concepts.prerequisites`, Migration 020) as soft sibling refs; inference failure leaves a path linear, never failed
+
+#### Graph-aware mastery gates
+- In a path with edges, a concept locks iff any **required**, non-pruned prerequisite is unmastered; concepts without required prerequisites are never locked; `recommended` never locks
+- Edge-less paths (including every pre-020 path) keep the v0.11.0 sequence rule exactly — the existing gate tests pass unchanged
+- Learn page: Requires/Recommended chips on the concept header (click jumps to the prerequisite, rationale as tooltip); locked-panel hints name the concept's own unmastered prerequisites
+
+### Test Coverage
+- 240 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 020 · 11-check live script (`scripts/verify-v0160.py`): inference shape/DAG checks on a fresh path plus deterministic graph-gating (independent branch open under hard gates, prereq mastery unlocks dependents, sequence regression)
+
+---
+
 ## [0.15.0] — 2026-08-12
 
 Portable KB bundles (KC-103–106) — federation, part 1 (design in `docs/18-kb-bundles.md`, OQ-75–81). Knowledge finally moves between instances: export a KB as a self-contained JSON bundle, import it on any knomms instance. **A file is the API** — no network protocol, no identity exchange — and it doubles as backup/restore. Embeddings ship inside the bundle, so the common import is instant (zero compute); the format becomes the wire format when live federation arrives.

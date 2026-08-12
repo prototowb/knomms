@@ -52,6 +52,12 @@ interface ConceptGate {
   item_count: number
 }
 
+interface PrereqEdge {
+  concept_id: string
+  strength: string
+  rationale: string
+}
+
 interface PathConcept {
   id: string
   position: number
@@ -64,6 +70,7 @@ interface PathConcept {
   assessment_items: AssessmentItem[]
   locked: boolean
   gate: ConceptGate | null
+  prerequisites: PrereqEdge[]
 }
 
 interface LearningPath {
@@ -327,17 +334,45 @@ function isHardLocked(concept: PathConcept): boolean {
   return concept.locked && path.value?.mastery_mode === 'hard'
 }
 
-/** What the learner still has to do on the first unmastered predecessor. */
+// Prerequisite graph helpers (KC-109, docs/19)
+const pathHasEdges = computed(() =>
+  path.value?.concepts.some(c => (c.prerequisites ?? []).length > 0) ?? false,
+)
+
+function conceptIndexById(id: string): number {
+  return path.value?.concepts.findIndex(c => c.id === id) ?? -1
+}
+
+function _hintFor(c: PathConcept): string | null {
+  if (!path.value || !c.gate || c.gate.mastered) return null
+  if (c.gate.item_count > 0) {
+    const needed = Math.ceil(path.value.mastery_threshold * c.gate.item_count) - c.gate.correct_items
+    return `Answer ${needed} more assessment item${needed !== 1 ? 's' : ''} correctly in “${c.title}”.`
+  }
+  return `Mark “${c.title}” as learned.`
+}
+
+/** What the learner still has to do to unlock this concept — its own
+ *  unmastered required prerequisites in graph mode, else the first
+ *  unmastered linear predecessor (docs/19, OQ-87). */
 function unlockHint(idx: number): string | null {
   if (!path.value) return null
+  const concept = path.value.concepts[idx]
+  if (pathHasEdges.value) {
+    for (const p of concept.prerequisites ?? []) {
+      if (p.strength !== 'required') continue
+      const pre = path.value.concepts.find(c => c.id === p.concept_id)
+      if (!pre || pre.status === 'pruned') continue
+      const hint = _hintFor(pre)
+      if (hint) return hint
+    }
+    return null
+  }
   for (let i = 0; i < idx; i++) {
     const c = path.value.concepts[i]
-    if (c.status === 'pruned' || !c.gate || c.gate.mastered) continue
-    if (c.gate.item_count > 0) {
-      const needed = Math.ceil(path.value.mastery_threshold * c.gate.item_count) - c.gate.correct_items
-      return `Answer ${needed} more assessment item${needed !== 1 ? 's' : ''} correctly in “${c.title}”.`
-    }
-    return `Mark “${c.title}” as learned.`
+    if (c.status === 'pruned') continue
+    const hint = _hintFor(c)
+    if (hint) return hint
   }
   return null
 }
@@ -672,6 +707,23 @@ onUnmounted(_clearPoll)
                 <div>
                   <p class="text-xs text-text-muted mb-1">Concept {{ idx + 1 }} of {{ path.concepts.length }}</p>
                   <h2 class="text-xl font-semibold text-text-primary">{{ concept.title }}</h2>
+                  <!-- Prerequisite chips (KC-109, docs/19) -->
+                  <div v-if="(concept.prerequisites ?? []).length > 0" class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <template v-for="p in concept.prerequisites" :key="p.concept_id">
+                      <button
+                        v-if="conceptIndexById(p.concept_id) >= 0"
+                        class="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                        :class="p.strength === 'required'
+                          ? 'border-accent/40 text-accent hover:bg-accent/5'
+                          : 'border-border text-text-muted hover:text-text-secondary'"
+                        :title="p.rationale || undefined"
+                        @click="activeConcept = conceptIndexById(p.concept_id)"
+                      >
+                        {{ p.strength === 'required' ? 'Requires' : 'Recommended' }}:
+                        {{ path.concepts[conceptIndexById(p.concept_id)].title }}
+                      </button>
+                    </template>
+                  </div>
                 </div>
                 <div class="flex gap-2 shrink-0">
                   <button
