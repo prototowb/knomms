@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.16.0 — Prerequisite graph (complete, released)"
+current_sprint: "v0.17.0 — Polish wave (parallel part-2 slices)"
 last_release: "v0.16.0 (2026-08-12)"
 ticket_prefix: "KC"
-next_ticket: "KC-111"
+next_ticket: "KC-116"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,16 @@ next_ticket: "KC-111"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.17.0: Polish wave — parallel part-2 slices (KC-111–115)
+
+*Design in `docs/20-polish-wave.md` (OQ-88–91). Four independent items implemented in parallel (disjoint-ish footprints): instructor prerequisite editing (docs/19 §6), discussion post editing (docs/13 §7), study-KB rebuild-from-scratch (v0.9.0 backlog), team-workspaces audit (V2 #4, read-only).*
+
+- **KC-111** prerequisite editing — `UpdateConceptRequest.prerequisites` on the owner concept PATCH; pure `validate_edge_update` rejects (not repairs) non-sibling/self/cycle/cap violations; owner edit UI on the learn page
+- **KC-112** post editing — Migration 021 `discussion_posts.edited_at`; author-only PATCH (owner moderates by delete, never rewrite); "(edited)" marker in ConceptDiscussion
+- **KC-113** study-KB rebuild — `{"rebuild": true}` wipes study docs + Sources then re-projects; compose-page Rebuild button
+- **KC-114** team-workspaces audit — `docs/21-team-workspaces-audit.md`, no code
+- **KC-115** integration + live verification + release v0.17.0
 
 ## ✅ v0.16.0: Prerequisite graph, part 1 (KC-107–110) — released 2026-08-12
 
