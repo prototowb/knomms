@@ -122,6 +122,7 @@ class CreateLearningPathRequest(BaseModel):
 class UpdateConceptRequest(BaseModel):
     status: str | None = None
     instructor_annotation: str | None = None
+    prerequisites: list[dict] | None = None
 
 
 class UpdatePathRequest(BaseModel):

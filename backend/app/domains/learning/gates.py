@@ -64,6 +64,75 @@ def sanitize_edges(concept_count: int, raw_edges: list) -> dict[int, list[dict]]
     return result
 
 
+def validate_edge_update(
+    existing_prereqs_by_id: dict[str, list[dict]],
+    concept_id: str,
+    new_prereqs: list,
+) -> str | None:
+    """Instructor-proposed prerequisite replacement → precise error, or None
+    if valid (docs/20, OQ-88). Pure.
+
+    Id-based twin of `sanitize_edges`, but *rejecting* instead of dropping:
+    a human edit deserves an error, not silent repair. `existing_prereqs_by_id`
+    maps every non-pruned sibling concept id in the path to its current
+    prerequisites list (`[{concept_id, strength, rationale}]`); the graph
+    formed by all OTHER concepts' existing edges plus the new list for
+    `concept_id` must stay acyclic.
+    """
+    if len(new_prereqs or []) > MAX_PREREQS_PER_CONCEPT:
+        return f"A concept can have at most {MAX_PREREQS_PER_CONCEPT} prerequisites"
+
+    seen: set[str] = set()
+    for entry in new_prereqs or []:
+        if not isinstance(entry, dict):
+            return "Each prerequisite must be an object with concept_id and strength"
+        prereq_id = entry.get("concept_id")
+        if prereq_id == concept_id:
+            return "A concept cannot be its own prerequisite"
+        if prereq_id not in existing_prereqs_by_id:
+            return f"Prerequisite {prereq_id!r} is not a non-pruned concept in this path"
+        if prereq_id in seen:
+            return f"Duplicate prerequisite: {prereq_id!r}"
+        seen.add(prereq_id)
+        if entry.get("strength") not in STRENGTHS:
+            return "Prerequisite strength must be 'required' or 'recommended'"
+        rationale = entry.get("rationale")
+        if rationale is not None and not isinstance(rationale, str):
+            return "Prerequisite rationale must be a string"
+        if rationale is not None and len(rationale) > 300:
+            return "Prerequisite rationale must be at most 300 characters"
+
+    # Cycle check over string ids (adapted from sanitize_edges): every OTHER
+    # concept keeps its existing edges; the edited concept's edges are the
+    # new list wholesale. Edge direction is prereq → dependent.
+    fwd: dict[str, set[str]] = {}
+    for dependent, prereqs in existing_prereqs_by_id.items():
+        if dependent == concept_id:
+            continue  # replaced wholesale by new_prereqs
+        for p in prereqs or []:
+            fwd.setdefault(p.get("concept_id"), set()).add(dependent)
+
+    def _reachable(start: str, target: str) -> bool:
+        stack, visited = [start], set()
+        while stack:
+            node = stack.pop()
+            if node == target:
+                return True
+            if node in visited:
+                continue
+            visited.add(node)
+            stack.extend(fwd.get(node, ()))
+        return False
+
+    for entry in new_prereqs or []:
+        prereq_id = entry["concept_id"]
+        # A path concept_id→…→prereq_id exists, so prereq_id→concept_id
+        # would close a cycle.
+        if _reachable(concept_id, prereq_id):
+            return f"Prerequisite {prereq_id!r} would create a cycle"
+    return None
+
+
 def is_mastered(
     item_ids: list[str],
     correct_item_ids: set[str],
