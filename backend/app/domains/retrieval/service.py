@@ -18,10 +18,20 @@ class RetrievalService:
         query_embedding: list[float],
         vector_namespace: str,
         top_k: int = 10,
+        source_id: str | None = None,
     ) -> list[RetrievedChunk]:
-        """Return top_k chunks from the given namespace, ordered by cosine similarity."""
+        """Return top_k chunks from the given namespace, ordered by cosine
+        similarity — optionally scoped to one source (balanced multi-source
+        retrieval, docs/16 OQ-64)."""
         # Set ef_search for this transaction — controls HNSW recall
         await self.db.execute(text(f"SET LOCAL hnsw.ef_search = {HNSW_EF_SEARCH}"))
+
+        conditions = [
+            Chunk.vector_namespace == vector_namespace,
+            Chunk.embedding.is_not(None),
+        ]
+        if source_id is not None:
+            conditions.append(Chunk.source_id == source_id)
 
         # pgvector cosine distance operator: <=>
         # Hits the ix_chunks_embedding_hnsw HNSW index (vector_cosine_ops)
@@ -33,10 +43,7 @@ class RetrievalService:
                 Chunk.text,
                 Chunk.embedding.cosine_distance(query_embedding).label("distance"),
             )
-            .where(
-                Chunk.vector_namespace == vector_namespace,
-                Chunk.embedding.is_not(None),
-            )
+            .where(*conditions)
             .order_by("distance")
             .limit(top_k)
         )

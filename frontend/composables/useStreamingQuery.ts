@@ -5,30 +5,40 @@ interface StreamingQueryResult {
   citations: Ref<Record<string, any>>
   isStreaming: Ref<boolean>
   error: Ref<string | null>
-  submit: (query: string) => Promise<void>
+  submit: (query: string, sourceIds?: string[]) => Promise<void>
 }
 
-export function useStreamingQuery(kbId: string): StreamingQueryResult {
+/** Streams a grounded generation over the shared SSE contract.
+ *  endpoint 'query' = single-hop Q&A; 'synthesize' = multi-source comparison
+ *  (pass sourceIds to submit) — the events are byte-identical (docs/16, OQ-67). */
+export function useStreamingQuery(
+  kbId: string,
+  endpoint: 'query' | 'synthesize' = 'query',
+): StreamingQueryResult {
   const response = ref('')
   const citations = ref<Record<string, any>>({})
   const isStreaming = ref(false)
   const error = ref<string | null>(null)
 
-  async function submit(query: string): Promise<void> {
+  async function submit(query: string, sourceIds?: string[]): Promise<void> {
     const auth = useAuthStore()
     response.value = ''
     citations.value = {}
     error.value = null
     isStreaming.value = true
 
+    const body = endpoint === 'synthesize'
+      ? { question: query, source_ids: sourceIds ?? [] }
+      : { query }
+
     try {
-      const res = await fetch(`/api/kb/${kbId}/query`, {
+      const res = await fetch(`/api/kb/${kbId}/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {

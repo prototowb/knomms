@@ -4,6 +4,47 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.14.0] — 2026-08-09
+
+Synthesis persistence & board projection (KC-099–102) — a comparison worth two CPU-minutes of generation no longer evaporates on tab switch (design in `docs/17-synthesis-persistence.md`, OQ-69–74). Saved syntheses are the author's private record (the concept-note contract); sharing goes through board projection, where the synthesis becomes an embedded, searchable, forkable `synthesis` Source (the prompt-asset precedent). Also fixes the curation twin of the v0.12.0 ingestion race.
+
+### Fixed
+
+- Board-add enqueue race (OQ-73, pre-existing): all three board-add paths (URL, file, asset) enqueued the ingestion job before the Source row committed — a fast worker could skip the job and strand the item `pending` forever. Same class as the v0.12.0 `submit_url`/`submit_file` fix, now applied where the pattern was copied from
+- Board-added YouTube URLs now get the same `video` typing as direct submission (they were typed `web_page`, which since v0.12.0 meant extracting the watch-page HTML instead of the transcript)
+
+### Features
+
+#### Saved syntheses
+- `POST/GET /v1/kbs/{id}/syntheses` + `DELETE .../syntheses/{id}` (Migration 019): author-owned rows with the question, answer, snapshotted citations, and compared source ids; size caps and source-membership validation on save; author-only 404s
+- Compare tab: **Save** button persists exactly what ran (inputs captured at submit time); **Saved** list with expand, delete, and an inline add-to-board picker
+
+#### Board projection
+- `POST /v1/boards/{id}/syntheses`: composes a self-contained markdown doc (question, answer, per-source citation appendix), creates a `synthesis` Source in the board's dedicated KB, and ingests it — board search, forks, and summaries inherit the synthesis. Content is dual-written to MinIO (the KC-077 lesson), and re-adding reuses the existing Source (`synthesis_source_projections` UNIQUE)
+- ⚗️ `synthesis` icon on KB and board source cards
+
+### Test Coverage
+- 217 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 019 · 17-check two-user live script (`scripts/verify-v0140.py`) incl. projection embed + search, idempotent re-add, and the rapid-add race regression
+
+---
+
+## [0.13.0] — 2026-08-07
+
+Multi-source synthesis, part 1 (KC-096–098) — first slice of the roadmap's #3 V2 priority, shipping its own example: "compare these sources on topic X" with multi-document citation (design in `docs/16-multi-source-synthesis.md`, OQ-63–68). One grounded generation pass over **balanced per-source retrieval** — global top-k was the failure mode (ask a 3-paper KB how the papers differ and retrieval returns one paper). Iterative hop loops stay in part 2 (one CPU generation ≈ 2 min; a 3-hop loop is a 10-minute query).
+
+### Features
+
+#### Multi-source comparative synthesis
+- `POST /v1/kbs/{kb_id}/synthesize` (`{question, source_ids: [2–5]}`): retrieves `SYNTHESIS_CHUNKS_PER_SOURCE` (default 2) nearest chunks *per selected source*, then streams one comparison over them — agreements, disagreements, unique claims, every claim cited `[SOURCE:chunk_id]`
+- Sources with nothing relevant are reported in the prompt rather than silently dropped; readable-KB 404 and membership/count/duplicate 422 guards; SSE events byte-identical to `/query`, so the citation validator and streaming composable reuse unchanged
+- `retrieve()` gains an optional per-source filter (the reusable primitive)
+- KB workspace gains a **Compare** tab: embedded-source multi-select, comparison question, streamed answer, shared citations sidebar — video sources cite with clickable `ts:` timestamps via v0.12.0
+
+### Test Coverage
+- 213 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · live script (`scripts/verify-v0130.py`): full streamed synthesis over a web + video source pair through the BFF chain, per-source citation balance, no hallucinated ids, all guards
+
+---
+
 ## [0.12.0] — 2026-08-06
 
 Video transcript ingestion, part 1 (KC-092–095) — first slice of the roadmap's #2 V2 priority (design in `docs/15-video-ingestion.md`, OQ-53–62). YouTube URLs now ingest the captions the video already has — no ASR, no new heavyweight dependency — and every downstream layer (search, Q&A citations, curriculum grounding, discussion anchors) picks up timestamp locators for free, because the `RawBlock` contract reserved `ts:HH:MM:SS` from the start. Local Whisper for caption-less/uploaded media stays in part 2.

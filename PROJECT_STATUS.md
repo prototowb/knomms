@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.12.0 — Video transcript ingestion (complete, released)"
-last_release: "v0.12.0 (2026-08-06)"
+current_sprint: "v0.14.0 — Synthesis persistence (complete, released)"
+last_release: "v0.14.0 (2026-08-09)"
 ticket_prefix: "KC"
-next_ticket: "KC-096"
+next_ticket: "KC-103"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,27 @@ next_ticket: "KC-096"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## ✅ v0.14.0: Synthesis persistence & board projection (KC-099–102) — released 2026-08-09
+
+*Design in `docs/17-synthesis-persistence.md` (OQ-69–74). Saved syntheses are author-owned rows (concept-note privacy contract, citations snapshotted); sharing goes through board projection as a `synthesis` Source (prompt-asset precedent, OQ-1) with MinIO dual-write (KC-077 lesson). Also fixes the curation twin of the KC-095 enqueue-before-commit race in all three existing board-add paths (OQ-73).*
+
+### Sprint order (implement in sequence — 099 unblocks 100; 100 unblocks 101)
+
+- ~~**KC-099**~~ ✅ backend: Migration 019 (`syntheses` + `synthesis_source_projections`) in new `models/synthesis.py` (both import sites); save/list/delete endpoints (author-only 404, `check_source_selection` reuse, size caps, citation-shape schema); pure `compose_synthesis_doc`; 4 tests — 217 total (2026-08-09)
+- ~~**KC-100**~~ ✅ backend: `add_synthesis_to_board` mirroring KC-046 (compose doc, MinIO dual-write, IntegrityError → Source reuse) + commit-before-enqueue fix in all three existing board-add paths (OQ-73) + board-added YouTube URLs typed `video` (2026-08-09)
+- ~~**KC-101**~~ ✅ frontend: Save button (persists what actually ran) + Saved list (expand/delete/inline add-to-board picker) on the Compare tab; ⚗️ icon on KB + board cards; 4 BFF handlers; vue-tsc clean (2026-08-09)
+- ~~**KC-102**~~ ✅ verification + release — 17-check two-user live script (`scripts/verify-v0140.py`) all green: save/list/caps/author-404s, projection embedded + board-KB search hit + idempotent re-add + tester 404, rapid-add race regression, delete; found+fixed a quoted-forward-reference annotation that 500'd the list endpoint; release v0.14.0 (2026-08-09)
+
+## ✅ v0.13.0: Multi-source synthesis, part 1 (KC-096–098) — released 2026-08-07
+
+*Design in `docs/16-multi-source-synthesis.md` (OQ-63–68) — first slice of V2 roadmap #3, shipping the roadmap's own example: "compare these sources on X" in one grounded generation pass. Balanced per-source retrieval (global top-k is the failure mode), comparison prompt with the existing `[SOURCE:chunk_id]` contract, byte-identical SSE events so `useStreamingQuery` reuses. Iterative hop loops deferred (one CPU generation ≈ 2 min).*
+
+### Sprint order (implement in sequence)
+
+- ~~**KC-096**~~ ✅ backend: `retrieve()` source filter + `generation/synthesis.py` (pure `build_synthesis_prompt` + `check_source_selection`, per-source retrieval via `synthesis_chunks_per_source`, empty groups reported not dropped, Q&A `_generate_stream` reuse) + `POST /v1/kbs/{kb_id}/synthesize` SSE; 7 unit tests — 213 total (2026-08-07)
+- ~~**KC-097**~~ ✅ frontend: Compare tab (embedded-source multi-select 2–5, streamed answer, shared citations sidebar); `useStreamingQuery` generalised to the synthesize endpoint; streaming BFF proxy; vue-tsc clean (2026-08-07)
+- ~~**KC-098**~~ ✅ verification + release — 12-check live script (`scripts/verify-v0130.py`) all green: full streamed synthesis over a web+video pair through the BFF chain (44s warm), citations span both sources, `ts:` locators present, no hallucinated ids, all 422/404 guards; **found+fixed: KB Ask/Compare renderer showed bare `[uuid]` citations as raw text** (model sometimes omits the SOURCE: prefix — learn page handled it since KC-018, KB page didn't); release v0.13.0 (2026-08-07)
 
 ## ✅ v0.12.0: Video transcript ingestion, part 1 (KC-092–095) — released 2026-08-06
 
@@ -304,6 +325,10 @@ next_ticket: "KC-096"
 ---
 
 ## Recent Updates
+
+- 2026-08-09: v0.14.0 released — synthesis persistence & board projection (Migration 019: author-owned saved syntheses with snapshotted citations; board projection as embedded `synthesis` Sources with MinIO dual-write + idempotent re-add; Save/Saved UI on the Compare tab); fixed the curation enqueue-before-commit race in all three board-add paths and board-added YouTube URL typing; 17-check live verification (`scripts/verify-v0140.py`); 217 backend tests
+
+- 2026-08-07: v0.13.0 released — multi-source synthesis part 1 (`POST /v1/kbs/{id}/synthesize`: balanced per-source retrieval + one comparison generation with per-source citations, SSE identical to /query; Compare tab on the KB workspace); fixed bare-`[uuid]` citation rendering on the KB page; 12-check live verification (`scripts/verify-v0130.py`) incl. full streamed synthesis over a web+video pair; 213 backend tests; no migration (head stays 018)
 
 - 2026-08-06: v0.12.0 released — video transcript ingestion part 1 (YouTube captions → `video` sources with oEmbed titles, ~400-char transcript blocks with `ts:HH:MM:SS` locators, manual>auto/English-first transcript preference, timestamp deep links in search + learn passages); fixed pre-existing enqueue-before-commit race that could strand sources `pending`; 15-check live verification (`scripts/verify-v0120.py`) incl. curriculum grounded in timestamp passages; 206 backend tests
 
