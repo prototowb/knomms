@@ -15,6 +15,7 @@ interface KBMeta {
   index_status: string
   visibility: string
   owner: { id: string; handle: string; display_name: string } | null
+  editable: boolean
 }
 const kbMeta = ref<KBMeta | null>(null)
 async function fetchKBMeta() {
@@ -26,6 +27,10 @@ async function fetchKBMeta() {
 const isOwner = computed(() =>
   auth.isLoggedIn && kbMeta.value?.owner?.id === auth.user?.id
 )
+
+// Owner or editor grant — server-computed (docs/22, OQ-93). Editors have had
+// backend write access since KC-067; the UI finally follows.
+const canEdit = computed(() => isOwner.value || kbMeta.value?.editable === true)
 
 const visibilityColor: Record<string, string> = {
   private: 'text-text-muted bg-border',
@@ -764,8 +769,8 @@ onUnmounted(stopPolling)
 
       <!-- Sources tab -->
       <div v-show="activeTab === 'sources'" class="flex flex-col flex-1 min-h-0 p-5 gap-4 overflow-y-auto">
-        <!-- URL add (owner only) -->
-        <div v-if="isOwner">
+        <!-- URL add (owner or editor grant) -->
+        <div v-if="canEdit">
           <p class="text-xs font-medium text-text-secondary mb-2">Add a URL</p>
           <form class="flex gap-2" @submit.prevent="addUrl">
             <input
@@ -786,8 +791,8 @@ onUnmounted(stopPolling)
           <p v-if="urlError" class="text-xs text-warning mt-1.5">{{ urlError }}</p>
         </div>
 
-        <!-- File upload (owner only) -->
-        <div v-if="isOwner">
+        <!-- File upload (owner or editor grant) -->
+        <div v-if="canEdit">
           <p class="text-xs font-medium text-text-secondary mb-2">Upload a file</p>
           <label
             class="block rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
