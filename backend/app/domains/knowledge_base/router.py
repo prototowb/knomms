@@ -76,7 +76,16 @@ async def get_kb(
     kb = await svc.get_readable_by_id(kb_id, user)
     if kb is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
-    return KnowledgeBaseOut.model_validate(kb)
+    out = KnowledgeBaseOut.model_validate(kb)
+    # Server-computed write capability (docs/22, OQ-93) — owner or editor
+    # grant; clients gate authoring controls on this, not on ownership
+    if kb.owner_user_id == user.id:
+        out.editable = True
+    else:
+        from app.domains.organisations.predicates import has_grant
+
+        out.editable = await has_grant(db, "kb", kb_id, user, permissions=("editor",))
+    return out
 
 
 @router.patch("/{kb_id}", response_model=KnowledgeBaseOut, summary="Update KB metadata (owner only)")
