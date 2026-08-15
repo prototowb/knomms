@@ -21,6 +21,9 @@ class KnowledgeBaseOut(BaseModel):
     index_status: str
     created_at: datetime
     owner: KBOwnerOut | None = None
+    # Requester's write capability — owner or editor grant (docs/22, OQ-93);
+    # stamped on the single-KB GET, defaults False elsewhere
+    editable: bool = False
 
 
 class PublicKBOut(BaseModel):

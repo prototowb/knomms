@@ -61,7 +61,10 @@ class LearningService:
         Raises 404/422 synchronously so the client gets immediate feedback on bad inputs.
         """
         kb_svc = KnowledgeBaseService(self.db)
-        kb = await kb_svc.get_by_id(kb_id, user)
+        # Owner OR editor grant (docs/22, OQ-92 — the team-workspaces closer):
+        # the creator keeps the path-owner bundle; analytics are path-scoped,
+        # so an editor authoring here surveils only their own path's cohort
+        kb = await kb_svc.get_editable_by_id(kb_id, user)
         if kb is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 

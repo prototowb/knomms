@@ -125,12 +125,22 @@ async def get_board(
     return _board_to_out(board)
 
 
+def _validate_board_visibility(visibility: str) -> None:
+    """Boards are private|public only (docs/22 OQ-94; OQ-11 stands)."""
+    if visibility not in ("private", "public"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Boards support 'private' or 'public' — team boards are excluded by design (docs/21 §3.2)",
+        )
+
+
 @router.post("/boards", response_model=BoardOut, status_code=201, summary="Create a board")
 async def create_board(
     req: CreateBoardRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> BoardOut:
+    _validate_board_visibility(req.visibility)
     svc = BoardService(db)
     board = await svc.create_board(
         user, req.title, req.description, req.visibility, req.layout_config or None
@@ -146,6 +156,7 @@ async def fork_board(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> BoardOut:
+    _validate_board_visibility(req.visibility)
     svc = BoardService(db)
     fork = await svc.fork_board(board_id, user, req.new_title, req.visibility)
     fork = await svc.get_board_for_owner(fork.id, user)
@@ -270,8 +281,8 @@ async def update_board(
     if req.description is not None:
         board.description = req.description
     if req.visibility is not None:
-        if req.visibility not in ("private", "team", "public"):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid visibility")
+        # 'team' was accepted-then-ignored by every board read (docs/21 §3.2)
+        _validate_board_visibility(req.visibility)
         board.visibility = req.visibility
         await svc.sync_board_kb_visibility(board, user)
     if req.layout_config is not None:

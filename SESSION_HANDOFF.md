@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-08-12  
-**State:** v0.17.0 released — polish wave (four parallel agents); everything KC-032–115 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** PR #18 (v0.16.0) merged 2026-08-12; v0.17.0 = next PR; tags v0.10.0–v0.17.0 pushed  
-**Tests:** 256/256 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via `scripts/verify-v070.sh`; every release since via its own script, latest `scripts/verify-v0170.py`, all green on Colima. Migration head: **021**.  
+**Session date:** 2026-08-15  
+**State:** v0.18.0 released — editor-authored learning paths (team workspaces closed end to end); everything KC-032–118 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** PR #19 (v0.17.0) merged 2026-08-12; v0.18.0 = PR #20; tags v0.10.0–v0.18.0 pushed  
+**Tests:** 259/259 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** through KC-070 via `scripts/verify-v070.sh`; every release since via its own script, latest `scripts/verify-v0180.py` (21 checks, three users), all green on Colima. Migration head: **021** (v0.18.0 is schema-free).  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.18.0 (2026-08-15):** editor-authored learning paths (`docs/22-editor-authored-paths.md`, OQ-92–94) — the `docs/21` audit's closer. `create_stub` now guards with `get_editable_by_id`; the path creator keeps the **whole path-owner bundle** (publish/gates/curation/analytics) because everything in it is path-scoped — `path_analytics` shows only that path's cohort, so the audit's surveillance concern doesn't apply to a creator-owned bundle. KB-owner moderation of foreign paths deferred with path-deletion generally (nothing deletes paths yet). `KnowledgeBaseOut.editable` is the server-computed write capability — clients must gate authoring UI on it, never re-derive grant semantics client-side. Board `visibility="team"` is now 422 at create/fork/PATCH (`_validate_board_visibility` in curation/router.py) — OQ-11 stands for the fourth time; if team boards ever happen it's a design re-opening, not a patch. Live verification is three-user and includes grant-revocation immediacy on the new authoring surface.
 
 **v0.17.0 (2026-08-12):** polish wave (`docs/20-polish-wave.md`, OQ-88–91), implemented by **four parallel agents in git worktrees** (worktrees share refs with the main repo — agents commit to feature branches, integrator merges; append-style changes to shared files auto-merged cleanly). Prerequisite editing: `validate_edge_update` REJECTS invalid edits (vs `sanitize_edges` which repairs model output — human edits deserve errors, OQ-88). Post editing: author-only 403 even for the path owner (moderation = delete, never rewrite, OQ-89); `edited_at` Migration 021. Study-KB rebuild: the nothing-to-study 422 fires BEFORE the wipe (an emptied harness must not destroy its corpus); doc rows delete before Sources (`HarnessStudyDoc.source_id` has no ON DELETE). Audit (`docs/21`): V2 #4 ~80% shipped; **the closer is editor-authored learning paths on granted KBs** — blocked on a design decision about the path-owner bundle (analytics = cohort surveillance; don't naively relax `get_by_id` in `create_stub`); boards' `visibility="team"` is accepted by PATCH but honoured by no read — 422 it or implement it. Worktree-agent gotchas: agent worktrees may be created a commit behind the just-pushed design doc (agents handled it); frontend typechecks in worktrees need node_modules/.nuxt symlinks to the main checkout.
 

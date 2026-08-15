@@ -4,6 +4,25 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.18.0] — 2026-08-15
+
+Editor-authored learning paths (KC-116–118) — **team workspaces closed end to end** (design in `docs/22-editor-authored-paths.md`, OQ-92–94; the gap identified by `docs/21`'s audit). The professional-team journey — build the shared corpus, invoke the curriculum agent, enroll colleagues — now works for editor grantees, not just KB owners.
+
+### Features
+
+#### Editor-authored paths
+- An **editor** grantee (the OQ-18 write surface) can now create learning paths on a granted KB; the path creator keeps the full path-owner bundle — publish, mastery gates, concept curation, analytics — because the bundle is *path-scoped*: analytics aggregate only that path's cohort (the classroom-teacher rationale), and reach stays bounded by the KB's own readability
+- `KnowledgeBaseOut.editable` — server-computed write capability on the KB GET; the KB sources tab and the learn page's authoring buttons now gate on it (**fixes a KC-067-era gap**: editors have had backend write access since v0.7.0 but the UI hid the controls)
+
+### Fixed
+
+- Board `visibility="team"` was accepted by PATCH and honoured by no read (docs/21 §3.2's accept-then-ignore trap) — now rejected with 422 and a design pointer at create, fork, and PATCH (OQ-11 stands: boards are private|public)
+
+### Test Coverage
+- 259 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · no migration (head 021) · 21-check three-user live script (`scripts/verify-v0180.py`): editable flags per role, viewer 404, editor authoring end-to-end (202→draft→publish→analytics), creator-owned bundle (KB owner 404s on foreign analytics/gates), board 422s, revocation immediacy
+
+---
+
 ## [0.17.0] — 2026-08-12
 
 Polish wave (KC-111–115) — the highest-leverage "part 2" slice of four shipped features, implemented **in parallel by four agents** in isolated worktrees and integrated with zero manual conflicts (design in `docs/20-polish-wave.md`, OQ-88–91).

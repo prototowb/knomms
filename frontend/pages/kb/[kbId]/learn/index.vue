@@ -29,6 +29,19 @@ const generating = ref(false)
 const learningGoal = ref('')
 const showNewForm = ref(false)
 
+// Authoring is owner-or-editor (docs/22, OQ-92/93) — server-computed flag
+const canEdit = ref(false)
+async function fetchEditable() {
+  try {
+    const kb = await $fetch<{ editable: boolean }>(`/api/kbs/${kbId}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    canEdit.value = kb.editable === true
+  } catch {
+    canEdit.value = false
+  }
+}
+
 async function fetchPaths() {
   loading.value = true
   error.value = null
@@ -71,7 +84,7 @@ const statusColor: Record<string, string> = {
   failed: 'text-warning bg-warning/10',
 }
 
-onMounted(fetchPaths)
+onMounted(() => { fetchPaths(); fetchEditable() })
 </script>
 
 <template>
@@ -88,6 +101,7 @@ onMounted(fetchPaths)
         <p class="text-sm text-text-muted mt-1">AI-generated from this knowledge base</p>
       </div>
       <button
+        v-if="canEdit"
         class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
         @click="showNewForm = !showNewForm"
       >
@@ -138,6 +152,7 @@ onMounted(fetchPaths)
       </svg>
       <p class="text-sm">No learning paths yet.</p>
       <button
+        v-if="canEdit"
         class="mt-3 text-sm text-accent hover:underline"
         @click="showNewForm = true"
       >
