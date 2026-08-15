@@ -2,7 +2,7 @@
 
 **Session date:** 2026-08-15  
 **State:** v0.18.0 released — editor-authored learning paths (team workspaces closed end to end); everything KC-032–118 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** PR #19 (v0.17.0) merged 2026-08-12; v0.18.0 = PR #20; tags v0.10.0–v0.18.0 pushed  
+**Branch:** `main` and `development` in sync (PR #20 merged 2026-08-15); tags v0.10.0–v0.18.0 pushed; merged local feature branches pruned  
 **Tests:** 259/259 backend (pytest) · 0 TypeScript errors (vue-tsc)  
 **Live verification:** through KC-070 via `scripts/verify-v070.sh`; every release since via its own script, latest `scripts/verify-v0180.py` (21 checks, three users), all green on Colima. Migration head: **021** (v0.18.0 is schema-free).  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
