@@ -34,8 +34,8 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.18.0 — Editor-authored learning paths"
-last_release: "v0.17.0 (2026-08-12)"
+current_sprint: "v0.18.0 — Editor-authored paths (complete, released)"
+last_release: "v0.18.0 (2026-08-15)"
 ticket_prefix: "KC"
 next_ticket: "KC-119"
 ```
@@ -53,13 +53,13 @@ next_ticket: "KC-119"
 
 ---
 
-## 🔄 v0.18.0: Editor-authored learning paths (KC-116–118)
+## ✅ v0.18.0: Editor-authored learning paths (KC-116–118) — released 2026-08-15
 
 *Design in `docs/22-editor-authored-paths.md` (OQ-92–94) — the team-workspaces closer per `docs/21` §3.1/§4. Creator-owned path bundle (analytics are path-scoped, so the classroom-teacher rationale applies to the path's author); `KnowledgeBaseOut.editable` flag fixes the KC-067 UI gap (editors could write via API only); board `visibility="team"` accept-then-ignore → 422 (OQ-11 stands).*
 
-- **KC-116** backend: `create_stub` guard → `get_editable_by_id`; `KnowledgeBaseOut.editable`; board team-visibility 422; tests
-- **KC-117** frontend: gate "＋ New path" + add-source controls on `editable`; vue-tsc clean
-- **KC-118** verification + release — doc plan (three users: editor authors + publishes + owns analytics, viewer 404, owner regression, board 422); changelog; release v0.18.0
+- ~~**KC-116**~~ ✅ backend: `create_stub` guard → `get_editable_by_id` (OQ-92, creator-owned path bundle); `KnowledgeBaseOut.editable` stamped on the KB GET (OQ-93); board team-visibility 422 at create/fork/PATCH (OQ-94); 3 tests — 259 total (2026-08-15)
+- ~~**KC-117**~~ ✅ frontend: KB add-URL/upload + learn-page new-path buttons gate on `editable` (closes the KC-067-era UI gap — editors could write via API only); vue-tsc clean (2026-08-15)
+- ~~**KC-118**~~ ✅ verification + release — 21-check three-user live script (`scripts/verify-v0180.py`) all green first run: editable per role, viewer 404, editor 202→draft→publish→analytics, KB owner 404 on foreign path analytics/gates (creator-owned bundle), board 422s + private/public regression, revoke immediacy; release v0.18.0 (2026-08-15)
 
 ## ✅ v0.17.0: Polish wave — parallel part-2 slices (KC-111–115) — released 2026-08-12
 
@@ -365,6 +365,8 @@ next_ticket: "KC-119"
 ---
 
 ## Recent Updates
+
+- 2026-08-15: v0.18.0 released — editor-authored learning paths close team workspaces end to end (creator-owned path bundle per docs/22 OQ-92; `KnowledgeBaseOut.editable` + UI gating fixing the KC-067-era gap; board team-visibility accept-then-ignore → 422); 21-check three-user live verification; 259 backend tests; no migration (head 021)
 
 - 2026-08-12: v0.17.0 released — polish wave built by four parallel agents (instructor prerequisite editing with reject-not-repair validation; author-only post editing with edited_at, Migration 021; study-KB rebuild-from-scratch; team-workspaces audit `docs/21` — V2 #4 ~80% done, editor-authored paths is the closer); 20-check live verification; 256 backend tests
 
