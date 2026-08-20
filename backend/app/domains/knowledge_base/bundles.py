@@ -155,3 +155,15 @@ def plan_import(data: dict, target_embedding_model_id: str) -> dict:
         "chunks": chunks,
         "needs_embedding": needs_embedding,
     }
+
+
+def canonical_bundle_hash(bundle: dict) -> str:
+    """Stable content hash for change detection (docs/23, OQ-95/97) — sha256
+    over canonical JSON. Pure; must match between feed meta and full bundle.
+    """
+    import hashlib
+    import json
+
+    return hashlib.sha256(
+        json.dumps(bundle, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()

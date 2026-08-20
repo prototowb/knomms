@@ -104,6 +104,32 @@ async function handleImportFile(e: Event) {
   }
 }
 
+// ── Subscribe to a federation feed (KC-121, docs/23) ────────────────────────
+
+const showSubscribe = ref(false)
+const subscribeUrl = ref('')
+const subscribing = ref(false)
+
+async function subscribeToFeed() {
+  const url = subscribeUrl.value.trim()
+  if (!url || subscribing.value) return
+  subscribing.value = true
+  error.value = null
+  try {
+    const sub = await $fetch<{ kb_id: string }>('/api/federation/subscriptions' as string, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: { feed_url: url },
+    })
+    await navigateTo(`/kb/${sub.kb_id}`)
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    error.value = typeof detail === 'string' ? detail : 'Subscription failed — is this a knomms feed URL?'
+  } finally {
+    subscribing.value = false
+  }
+}
+
 const statusLabel: Record<string, { text: string; cls: string }> = {
   building: { text: 'Building', cls: 'text-warning bg-warning/10' },
   ready: { text: 'Ready', cls: 'text-grounded bg-grounded/10' },
@@ -143,6 +169,13 @@ onMounted(() => {
           {{ importing ? 'Importing…' : 'Import bundle' }}
         </button>
         <button
+          class="px-3 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-surface-secondary transition-colors"
+          title="Mirror a KB from another knomms instance's feed URL"
+          @click="showSubscribe = !showSubscribe"
+        >
+          Subscribe
+        </button>
+        <button
           class="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
           @click="showCreateForm = !showCreateForm"
         >
@@ -150,6 +183,29 @@ onMounted(() => {
         </button>
       </div>
     </header>
+
+    <!-- Subscribe to feed (KC-121) -->
+    <div v-if="showSubscribe" class="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-5">
+      <h2 class="text-sm font-semibold text-text-primary mb-1">Subscribe to a federation feed</h2>
+      <p class="text-xs text-text-muted mb-3">Creates a read-only mirror KB you can re-sync on demand.</p>
+      <div class="flex gap-3">
+        <input
+          v-model="subscribeUrl"
+          type="url"
+          placeholder="https://their-instance/api/v1/federation/…"
+          :disabled="subscribing"
+          class="flex-1 border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary bg-surface placeholder:text-text-muted focus:outline-none focus:border-accent disabled:opacity-50"
+          @keydown.enter="subscribeToFeed"
+        />
+        <button
+          :disabled="subscribing || !subscribeUrl.trim()"
+          class="px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+          @click="subscribeToFeed"
+        >
+          {{ subscribing ? 'Subscribing…' : 'Subscribe' }}
+        </button>
+      </div>
+    </div>
 
     <!-- Create KB form -->
     <div v-if="showCreateForm" class="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-5">

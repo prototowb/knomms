@@ -27,6 +27,7 @@ class IngestionService:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="url is required")
 
         kb = await self._resolve_kb(data.kb_id, user)
+        await self._reject_mirror(kb.id)
         url_str = str(data.url)
 
         # YouTube URLs become video sources (docs/15, OQ-55) — the worker
@@ -70,6 +71,7 @@ class IngestionService:
         source_type = _type_from_suffix(suffix)
 
         kb = await self._resolve_kb(kb_id, user)
+        await self._reject_mirror(kb.id)
 
         content = await file.read()
         if len(content) > 200 * 1024 * 1024:  # 200MB limit
@@ -112,6 +114,26 @@ class IngestionService:
 
     async def get_source(self, source_id: str, user: User) -> Source | None:
         return await self.db.get(Source, source_id)
+
+
+    async def _reject_mirror(self, kb_id: str) -> None:
+        """Subscription mirrors are read-only (docs/23, OQ-98) — local
+        additions would be wiped by the next sync; a clear 422 beats
+        silent data loss. Unsubscribing frees the KB."""
+        from sqlalchemy import select
+
+        from app.models.federation import FederationSubscription
+
+        sub = (
+            await self.db.execute(
+                select(FederationSubscription.id).where(FederationSubscription.kb_id == kb_id)
+            )
+        ).scalar_one_or_none()
+        if sub is not None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="This knowledge base is a read-only federation mirror — add sources on the origin instance (or unsubscribe to make it local)",
+            )
 
     async def _resolve_kb(self, kb_id: str | None, user: User):
         kb_svc = KnowledgeBaseService(self.db)

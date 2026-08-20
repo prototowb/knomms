@@ -4,6 +4,28 @@ All notable changes to Knowledge Comms are documented here.
 
 ---
 
+## [0.19.0] — 2026-08-20
+
+Bundle feeds & subscriptions (KC-119–122) — federation, part 2 (design in `docs/23-federation-subscriptions.md`, OQ-95–99). Part 1 made knowledge portable as a file; this makes it **flow**: an instance exposes a KB as a capability-URL feed, another subscribes into a read-only mirror and re-syncs on demand. Pull-based, zero identity infrastructure — possession of the slug is the grant, rotation is revocation. Bundle v1 is the wire format, exactly as OQ-75 planned.
+
+### Features
+
+#### Bundle feeds
+- Owner-only `POST/GET/DELETE /v1/kbs/{id}/federation` mints/returns/revokes an unguessable feed slug; **unauthenticated** `GET /v1/federation/{slug}` (bundle) and `/meta` (title, counts, canonical `bundle_hash`) — unknown and revoked slugs are indistinguishable 404s
+- KB workspace Federate panel: enable → copyable URL with a treat-like-a-password warning; revoke-with-confirm mints a new slug on re-enable
+
+#### Subscriptions & mirrors
+- `POST /v1/federation/subscriptions {feed_url}`: capped server-side fetch (http/https only, 30s, 200MB, no redirects), remote bundles run the full OQ-79 validation, then materialize into a **private read-only mirror KB** (instant on model match, `import.jobs` re-embed otherwise)
+- `POST .../subscriptions/{id}/sync`: meta-first — an unchanged hash costs one request; changed → full replace into the **same kb_id**, so grants and learning paths survive (soft refs degrade gracefully)
+- Mirrors reject local source additions with a clear 422 (sync would wipe them); **unsubscribe frees the KB** into an ordinary local one
+- Mirror bar (origin, last-synced, Sync button) on the KB page; Subscribe input on the dashboard
+- Part-1 import refactored onto the same `materialize_plan`/`wipe_kb_sources` code path (`bundle_io.py`)
+
+### Test Coverage
+- 263 backend tests (pytest) · 0 TypeScript errors (vue-tsc) · migration head 022 · 24-check loop-back live script (`scripts/verify-v0190.py`): the api container subscribes to its own feed **through the real nginx chain**, covering the full lifecycle — enable/idempotent re-enable, unauthenticated fetches, cross-user mirror with instant embeddings, unchanged/changed sync after the origin grows, read-only 422, unsubscribe escape hatch, revoke + clean failure on a dead feed
+
+---
+
 ## [0.18.0] — 2026-08-15
 
 Editor-authored learning paths (KC-116–118) — **team workspaces closed end to end** (design in `docs/22-editor-authored-paths.md`, OQ-92–94; the gap identified by `docs/21`'s audit). The professional-team journey — build the shared corpus, invoke the curriculum agent, enroll colleagues — now works for editor grantees, not just KB owners.

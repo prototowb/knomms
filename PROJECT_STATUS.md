@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.18.0 — Editor-authored paths (complete, released)"
-last_release: "v0.18.0 (2026-08-15)"
+current_sprint: "v0.19.0 — Federation part 2 (complete, released)"
+last_release: "v0.19.0 (2026-08-20)"
 ticket_prefix: "KC"
-next_ticket: "KC-119"
+next_ticket: "KC-123"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-119"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## ✅ v0.19.0: Bundle feeds & subscriptions — federation, part 2 (KC-119–122) — released 2026-08-20
+
+*Design in `docs/23-federation-subscriptions.md` (OQ-95–99). Pull-based federation over the bundle-v1 wire format: owner-minted capability-URL feeds (unauthenticated bundle+meta by unguessable slug), server-side subscribe into a private mirror KB, meta-first sync with full replace on change (stable kb_id — grants/paths survive via soft refs), mirrors read-only (422) until unsubscribed. Identity/signatures stay part 3.*
+
+### Sprint order (implement in sequence — 119 unblocks 120)
+
+- ~~**KC-119**~~ ✅ backend: Migration 022 + federation domain (owner-only mint/revoke, unauthenticated capability endpoints, 404 non-leak) + canonical `bundle_hash` + `bundle_io.py` extraction with the part-1 import refactored onto it; 4 tests — 263 total (2026-08-20)
+- ~~**KC-120**~~ ✅ backend: subscribe + sync (capped httpx: http/https, 30s, 200MB, no redirects; OQ-79 validation on remote bundles; meta-first sync, full replace into the same kb_id; commit-before-enqueue) + read-only mirror 422 in both ingestion submit paths (2026-08-20)
+- ~~**KC-121**~~ ✅ frontend: Federate chip+panel (copy with capability warning, revoke=rotation), mirror bar with Sync, dashboard Subscribe input, add-source forms hidden on mirrors; 6 BFF handlers; vue-tsc clean (2026-08-20)
+- ~~**KC-122**~~ ✅ verification + release — 24-check loop-back script (`scripts/verify-v0190.py`) all green: the api container subscribes to its own feed via `http://nginx/...` (the exact remote-peer path), full lifecycle incl. cross-user mirror, changed/unchanged sync, read-only 422, unsubscribe frees the KB, revoke → 404 + clean 502 on dead feeds; one script fix (corpus-derived search query); release v0.19.0 (2026-08-20)
 
 ## ✅ v0.18.0: Editor-authored learning paths (KC-116–118) — released 2026-08-15
 
@@ -365,6 +376,8 @@ next_ticket: "KC-119"
 ---
 
 ## Recent Updates
+
+- 2026-08-20: v0.19.0 released — federation part 2 (Migration 022: capability-URL bundle feeds with unauthenticated slug endpoints; subscriptions into read-only mirror KBs with meta-first sync and full replace on change; mirror 422 guard; Federate/Subscribe UI); 24-check loop-back live verification through the real nginx chain; 263 backend tests
 
 - 2026-08-15: v0.18.0 released — editor-authored learning paths close team workspaces end to end (creator-owned path bundle per docs/22 OQ-92; `KnowledgeBaseOut.editable` + UI gating fixing the KC-067-era gap; board team-visibility accept-then-ignore → 422); 21-check three-user live verification; 259 backend tests; no migration (head 021)
 

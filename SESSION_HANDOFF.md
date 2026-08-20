@@ -1,11 +1,13 @@
 # Session Handoff — Knowledge Comms
 
-**Session date:** 2026-08-15  
-**State:** v0.18.0 released — editor-authored learning paths (team workspaces closed end to end); everything KC-032–118 verified (cloud enabled-path still pending an operator API key)  
-**Branch:** PR #19 (v0.17.0) merged 2026-08-12; v0.18.0 = PR #20; tags v0.10.0–v0.18.0 pushed  
-**Tests:** 259/259 backend (pytest) · 0 TypeScript errors (vue-tsc)  
-**Live verification:** through KC-070 via `scripts/verify-v070.sh`; every release since via its own script, latest `scripts/verify-v0180.py` (21 checks, three users), all green on Colima. Migration head: **021** (v0.18.0 is schema-free).  
+**Session date:** 2026-08-20  
+**State:** v0.19.0 released — federation part 2 (bundle feeds & subscriptions); everything KC-032–122 verified (cloud enabled-path still pending an operator API key)  
+**Branch:** v0.19.0 = PR #21; tags v0.10.0–v0.19.0 pushed  
+**Tests:** 263/263 backend (pytest) · 0 TypeScript errors (vue-tsc)  
+**Live verification:** every release has its own script in scripts/, latest `scripts/verify-v0190.py` (24-check loop-back federation), all green on Colima. Migration head: **022**.  
 **Stack:** Running on Colima (macOS) — see §Dev Runtime
+
+**v0.19.0 (2026-08-20):** federation part 2 (`docs/23-federation-subscriptions.md`, OQ-95–99). Feeds are **capability URLs**: `secrets.token_urlsafe(32)` slug, unauthenticated `GET /v1/federation/{slug}[/meta]`, unknown/revoked indistinguishable 404s, revoke+re-enable = rotation (a NEW slug — the UI warns the URL is password-equivalent). Subscribe/sync live in `domains/federation/`; remote bundles are validated with the full OQ-79 caps (attacker-controlled twice over) after a capped fetch (http/https, 30s, 200MB, **no redirects**). Sync is meta-first (`should_sync` compares canonical hashes — `canonical_bundle_hash` = sha256 over sort_keys+compact JSON, must stay in lockstep between meta and bundle) and replaces into the SAME kb_id so grants/paths survive. Mirrors are read-only via `_reject_mirror` in ingestion submit (OQ-98) — unsubscribe frees the KB. **Loop-back verification trick:** the api container subscribes to `http://nginx/api/v1/federation/{slug}` — same-host but traverses the identical nginx→BFF→FastAPI path a remote peer would; `localhost` inside the container would NOT work. `bundle_io.materialize_plan`/`wipe_kb_sources` is now the single materialization path for import + subscribe + sync — change it once, all three follow. Verify-script lesson: derive search queries from the bundle's own chunk text, never hardcode corpus phrases.
 
 **v0.18.0 (2026-08-15):** editor-authored learning paths (`docs/22-editor-authored-paths.md`, OQ-92–94) — the `docs/21` audit's closer. `create_stub` now guards with `get_editable_by_id`; the path creator keeps the **whole path-owner bundle** (publish/gates/curation/analytics) because everything in it is path-scoped — `path_analytics` shows only that path's cohort, so the audit's surveillance concern doesn't apply to a creator-owned bundle. KB-owner moderation of foreign paths deferred with path-deletion generally (nothing deletes paths yet). `KnowledgeBaseOut.editable` is the server-computed write capability — clients must gate authoring UI on it, never re-derive grant semantics client-side. Board `visibility="team"` is now 422 at create/fork/PATCH (`_validate_board_visibility` in curation/router.py) — OQ-11 stands for the fourth time; if team boards ever happen it's a design re-opening, not a patch. Live verification is three-user and includes grant-revocation immediacy on the new authoring surface.
 
