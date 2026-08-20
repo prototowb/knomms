@@ -54,6 +54,7 @@ def _register_routers(app: FastAPI) -> None:
     from app.domains.generation.router import router as generation_router
     from app.domains.learning.router import router as learning_router
     from app.domains.curation.router import router as curation_router
+    from app.domains.federation.router import router as federation_router
     from app.domains.knowledge_base.router import router as kb_router
     from app.domains.assets.router import router as assets_router
     from app.domains.harnesses.router import router as harnesses_router
@@ -71,6 +72,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(harnesses_router, prefix="/v1")
     app.include_router(organisations_router, prefix="/v1")
     app.include_router(acl_router, prefix="/v1")
+    app.include_router(federation_router, prefix="/v1")
     app.include_router(eval_models_router, prefix="/v1")
 
 
