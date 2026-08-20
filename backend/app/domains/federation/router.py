@@ -63,3 +63,64 @@ async def feed_meta(slug: str, db: AsyncSession = Depends(get_db)) -> dict:
 @router.get("/federation/{slug}", summary="Feed bundle (capability access — no auth)")
 async def feed_bundle(slug: str, db: AsyncSession = Depends(get_db)) -> dict:
     return await FederationService(db).serve_bundle(slug)
+
+
+# ── Subscriptions (docs/23, OQ-96/97/98) ──────────────────────────────────────
+
+from app.schemas.federation import SubscribeRequest, SubscriptionOut, SyncResultOut  # noqa: E402
+
+
+@router.post(
+    "/federation/subscriptions",
+    response_model=SubscriptionOut,
+    status_code=201,
+    summary="Subscribe to a remote bundle feed — creates a private mirror KB",
+)
+async def subscribe(
+    req: SubscribeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SubscriptionOut:
+    sub = await FederationService(db).subscribe(req.feed_url, user)
+    return SubscriptionOut.model_validate(sub)
+
+
+@router.get(
+    "/kbs/{kb_id}/subscription",
+    response_model=SubscriptionOut | None,
+    summary="The KB's mirror record if it is a subscription mirror (null otherwise)",
+)
+async def get_subscription_for_kb(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SubscriptionOut | None:
+    sub = await FederationService(db).get_for_kb(kb_id, user)
+    return SubscriptionOut.model_validate(sub) if sub else None
+
+
+@router.post(
+    "/federation/subscriptions/{sub_id}/sync",
+    response_model=SyncResultOut,
+    summary="Re-sync a mirror from its feed (meta-first; full replace on change)",
+)
+async def sync_subscription(
+    sub_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SyncResultOut:
+    result = await FederationService(db).sync(sub_id, user)
+    return SyncResultOut(**result)
+
+
+@router.delete(
+    "/federation/subscriptions/{sub_id}",
+    status_code=204,
+    summary="Unsubscribe — the KB stays and becomes an ordinary local KB",
+)
+async def unsubscribe(
+    sub_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    await FederationService(db).unsubscribe(sub_id, user)
