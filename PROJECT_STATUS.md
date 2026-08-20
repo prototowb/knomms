@@ -34,10 +34,10 @@ protogear_enabled: true
 framework: "Vue 3 + Nuxt 3 (frontend) / Python 3.12 + FastAPI (backend)"
 project_type: "Self-hosted web application"
 initialization_date: "2026-06-01"
-current_sprint: "v0.18.0 — Editor-authored paths (complete, released)"
+current_sprint: "v0.19.0 — Bundle feeds & subscriptions (federation, part 2)"
 last_release: "v0.18.0 (2026-08-15)"
 ticket_prefix: "KC"
-next_ticket: "KC-119"
+next_ticket: "KC-123"
 ```
 
 ## Architecture Summary
@@ -52,6 +52,17 @@ next_ticket: "KC-119"
 | Deployment | Docker Compose (single-host, zero external cost) | `docker-compose.yml` |
 
 ---
+
+## 🔄 v0.19.0: Bundle feeds & subscriptions — federation, part 2 (KC-119–122)
+
+*Design in `docs/23-federation-subscriptions.md` (OQ-95–99). Pull-based federation over the bundle-v1 wire format: owner-minted capability-URL feeds (unauthenticated bundle+meta by unguessable slug), server-side subscribe into a private mirror KB, meta-first sync with full replace on change (stable kb_id — grants/paths survive via soft refs), mirrors read-only (422) until unsubscribed. Identity/signatures stay part 3.*
+
+### Sprint order (implement in sequence — 119 unblocks 120)
+
+- **KC-119** backend: Migration 022 (`federation_feeds` + `federation_subscriptions`) + federation domain with feed mint/revoke + unauthenticated `GET /v1/federation/{slug}[/meta]`; canonical `bundle_hash`; `bundle_io.py` extraction (`materialize_plan`/`wipe_kb_sources`, import router refactored onto it); tests
+- **KC-120** backend: subscribe + sync (capped httpx fetch, validate_bundle on remote data, replace-on-change, commit-before-enqueue) + mirror read-only guard in ingestion submit paths; tests
+- **KC-121** frontend: Federate panel (enable/revoke/copy with capability warning), mirror origin+Sync line, dashboard Subscribe input; BFF handlers; vue-tsc clean
+- **KC-122** verification + release — doc §7 loop-back live checks through the real nginx chain; part-1 import regression; changelog; release v0.19.0
 
 ## ✅ v0.18.0: Editor-authored learning paths (KC-116–118) — released 2026-08-15
 
