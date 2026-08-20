@@ -16,6 +16,7 @@ from app.models.knowledge_base import KnowledgeBase, knowledge_base_collection  
 from app.models.collection import Collection, CollectionItem  # noqa: F401
 from app.models.learning import LearningPath, PathConcept, AssessmentItem, Distractor  # noqa: F401
 from app.models.synthesis import Synthesis, SynthesisSourceProjection  # noqa: F401
+from app.models.federation import FederationFeed, FederationSubscription  # noqa: F401
 from app.core.db import Base
 
 config = context.config

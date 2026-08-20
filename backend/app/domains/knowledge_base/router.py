@@ -152,11 +152,9 @@ async def import_kb(
     model matches; otherwise one import.jobs message re-embeds the namespace.
     """
     import json as _json
-    import uuid as _uuid
 
     from app.core.redis import get_redis
     from app.domains.knowledge_base.bundles import plan_import, validate_bundle
-    from app.models.chunk import Chunk
 
     raw = await file.read()
     if len(raw) > 200 * 1024 * 1024:
@@ -173,35 +171,10 @@ async def import_kb(
     svc = KnowledgeBaseService(db)
     kb = await svc.create(user, title=str(data["kb"]["title"]).strip()[:200])
     plan = plan_import(data, kb.embedding_model_id)
-    needs_embedding = plan["needs_embedding"]
+    # Shared with federation subscribe/sync (docs/23 §4)
+    from app.domains.knowledge_base.bundle_io import materialize_plan
 
-    source_ids: list[str] = []
-    for s in plan["sources"]:
-        sid = str(_uuid.uuid4())
-        source_ids.append(sid)
-        db.add(Source(
-            id=sid,
-            owner_user_id=user.id,
-            type=s["type"],
-            title=s["title"],
-            description=s["description"] or None,
-            raw_url=s["raw_url"],
-            kb_id=kb.id,
-            ingestion_status="pending" if needs_embedding else "embedded",
-        ))
-    for c in plan["chunks"]:
-        db.add(Chunk(
-            source_id=source_ids[c["source_idx"]],
-            seq=c["seq"],
-            locator=c["locator"],
-            text=c["text"],
-            content_hash=c["content_hash"],
-            is_overlap=c["is_overlap"],
-            embedding=c["embedding"],
-            embedding_model_id=c["embedding_model_id"],
-            vector_namespace=kb.vector_namespace,
-        ))
-    kb.index_status = "building" if needs_embedding else "ready"
+    needs_embedding = materialize_plan(db, user.id, kb, plan)
 
     # Capture scalars, commit BEFORE enqueue (the OQ-73 rule)
     kb_id_val, namespace = kb.id, kb.vector_namespace
