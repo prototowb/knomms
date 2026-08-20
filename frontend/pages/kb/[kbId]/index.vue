@@ -442,6 +442,85 @@ const sourceTypeIcon: Record<string, string> = {
   pdf: '📄', web_page: '🌐', plain_text: '📝', epub: '📚', video: '🎬', prompt_asset: '🧩', synthesis: '⚗️',
 }
 
+// ── Federation (KC-121, docs/23) ─────────────────────────────────────────────
+
+interface FeedOut { id: string; kb_id: string; slug: string; created_at: string }
+interface SubscriptionOut {
+  id: string; kb_id: string; feed_url: string; bundle_hash: string; last_synced_at: string
+}
+
+const feed = ref<FeedOut | null>(null)
+const mirrorSub = ref<SubscriptionOut | null>(null)
+const showFederate = ref(false)
+const fedBusy = ref(false)
+const fedCopied = ref(false)
+const syncing = ref(false)
+const syncMsg = ref<string | null>(null)
+
+const feedUrl = computed(() =>
+  feed.value && import.meta.client
+    ? `${window.location.origin}/api/v1/federation/${feed.value.slug}`
+    : ''
+)
+
+async function fetchFederation() {
+  feed.value = await $fetch<FeedOut | null>(`/api/kbs/${kbId}/federation`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  }).catch(() => null)
+  mirrorSub.value = await $fetch<SubscriptionOut | null>(`/api/kbs/${kbId}/subscription`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  }).catch(() => null)
+}
+
+async function enableFeed() {
+  if (fedBusy.value) return
+  fedBusy.value = true
+  try {
+    feed.value = await $fetch<FeedOut>(`/api/kbs/${kbId}/federation` as string, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+  } catch { /* chip re-enables */ } finally { fedBusy.value = false }
+}
+
+async function revokeFeed() {
+  if (fedBusy.value || !feed.value) return
+  if (!confirm('Revoke this feed? Everyone holding the URL loses access; re-enabling mints a new URL.')) return
+  fedBusy.value = true
+  try {
+    await $fetch(`/api/kbs/${kbId}/federation` as string, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    feed.value = null
+  } catch { /* keep state */ } finally { fedBusy.value = false }
+}
+
+async function copyFeedUrl() {
+  if (!feedUrl.value) return
+  await navigator.clipboard.writeText(feedUrl.value)
+  fedCopied.value = true
+  setTimeout(() => { fedCopied.value = false }, 2000)
+}
+
+async function syncMirror() {
+  if (syncing.value || !mirrorSub.value) return
+  syncing.value = true
+  syncMsg.value = null
+  try {
+    const res = await $fetch<{ changed: boolean; source_count: number }>(
+      `/api/federation/subscriptions/${mirrorSub.value.id}/sync` as string,
+      { method: 'POST', headers: { Authorization: `Bearer ${auth.token}` } },
+    )
+    syncMsg.value = res.changed ? `Updated — ${res.source_count} sources re-synced` : 'Already up to date'
+    await fetchFederation()
+    await fetchSources()
+  } catch (err: unknown) {
+    const detail = (err as { data?: { detail?: string } })?.data?.detail
+    syncMsg.value = typeof detail === 'string' ? detail : 'Sync failed'
+  } finally { syncing.value = false }
+}
+
 // ── Bundle export (KC-105, docs/18) ─────────────────────────────────────────
 
 const exporting = ref(false)
@@ -468,7 +547,7 @@ async function exportKB() {
   }
 }
 
-onMounted(() => { fetchKBMeta(); fetchSources() })
+onMounted(() => { fetchKBMeta(); fetchSources(); fetchFederation() })
 onUnmounted(stopPolling)
 </script>
 
@@ -517,6 +596,15 @@ onUnmounted(stopPolling)
                 >
                   {{ exporting ? 'Exporting…' : 'Export' }}
                 </button>
+                <button
+                  v-if="isOwner && kbMeta"
+                  class="px-2 py-0.5 rounded-full font-medium transition-colors"
+                  :class="feed ? 'text-grounded bg-grounded/10 hover:opacity-80' : 'text-text-muted bg-border hover:text-text-primary'"
+                  title="Share this KB as a federation bundle feed"
+                  @click="showFederate = !showFederate"
+                >
+                  {{ feed ? 'Federated' : 'Federate' }}
+                </button>
                 <span v-if="!isOwner && kbMeta?.owner" class="text-text-muted">
                   by @{{ kbMeta.owner.handle }}
                 </span>
@@ -532,6 +620,46 @@ onUnmounted(stopPolling)
             </svg>
             Learn
           </NuxtLink>
+        </div>
+
+        <!-- Federate panel (KC-121, docs/23 OQ-95/99) -->
+        <div v-if="showFederate && isOwner" class="mb-3 rounded-xl border border-border bg-surface-secondary p-4">
+          <template v-if="feed">
+            <p class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Bundle feed</p>
+            <p class="text-xs text-text-muted mb-2">
+              Anyone holding this URL can fetch the full corpus — treat it like a password. Revoking mints a new URL on re-enable.
+            </p>
+            <div class="flex items-center gap-2">
+              <code class="flex-1 min-w-0 truncate text-xs bg-surface border border-border rounded-lg px-2 py-1.5 text-text-primary">{{ feedUrl }}</code>
+              <button class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-surface" @click="copyFeedUrl">
+                {{ fedCopied ? '✓ Copied' : 'Copy' }}
+              </button>
+              <button :disabled="fedBusy" class="text-xs px-3 py-1.5 rounded-lg border border-warning/50 text-warning hover:bg-warning/5 disabled:opacity-50" @click="revokeFeed">
+                Revoke
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <p class="text-xs text-text-muted mb-2">
+              Expose this KB as a bundle feed other knomms instances can subscribe to. The feed URL is a capability — possession grants read.
+            </p>
+            <button :disabled="fedBusy" class="text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50" @click="enableFeed">
+              {{ fedBusy ? 'Enabling…' : 'Enable feed' }}
+            </button>
+          </template>
+        </div>
+
+        <!-- Mirror bar (KC-121, docs/23 OQ-97/98) -->
+        <div v-if="mirrorSub" class="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3 flex items-center gap-3 text-xs">
+          <span class="shrink-0">🔁</span>
+          <span class="flex-1 min-w-0 text-text-secondary truncate">
+            Read-only mirror of <code class="text-text-primary">{{ mirrorSub.feed_url }}</code>
+            · synced {{ new Date(mirrorSub.last_synced_at).toLocaleString() }}
+          </span>
+          <span v-if="syncMsg" class="shrink-0 text-text-muted">{{ syncMsg }}</span>
+          <button :disabled="syncing" class="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50" @click="syncMirror">
+            {{ syncing ? 'Syncing…' : 'Sync' }}
+          </button>
         </div>
 
         <div class="flex gap-0">
@@ -769,8 +897,8 @@ onUnmounted(stopPolling)
 
       <!-- Sources tab -->
       <div v-show="activeTab === 'sources'" class="flex flex-col flex-1 min-h-0 p-5 gap-4 overflow-y-auto">
-        <!-- URL add (owner or editor grant) -->
-        <div v-if="canEdit">
+        <!-- URL add (owner or editor grant; mirrors are read-only) -->
+        <div v-if="canEdit && !mirrorSub">
           <p class="text-xs font-medium text-text-secondary mb-2">Add a URL</p>
           <form class="flex gap-2" @submit.prevent="addUrl">
             <input
@@ -791,8 +919,8 @@ onUnmounted(stopPolling)
           <p v-if="urlError" class="text-xs text-warning mt-1.5">{{ urlError }}</p>
         </div>
 
-        <!-- File upload (owner or editor grant) -->
-        <div v-if="canEdit">
+        <!-- File upload (owner or editor grant; mirrors are read-only) -->
+        <div v-if="canEdit && !mirrorSub">
           <p class="text-xs font-medium text-text-secondary mb-2">Upload a file</p>
           <label
             class="block rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors"
